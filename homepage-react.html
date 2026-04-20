@@ -1,0 +1,2584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Booking4LU | React Edition</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary:                     "#00346f",
+            "primary-container":         "#004a99",
+            "primary-fixed":             "#d7e2ff",
+            "on-primary":                "#ffffff",
+            secondary:                   "#775a19",
+            "secondary-container":       "#fed488",
+            "on-secondary-container":    "#785a1a",
+            tertiary:                    "#003b4e",
+            "tertiary-container":        "#00536c",
+            background:                  "#f7f9fc",
+            surface:                     "#f7f9fc",
+            "surface-container-lowest":  "#ffffff",
+            "surface-container-low":     "#f2f4f7",
+            "surface-container":         "#eceef1",
+            "surface-container-high":    "#e6e8eb",
+            "surface-container-highest": "#e0e3e6",
+            "on-surface":                "#191c1e",
+            "on-surface-variant":        "#424751",
+            outline:                     "#737783",
+            "outline-variant":           "#c2c6d3",
+            "surface-tint":              "#255dad",
+          },
+          fontFamily: {
+            headline: ["Manrope", "sans-serif"],
+            body:     ["Inter",   "sans-serif"],
+          },
+          boxShadow: {
+            editorial: "0px 12px 32px rgba(0,52,111,0.08)",
+            card:      "0px 4px 16px rgba(0,52,111,0.06)",
+          },
+        },
+      },
+    };
+  </script>
+
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <link href="https://unpkg.com/@vietmap/vietmap-gl-js@6.0.1/dist/vietmap-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/@vietmap/vietmap-gl-js@6.0.1/dist/vietmap-gl.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/date-fns@3/cdn.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    .ms { /* Material Symbols helper */
+      font-family: 'Material Symbols Outlined';
+      font-variation-settings: 'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;
+      font-size: 22px;
+      line-height: 1;
+      user-select: none;
+      display: inline-block;
+    }
+    .ms-filled { font-variation-settings: 'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24; }
+
+    /* Glass panel */
+    .glass {
+      background: rgba(255,255,255,0.90);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    /* Slide-up modal */
+    @keyframes slideUp {
+      from { opacity:0; transform:translateY(20px) scale(.98); }
+      to   { opacity:1; transform:translateY(0)    scale(1);   }
+    }
+    .modal-anim { animation: slideUp .22s ease forwards; }
+
+    /* Skeleton shimmer */
+    @keyframes shimmer {
+      0%   { background-position:-600px 0; }
+      100% { background-position: 600px 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg,#e6e8eb 25%,#f2f4f7 50%,#e6e8eb 75%);
+      background-size: 1200px 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 12px;
+    }
+
+    /* Carousel */
+    .carousel-track { transition: transform .32s ease; }
+
+    /* Sidebar scrollbar */
+    #hotel-sidebar::-webkit-scrollbar { width:4px; }
+    #hotel-sidebar::-webkit-scrollbar-thumb { background:#c2c6d3; border-radius:4px; }
+
+    /* Toggle switch */
+    .toggle-track {
+      width:44px; height:24px; border-radius:12px;
+      background:#c2c6d3; position:relative; cursor:pointer;
+      transition:background .2s;
+    }
+    .toggle-track.on { background:#00346f; }
+    .toggle-thumb {
+      width:18px; height:18px; border-radius:50%;
+      background:#fff; position:absolute; top:3px; left:3px;
+      transition:left .2s; box-shadow:0 1px 4px rgba(0,0,0,.2);
+    }
+    .toggle-track.on .toggle-thumb { left:23px; }
+
+    .user-location-marker {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: rgba(0, 52, 111, 0.95);
+      border: 2px solid rgba(255,255,255,0.95);
+      box-shadow: 0 0 0 4px rgba(0, 84, 157, 0.18);
+      animation: user-location-flicker 1.5s ease-in-out infinite;
+    }
+    .user-location-marker::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 100%;
+      height: 100%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      box-shadow: 0 0 0 4px rgba(0, 84, 157, 0.28);
+      opacity: 0.6;
+      animation: user-location-pulse 1.8s ease-out infinite;
+    }
+    @keyframes user-location-flicker {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.06); opacity: 0.8; }
+    }
+    @keyframes user-location-pulse {
+      0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.8; }
+      70% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
+      100% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
+    }
+    .hotel-marker-flicker {
+      animation: hotel-flicker 2.2s ease-in-out infinite;
+    }
+    @keyframes hotel-flicker {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    /* Date picker calendar */
+    .cal-day {
+      width:36px; height:36px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:13px; cursor:pointer; transition:background .15s;
+    }
+    .cal-day:hover:not(.disabled):not(.selected) { background:#d7e2ff; }
+    .cal-day.selected { background:#00346f; color:#fff; }
+    .cal-day.in-range  { background:#d7e2ff; border-radius:0; }
+    .cal-day.range-start { border-radius:50% 0 0 50%; }
+    .cal-day.range-end   { border-radius:0 50% 50% 0; }
+    .cal-day.disabled { opacity:.35; cursor:default; }
+    .cal-day.today { font-weight:700; }
+
+    /* Autocomplete dropdown */
+    .autocomplete-item:hover { background:#f2f4f7; }
+
+    /* Amenity circle button */
+    .amenity-circle {
+      width:56px; height:56px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      background:#eceef1; cursor:pointer; transition:background .15s;
+    }
+    .amenity-circle.active { background:#00346f; color:#fff; }
+    .amenity-circle:hover:not(.active) { background:#e0e3e6; }
+  </style>
+</head>
+
+<body class="bg-background font-body text-on-surface antialiased h-screen flex flex-col overflow-hidden">
+  <div id="root"></div>
+
+  <script>
+    window.MOCK_HOTELS = [
+      {
+        id:"1", name:"The Azure Sanctuary", type:"Hotel", badge:"Premier Boutique",
+        rating:4.9, reviewCount:2400, pricePerNight:7500000, currency:"VND",
+        address:"District 1, Ho Chi Minh City", lat:10.7769, lng:106.7009,
+        amenities:["pool","spa","wifi"], starRating:5,
+        images:[
+          "https://lh3.googleusercontent.com/aida-public/AB6AXuB8_Up820xTy9L7dCfBvhEMebEI2SbLeOcrnhDT6S65F7l2IeuTzFiU5Ku0P0Gh1ca1yAdXi5lpaT2F3VBFO5EWr8Fx3K1RVCxE5TJx-fwdzd_RAwQ_iT8jymVnuJAfw6Tasm0PdSsaBOKS3m0ilcS218QSbIc4LPN5LhgzsRp_Wgoj-G7SRopesItOitbFDZ1O-48wBZn23-z96FgSmxngMYTL20bIawlXIwsUHtNsDqtBEd4wzQ_BrG2EA9UnP5IN9eBFFqMgkSg",
+          "https://lh3.googleusercontent.com/aida-public/AB6AXuCW0nryQUYa1dFi-wPdmEBZ-xEFW9BFdP2glZqi_jXvygP4MVTYXQcTQBhVompi_g8BUe7lj7J3JMGLRtvRezVmY_lr-NUwjT17CWFyuOzaaNMQCjqkwTEGnfDJJwQn6ksp4qy2vp9wZBKU5Ru6o8AWE0Km9oclaLlvx1EAwliKBYVOYiprenA_48dCyaTSn1k0UgG3R_Yb4-uXNv42WZ86QwtQcvwEwg8imEBXz6gFJ2ZwlAe3S-FhF238CWv0DOCu5Tqu-pG-z28",
+        ],
+        latestReview:{ author:"Elena R.", text:"An absolute masterpiece of hospitality. The concierge service was impeccable." },
+        nearbyLandmarks:[{name:"Ben Thanh Market",distance:"0.4 km"},{name:"Reunification Palace",distance:"0.9 km"},{name:"Notre-Dame Cathedral",distance:"1.2 km"}],
+      },
+      {
+        id:"2", name:"The Gilded Manor", type:"Hotel", badge:null,
+        rating:4.7, reviewCount:1850, pricePerNight:4200000, currency:"VND",
+        address:"District 3, Riverside", lat:10.785, lng:106.692,
+        amenities:["wifi","fitness_center"], starRating:4,
+        images:[
+          "https://lh3.googleusercontent.com/aida-public/AB6AXuCdT-tkeqqMwu7a090Frmt7FtFibb_hp29IHEEbYoFLaAT-D9fHm_AkQVxOH-cYPMdUPo2FAz0N1ryQlWazhl75Ggcv-Ttw-fr15Po3caDasTcbvXwxj1j3g7-7IFOKRW9WsLk5bNOpCkpPx7X8ryM3zF1XhpQ5sKVIpSikNW6bDZRgnaa1WUsaPHtjB74_-_JM2Ba5tTNnaxfM3AApjqWEaJqx34rWyhnx1y_vdvyJr-NjwaWb8SuLviarCjhmi3rTdLPO0DVDp4A",
+        ],
+        latestReview:{ author:"Markus T.", text:"The spa treatments are world-class. Truly a hidden gem in the city." },
+        nearbyLandmarks:[{name:"War Remnants Museum",distance:"0.6 km"},{name:"Tao Dan Park",distance:"1.1 km"}],
+      },
+      {
+        id:"3", name:"Saigon Pearl Villa", type:"Villa", badge:"Exclusive",
+        rating:4.8, reviewCount:980, pricePerNight:12000000, currency:"VND",
+        address:"Binh Thanh District", lat:10.795, lng:106.715,
+        amenities:["pool","wifi","spa"], starRating:5,
+        images:[
+          "https://lh3.googleusercontent.com/aida-public/AB6AXuCW0nryQUYa1dFi-wPdmEBZ-xEFW9BFdP2glZqi_jXvygP4MVTYXQcTQBhVompi_g8BUe7lj7J3JMGLRtvRezVmY_lr-NUwjT17CWFyuOzaaNMQCjqkwTEGnfDJJwQn6ksp4qy2vp9wZBKU5Ru6o8AWE0Km9oclaLlvx1EAwliKBYVOYiprenA_48dCyaTSn1k0UgG3R_Yb4-uXNv42WZ86QwtQcvwEwg8imEBXz6gFJ2ZwlAe3S-FhF238CWv0DOCu5Tqu-pG-z28",
+        ],
+        latestReview:{ author:"Sophie L.", text:"Private pool, stunning river views. Worth every dong. Will absolutely return." },
+        nearbyLandmarks:[{name:"Saigon River",distance:"0.2 km"},{name:"Landmark 81",distance:"0.5 km"}],
+      },
+      {
+        id:"4", name:"Grand Heritage Resort", type:"Resort", badge:"Heritage",
+        rating:4.6, reviewCount:3100, pricePerNight:9800000, currency:"VND",
+        address:"District 5, Ho Chi Minh City", lat:10.752, lng:106.668,
+        amenities:["pool","fitness_center","wifi","spa"], starRating:5,
+        images:[
+          "https://lh3.googleusercontent.com/aida-public/AB6AXuCdT-tkeqqMwu7a090Frmt7FtFibb_hp29IHEEbYoFLaAT-D9fHm_AkQVxOH-cYPMdUPo2FAz0N1ryQlWazhl75Ggcv-Ttw-fr15Po3caDasTcbvXwxj1j3g7-7IFOKRW9WsLk5bNOpCkpPx7X8ryM3zF1XhpQ5sKVIpSikNW6bDZRgnaa1WUsaPHtjB74_-_JM2Ba5tTNnaxfM3AApjqWEaJqx34rWyhnx1y_vdvyJr-NjwaWb8SuLviarCjhmi3rTdLPO0DVDp4A",
+        ],
+        latestReview:{ author:"James W.", text:"Breathtaking colonial architecture. The breakfast spread is legendary." },
+        nearbyLandmarks:[{name:"Cho Lon Market",distance:"0.3 km"},{name:"Thien Hau Temple",distance:"0.5 km"}],
+      },
+      {
+        id:"5", name:"Sky Penthouse HCMC", type:"Penthouse", badge:"Sky Suite",
+        rating:4.95, reviewCount:420, pricePerNight:28000000, currency:"VND",
+        address:"District 1, Bitexco Tower", lat:10.7717, lng:106.7042,
+        amenities:["pool","wifi","spa","fitness_center"], starRating:5,
+        images:[
+          "https://lh3.googleusercontent.com/aida-public/AB6AXuB8_Up820xTy9L7dCfBvhEMebEI2SbLeOcrnhDT6S65F7l2IeuTzFiU5Ku0P0Gh1ca1yAdXi5lpaT2F3VBFO5EWr8Fx3K1RVCxE5TJx-fwdzd_RAwQ_iT8jymVnuJAfw6Tasm0PdSsaBOKS3m0ilcS218QSbIc4LPN5LhgzsRp_Wgoj-G7SRopesItOitbFDZ1O-48wBZn23-z96FgSmxngMYTL20bIawlXIwsUHtNsDqtBEd4wzQ_BrG2EA9UnP5IN9eBFFqMgkSg",
+        ],
+        latestReview:{ author:"Anh N.", text:"360° city views from the private terrace. Absolutely unreal experience." },
+        nearbyLandmarks:[{name:"Bitexco Financial Tower",distance:"0.0 km"},{name:"Ben Thanh Market",distance:"0.6 km"}],
+      },
+    ];
+
+    const DISCOVER_ENDPOINT = "http://localhost:8010/proxy/api/v1/discover";
+
+    const VIETMAP_CONFIG = {
+      STYLE_URL: "https://maps.vietmap.vn/maps/styles/dm/style.json",
+      API_KEY: "6033c4efaa0e172ca5cb9ebc5c9d394da9a38466072ce84e",
+    };
+
+    function getVietMapStyleUrl() {
+      return `${VIETMAP_CONFIG.STYLE_URL}?apikey=${VIETMAP_CONFIG.API_KEY}`;
+    }
+
+    // ── API stubs (wire to real backend by replacing these) ──────────────────
+    window.API = {
+      GOOGLE_MAPS_KEY: "AIzaSyDk23WJBkLXBVeDmUSXrfbzhNcNjmP-_t0",
+
+      /** Search hotels using the live discovery API */
+      async searchHotels({ location, checkIn, checkOut, guests, minPrice, maxPrice, radius, filters }) {
+        const childrenAges = (guests?.childrenAges || [])
+          .map(a => Math.round(a))
+          .filter(a => a >= 1 && a <= 17);
+
+        const payload = {
+          language: "vi",
+          address: location,
+          check_in: (checkIn || new Date()).toISOString(),
+          check_out: (checkOut || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)).toISOString(),
+          min_price: Math.round(minPrice ?? 0),
+          max_price: Math.round(maxPrice ?? 9999999),
+          radius: radius ?? 3000,
+          children: childrenAges,
+          adults: guests?.adults ?? 2,
+          personality: "string",
+        };
+
+        const PROXIES = [DISCOVER_ENDPOINT];
+        let res = null;
+        let lastErr = null;
+
+        for (const url of PROXIES) {
+          try {
+            res = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            if (res.ok) break;
+            lastErr = `HTTP ${res.status}`;
+            res = null;
+          } catch (e) {
+            lastErr = e.message;
+            res = null;
+          }
+        }
+
+        if (!res) {
+          throw new Error(`Search request failed: ${lastErr}`);
+        }
+
+        const data = await res.json();
+        const inner = data?.data || data?.hotels || data?.results || [];
+        const rawItems = Array.isArray(inner)
+          ? inner
+          : inner && Array.isArray(inner.hotels)
+            ? inner.hotels
+            : inner && Array.isArray(inner.results)
+              ? inner.results
+              : [];
+
+        return rawItems.map(item => normalizeHotelResult(item, location));
+      },
+
+      /** Get single hotel detail */
+      async getHotel(id) {
+        await new Promise(r => setTimeout(r, 150));
+        return window.MOCK_HOTELS.find(h => h.id === id);
+      },
+
+      /** Autocomplete location suggestions (uses Google Places when key is set) */
+      async autocomplete(query) {
+        // Stub — returns mock suggestions
+        const cities = [
+          "Ho Chi Minh City, Vietnam","Hanoi, Vietnam","Da Nang, Vietnam",
+          "Hoi An, Vietnam","Nha Trang, Vietnam","Phu Quoc, Vietnam",
+          "Can Tho, Vietnam","Hue, Vietnam","Vung Tau, Vietnam",
+        ];
+        return cities.filter(c => c.toLowerCase().includes(query.toLowerCase())).slice(0,5);
+      },
+    };
+  </script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+    // ── Constants ──────────────────────────────────────────────────────────────
+    const AMENITY_META = {
+      wifi:           { icon:"wifi",                  label:"WiFi" },
+      pool:           { icon:"pool",                  label:"Hồ Bơi" },
+      fitness_center: { icon:"fitness_center",        label:"Gym" },
+      spa:            { icon:"spa",                   label:"Spa" },
+      restaurant:     { icon:"restaurant",            label:"Nhà hàng" },
+      bar:            { icon:"local_bar",             label:"Quầy bar" },
+      breakfast:      { icon:"free_breakfast",        label:"Breakfast" },
+      parking:        { icon:"local_parking",         label:"Parking" },
+      ac:             { icon:"ac_unit",               label:"AC" },
+      pet_friendly:   { icon:"pets",                  label:"Pet friendly" },
+      laundry:        { icon:"local_laundry_service", label:"Laundry" },
+      shuttle:        { icon:"airport_shuttle",        label:"Shuttle" },
+      kitchen:        { icon:"kitchen",                label:"Kitchen" },
+    };
+
+    const PROPERTY_TYPES = ["Khách sạn","Penthouse","Resort","Villa","Homestay","Nhà nghỉ","Chung cư"];
+
+    const PRICE_PRESETS = [
+      { label:"Dưới 1tr",  min:0,  max:1  },
+      { label:"1-5tr",     min:1,  max:5  },
+      { label:"5-15tr",    min:5,  max:15 },
+      { label:"15-50tr",   min:15, max:50 },
+      { label:"50-100tr",  min:50, max:100},
+    ];
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    function fmtPrice(n, currency="VND") {
+      if (currency==="VND") {
+        if (n>=1e6) return `${(n/1e6).toFixed(1)}M VND`;
+        return `${(n/1e3).toFixed(0)}K VND`;
+      }
+      return new Intl.NumberFormat("en-US",{style:"currency",currency,maximumFractionDigits:0}).format(n);
+    }
+
+    function fmtDate(d) {
+      if (!d) return "";
+      return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
+    }
+
+    function normalizeAmenityKey(rawAmenity) {
+      if (!rawAmenity) return "";
+      const value = String(rawAmenity).trim().toLowerCase();
+      if (value.includes("wifi")) return "wifi";
+      if (value.includes("breakfast")) return "breakfast";
+      if (value.includes("parking")) return "parking";
+      if (value.includes("air condition") || value.includes("air-conditioning") || value.includes("ac")) return "ac";
+      if (value.includes("pet")) return "pet_friendly";
+      if (value.includes("laundry")) return "laundry";
+      if (value.includes("spa")) return "spa";
+      if (value.includes("pool")) return "pool";
+      if (value.includes("restaurant")) return "restaurant";
+      if (value.includes("bar")) return "bar";
+      if (value.includes("kitchen")) return "kitchen";
+      if (value.includes("shuttle")) return "shuttle";
+      // fallback to original short text
+      return String(rawAmenity);
+    }
+
+    function normalizeHotelResult(raw, fallbackLocation) {
+      const gps = raw.gps_coordinates || {};
+      const images = Array.isArray(raw.images)
+        ? raw.images.map(img => typeof img === "string" ? img : img.original_image || img.url || img.thumbnail).filter(Boolean)
+        : [];
+      const normalizedImages = images.length > 0
+        ? images
+        : ["https://via.placeholder.com/640x480?text=No+Image"];
+
+      const amenities = Array.isArray(raw.amenities)
+        ? raw.amenities
+            .map(a => typeof a === "string" ? a : a.label || String(a))
+            .map(normalizeAmenityKey)
+            .filter(Boolean)
+        : [];
+
+      const reviews = Array.isArray(raw.user_reviews)
+        ? raw.user_reviews.map(r => ({ author: r.author || "Khách", text: r.text || r.comment || "Đã nhận xét" }))
+        : [];
+
+      const latestReview = raw.latestReview || reviews[0] || null;
+
+      return {
+        id: raw.id || raw.property_token || raw.link || Math.random().toString(36).slice(2),
+        name: raw.name || "Unknown Hotel",
+        type: raw.type || "Hotel",
+        badge: raw.badge || raw.deal || null,
+        rating: Number(raw.raw_rating || raw.ai_score || raw.rating || 0),
+        reviewCount: Number(raw.reviewCount || reviews.length || 0),
+        pricePerNight: Number(raw.price || raw.pricePerNight || 0),
+        currency: raw.currency || "VND",
+        address: raw.address || fallbackLocation || "",
+        lat: parseFloat(gps.latitude) || null,
+        lng: parseFloat(gps.longitude) || null,
+        amenities,
+        images: normalizedImages,
+        thumbnail: normalizedImages[0] || null,
+        latestReview,
+        reviews,
+        nearbyLandmarks: Array.isArray(raw.nearby_places)
+          ? raw.nearby_places.map(place => ({ name: place.name || place, distance: place.distance || "" }))
+          : Array.isArray(raw.nearbyLandmarks)
+            ? raw.nearbyLandmarks
+            : [],
+        link: raw.link || null,
+      };
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: Icon (Material Symbols shorthand)
+    // ══════════════════════════════════════════════════════════════════════════
+    function Icon({ name, filled=false, size=22, className="" }) {
+      return (
+        <span
+          className={`ms ${filled?"ms-filled":""} ${className}`}
+          style={{ fontSize:size }}
+        >{name}</span>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: AccountMenu (top-right dropdown)
+    // ══════════════════════════════════════════════════════════════════════════
+    function AccountMenu() {
+      const [open, setOpen] = useState(false);
+      const ref = useRef(null);
+      const user = JSON.parse(localStorage.getItem("b4lu_user") || "null");
+
+      useEffect(() => {
+        function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+      }, []);
+
+      function logout() {
+        localStorage.removeItem("b4lu_user");
+        setOpen(false);
+        window.location.reload();
+      }
+
+      return (
+        <div ref={ref} className="relative">
+          <button
+            onClick={() => setOpen(v => !v)}
+            className="flex items-center gap-1.5 p-1.5 rounded-full hover:bg-surface-container transition-colors"
+            aria-label="Account menu"
+          >
+            {user
+              ? <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white font-bold text-xs">{user.fullName?.[0] ?? "U"}</div>
+              : <Icon name="account_circle" className="text-primary" size={26} />
+            }
+          </button>
+          {open && (
+            <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-editorial border border-outline-variant/20 z-50 overflow-hidden">
+              {user ? (
+                <>
+                  <div className="px-4 py-3 border-b border-outline-variant/20">
+                    <p className="text-sm font-bold text-on-surface truncate">{user.fullName}</p>
+                    <p className="text-xs text-on-surface-variant truncate">{user.memberTier} Member</p>
+                  </div>
+                  <a href="account-mystay-react.html" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low transition-colors">
+                    <Icon name="hotel" size={16} className="text-primary" /> My Stays
+                  </a>
+                  <a href="account-savedlist-react.html" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low transition-colors">
+                    <Icon name="bookmark" size={16} className="text-primary" /> Saved Lists
+                  </a>
+                  <a href="account-review-react.html" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low transition-colors">
+                    <Icon name="rate_review" size={16} className="text-primary" /> Reviews
+                  </a>
+                  <a href="account-friend-react.html" className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-low transition-colors">
+                    <Icon name="group" size={16} className="text-primary" /> Friends
+                  </a>
+                  <div className="border-t border-outline-variant/20 mt-1">
+                    <button onClick={logout} className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container-low transition-colors w-full text-left">
+                      <Icon name="logout" size={16} /> Sign Out
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="px-4 py-3 border-b border-outline-variant/20">
+                    <p className="text-sm font-semibold text-on-surface-variant">Welcome to Booking4LU</p>
+                  </div>
+                  <a href="login-react.html" className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors">
+                    <Icon name="login" size={16} className="text-primary" /> Sign In
+                  </a>
+                  <a href="login-react.html" className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors">
+                    <Icon name="person_add" size={16} className="text-primary" /> Create Account
+                  </a>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: Toggle Switch
+    // ══════════════════════════════════════════════════════════════════════════
+    function Toggle({ value, onChange }) {
+      return (
+        <div
+          className={`toggle-track ${value?"on":""}`}
+          onClick={() => onChange(!value)}
+          role="switch" aria-checked={value} tabIndex={0}
+          onKeyDown={e => e.key===" " && onChange(!value)}
+        >
+          <div className="toggle-thumb" />
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: DateRangePicker
+    // ══════════════════════════════════════════════════════════════════════════
+    function DateRangePicker({ checkIn, checkOut, onChange, onClose }) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const [viewDate, setViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+      const selectingRef = useRef(checkIn ? "out" : "in");
+      const [selecting, setSelectingState] = useState(checkIn ? "out" : "in");
+      const [hovered, setHovered] = useState(null);
+
+      function setSelecting(v) { selectingRef.current = v; setSelectingState(v); }
+
+      const DAYS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+      const MONTHS = ["January","February","March","April","May","June",
+                      "July","August","September","October","November","December"];
+
+      function buildCalendar(year, month) {
+        const first = new Date(year, month, 1).getDay();
+        const days  = new Date(year, month + 1, 0).getDate();
+        const cells = [];
+        for (let i = 0; i < first; i++) cells.push(null);
+        for (let d = 1; d <= days; d++) cells.push(new Date(year, month, d));
+        return cells;
+      }
+
+      function handleDay(d, e) {
+        if (e) e.stopPropagation(); 
+        if (!d || d < today) return; 
+
+        if (!checkIn) {
+          onChange({ checkIn: d, checkOut: null });
+          return;
+        }
+
+        if (checkIn && !checkOut) {
+          if (d < checkIn) {
+            onChange({ checkIn: d, checkOut: null });
+          } else if (d > checkIn) {
+            onChange({ checkIn, checkOut: d });
+          }
+          return;
+        }
+
+        if (checkIn && checkOut) {
+          if (d < checkIn) {
+            onChange({ checkIn: d, checkOut });
+          } else if (d > checkOut) {
+            onChange({ checkIn, checkOut: d });
+          } else if (d > checkIn && d < checkOut) {
+            const diffToCheckIn = d.getTime() - checkIn.getTime();
+            const diffToCheckOut = checkOut.getTime() - d.getTime();
+
+            if (diffToCheckIn < diffToCheckOut) {
+              onChange({ checkIn: d, checkOut });
+            } else {
+              onChange({ checkIn, checkOut: d });
+            }
+          }
+        }
+      }
+
+      function dayClass(d) {
+        if (!d) return "";
+        const isDisabled = d < today;
+        const isToday    = d.getTime() === today.getTime();
+        const isStart    = checkIn  && d.getTime() === checkIn.getTime();
+        const isEnd      = checkOut && d.getTime() === checkOut.getTime();
+        const rangeEnd   = checkOut || (selecting === "out" ? hovered : null);
+        const inRange    = checkIn && rangeEnd && d > checkIn && d < rangeEnd;
+        let cls = "cal-day";
+        if (isDisabled) cls += " disabled";
+        if (isToday)    cls += " today";
+        if (isStart)    cls += " selected range-start";
+        if (isEnd)      cls += " selected range-end";
+        if (inRange)    cls += " in-range";
+        return cls;
+      }
+
+      const cells  = buildCalendar(viewDate.getFullYear(), viewDate.getMonth());
+      const nextMo = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
+      const cells2 = buildCalendar(nextMo.getFullYear(), nextMo.getMonth());
+
+      function CalMonth({ year, month, cells }) {
+        return (
+          <div className="flex-1 min-w-[260px]">
+            <p className="text-center font-headline font-bold text-primary mb-3">
+              {MONTHS[month]} {year}
+            </p>
+            <div className="grid grid-cols-7 gap-0.5 mb-1">
+              {DAYS.map(d => <div key={d} className="cal-day text-[11px] font-bold text-on-surface-variant">{d}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-0.5">
+              {cells.map((d, i) => (
+                <div key={i}
+                  className={dayClass(d)}
+                  onClick={(e) => { e.stopPropagation(); handleDay(d, e); }}
+                  onMouseEnter={() => d && setHovered(d)}
+                  onMouseLeave={() => setHovered(null)}
+                >
+                  {d ? d.getDate() : ""}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div
+          className="modal-anim absolute top-full left-0 mt-2 z-[500] bg-white rounded-2xl shadow-2xl p-5 border border-outline-variant/20"
+          style={{ minWidth: 560 }}
+          onMouseDown={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
+              className="p-1.5 rounded-full hover:bg-surface-container-low transition-colors"
+            >
+              <Icon name="chevron_left" />
+            </button>
+            <div className="flex gap-6 text-sm font-semibold text-on-surface-variant">
+              <span className={selecting === "in" ? "text-primary font-bold" : ""}>
+                Check-in: {checkIn ? fmtDate(checkIn) : "Select date"}
+              </span>
+              <span>→</span>
+              <span className={selecting === "out" ? "text-primary font-bold" : ""}>
+                Check-out: {checkOut ? fmtDate(checkOut) : "Select date"}
+              </span>
+            </div>
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}
+              className="p-1.5 rounded-full hover:bg-surface-container-low transition-colors"
+            >
+              <Icon name="chevron_right" />
+            </button>
+          </div>
+          {/* Two-month grid */}
+          <div className="flex gap-6">
+            <CalMonth year={viewDate.getFullYear()} month={viewDate.getMonth()} cells={cells} />
+            <div className="w-px bg-outline-variant/20" />
+            <CalMonth year={nextMo.getFullYear()} month={nextMo.getMonth()} cells={cells2} />
+          </div>
+          {/* Footer */}
+          <div className="flex justify-end mt-4 gap-2">
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={() => { onChange({ checkIn: null, checkOut: null }); setSelecting("in"); }}
+              className="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors"
+            >
+              Clear
+            </button>
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onClose(); }}
+              className="px-5 py-2 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary-container transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: GuestsSelector (dropdown)
+    // ══════════════════════════════════════════════════════════════════════════
+    function GuestsSelector({ guests, onChange, onClose }) {
+      const ref = useRef(null);
+
+      useEffect(() => {
+        function h(e) {
+          if (ref.current && !ref.current.contains(e.target)) onClose();
+        }
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+      }, [onClose]);
+
+      function changeAdults(delta) {
+        onChange({ ...guests, adults: Math.max(1, guests.adults + delta) });
+      }
+
+      function changeChildren(delta) {
+        const next = Math.max(0, guests.children + delta);
+        const ages = [...guests.childrenAges];
+        if (next > guests.children) ages.push(0);
+        else ages.pop();
+        onChange({ ...guests, children: next, childrenAges: ages });
+      }
+
+      function changeChildAge(index, age) {
+        const ages = [...guests.childrenAges];
+        ages[index] = Number(age);
+        onChange({ ...guests, childrenAges: ages });
+      }
+
+      function Counter({ label, value, onDec, onInc, min = 0 }) {
+        return (
+          <div className="flex items-center justify-between py-3 border-b border-outline-variant/10 last:border-0">
+            <span className="text-sm font-semibold text-on-surface">{label}</span>
+            <div className="flex items-center gap-3">
+              <button
+                onMouseDown={e => e.stopPropagation()}
+                onClick={e => { e.stopPropagation(); onDec(); }}
+                disabled={value <= min}
+                className="w-8 h-8 rounded-full border-2 border-outline-variant/40 flex items-center justify-center text-primary font-bold hover:bg-surface-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <Icon name="remove" size={16} />
+              </button>
+              <span className="w-5 text-center text-sm font-bold text-on-surface">{value}</span>
+              <button
+                onMouseDown={e => e.stopPropagation()}
+                onClick={e => { e.stopPropagation(); onInc(); }}
+                className="w-8 h-8 rounded-full border-2 border-primary bg-primary flex items-center justify-center text-white font-bold hover:bg-primary-container transition-colors"
+              >
+                <Icon name="add" size={16} />
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div
+          ref={ref}
+          onMouseDown={e => e.stopPropagation()}
+          onClick={e => e.stopPropagation()}
+          className="modal-anim absolute top-full right-0 mt-2 z-[500] bg-white rounded-2xl shadow-2xl p-5 border border-outline-variant/20"
+          style={{ minWidth: 300 }}
+        >
+          <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Số khách</p>
+
+          <Counter
+            label="Người lớn" value={guests.adults} min={1}
+            onDec={() => changeAdults(-1)} onInc={() => changeAdults(1)}
+          />
+          <Counter
+            label="Trẻ em" value={guests.children} min={0}
+            onDec={() => changeChildren(-1)} onInc={() => changeChildren(1)}
+          />
+
+          {guests.children > 0 && (
+            <div className="mt-3 flex flex-col gap-2">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">Tuổi trẻ em</p>
+              {guests.childrenAges.map((age, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between gap-3"
+                  onMouseDown={e => e.stopPropagation()}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <span className="text-sm text-on-surface-variant">Bé {i + 1}</span>
+                  <select
+                    value={age}
+                    onMouseDown={e => e.stopPropagation()}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => { e.stopPropagation(); changeChildAge(i, e.target.value); }}
+                    className="border border-outline-variant/40 rounded-xl pl-3 pr-8 py-1.5 text-sm font-medium text-on-surface bg-surface-container-low focus:outline-none focus:ring-2 focus:ring-primary/30 appearance-none"
+                  >
+                    {Array.from({ length: 13 }, (_, v) => (
+                      <option key={v} value={v}>{v} tuổi</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            onMouseDown={e => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            className="mt-4 w-full py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary-container transition-colors"
+          >
+            Xác nhận
+          </button>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: LocationInput (with autocomplete)
+    // ══════════════════════════════════════════════════════════════════════════
+    function LocationInput({ value, onChange, onSelect }) {
+      const [suggestions, setSuggestions] = useState([]);
+      const [open, setOpen] = useState(false);
+      const timerRef = useRef(null);
+      const wrapRef = useRef(null);
+
+      useEffect(() => {
+        function handleClick(e) {
+          if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+        }
+        document.addEventListener("mousedown", handleClick);
+        return () => document.removeEventListener("mousedown", handleClick);
+      }, []);
+
+      function handleChange(e) {
+        const v = e.target.value;
+        onChange(v);
+        clearTimeout(timerRef.current);
+        if (v.length < 2) { setSuggestions([]); setOpen(false); return; }
+        timerRef.current = setTimeout(async () => {
+          const results = await window.API.autocomplete(v);
+          setSuggestions(results);
+          setOpen(results.length > 0);
+        }, 250);
+      }
+
+      return (
+        <div ref={wrapRef} className="relative flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <Icon name="location_on" className="text-on-surface-variant flex-none" />
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Địa điểm</span>
+              <input
+                type="text" value={value} onChange={handleChange}
+                onFocus={() => suggestions.length && setOpen(true)}
+                placeholder="Tìm địa điểm..."
+                className="border-0 focus:ring-0 w-full text-sm font-medium bg-transparent outline-none text-on-surface p-0"
+              />
+            </div>
+          </div>
+          {open && (
+            <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-xl shadow-editorial border border-outline-variant/20 overflow-hidden z-[400]">
+              {suggestions.map((s, i) => (
+                <div key={i}
+                  className="autocomplete-item flex items-center gap-3 px-4 py-3 cursor-pointer text-sm hover:bg-surface-container-low transition-colors"
+                  onClick={() => { onChange(s); onSelect(s); setOpen(false); setSuggestions([]); }}
+                >
+                  <Icon name="location_on" size={16} className="text-on-surface-variant flex-none" />
+                  {s}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: PriceRangeSelector (dropdown)
+    // ══════════════════════════════════════════════════════════════════════════
+    function PriceRangeSelector({ minPrice, maxPrice, onChange, onClose }) {
+      const ref = useRef(null);
+      const [localMin, setLocalMin] = useState(String(minPrice));
+      const [localMax, setLocalMax] = useState(String(maxPrice));
+
+      useEffect(() => {
+        function h(e) {
+          if (ref.current && !ref.current.contains(e.target)) onClose();
+        }
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+      }, [onClose]);
+
+      function handleConfirm(e) {
+        e.stopPropagation();
+        const mn = Math.max(1, parseInt(localMin, 10) || 1);
+        const mx = Math.max(mn, parseInt(localMax, 10) || 5000000);
+        onChange({ minPrice: mn, maxPrice: mx });
+        onClose();
+      }
+
+      function applyPreset(min, max) {
+        setLocalMin(String(min));
+        setLocalMax(String(max));
+      }
+
+      const SEARCH_PRICE_PRESETS = [
+        { label: "Dưới 500K",   min: 1,       max: 500000   },
+        { label: "500K–1tr",    min: 500000,   max: 1000000  },
+        { label: "1tr–3tr",     min: 1000000,  max: 3000000  },
+        { label: "3tr–5tr",     min: 3000000,  max: 5000000  },
+      ];
+
+      return (
+        <div
+          ref={ref}
+          onMouseDown={e => e.stopPropagation()}
+          onClick={e => e.stopPropagation()}
+          className="modal-anim absolute top-full left-0 mt-2 z-[500] bg-white rounded-2xl shadow-2xl p-5 border border-outline-variant/20"
+          style={{ minWidth: 280 }}
+        >
+          <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Khoảng giá (VNĐ)</p>
+
+          {/* Presets */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {SEARCH_PRICE_PRESETS.map(p => {
+              const active = parseInt(localMin) === p.min && parseInt(localMax) === p.max;
+              return (
+                <button
+                  key={p.label}
+                  onMouseDown={e => e.stopPropagation()}
+                  onClick={e => { e.stopPropagation(); applyPreset(p.min, p.max); }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors
+                    ${active ? "border-primary bg-primary/5 text-primary" : "border-outline-variant/30 bg-surface-container-low hover:bg-surface-container-high text-on-surface"}`}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Manual inputs */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Tối thiểu</label>
+              <input
+                type="number" min="1" value={localMin}
+                onMouseDown={e => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
+                onChange={e => setLocalMin(e.target.value)}
+                className="w-full border border-outline-variant/40 rounded-xl px-3 py-2 text-sm font-medium text-on-surface bg-surface-container-low focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="1"
+              />
+            </div>
+            <span className="text-on-surface-variant mt-4">–</span>
+            <div className="flex-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant block mb-1">Tối đa</label>
+              <input
+                type="number" min="1" value={localMax}
+                onMouseDown={e => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
+                onChange={e => setLocalMax(e.target.value)}
+                className="w-full border border-outline-variant/40 rounded-xl px-3 py-2 text-sm font-medium text-on-surface bg-surface-container-low focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="5000000"
+              />
+            </div>
+          </div>
+
+          <button
+            onMouseDown={e => e.stopPropagation()}
+            onClick={handleConfirm}
+            className="w-full py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary-container transition-colors"
+          >
+            Xác nhận
+          </button>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: SearchBar
+    // ══════════════════════════════════════════════════════════════════════════
+    function SearchBar({ location, setLocation, checkIn, checkOut, setDates, guests, setGuests, minPrice, maxPrice, onPriceChange, onSubmit }) {
+      const [showCal,    setShowCal]    = useState(false);
+      const [showGuests, setShowGuests] = useState(false);
+      const calRef    = useRef(null);
+      const guestsRef = useRef(null);
+
+      useEffect(() => {
+        function h(e) {
+          if (calRef.current && !calRef.current.contains(e.target)) setShowCal(false);
+        }
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+      }, []);
+
+      const dateLabel = checkIn
+        ? `${fmtDate(checkIn)} – ${checkOut ? fmtDate(checkOut) : "?"}`
+        : "Chọn ngày";
+
+      const guestsLabel = (() => {
+        const parts = [`${guests.adults} người lớn`];
+        if (guests.children > 0) parts.push(`${guests.children} trẻ em`);
+        return parts.join(", ");
+      })();
+
+
+
+      return (
+        <div className="flex-none z-40 flex justify-center px-4 py-3">
+          <div className="glass rounded-2xl shadow-editorial flex items-stretch p-2 w-full max-w-5xl border border-white/60 gap-1">
+
+            {/* Location */}
+            <div className="flex-1 px-3 py-1 border-r border-outline-variant/30">
+              <LocationInput
+                value={location}
+                onChange={setLocation}
+                onSelect={loc => setLocation(loc)}
+              />
+            </div>
+
+            {/* Date range */}
+            <div ref={calRef} className="relative flex-1 flex items-center gap-2 px-3 py-1 cursor-pointer border-r border-outline-variant/30"
+                 onClick={() => { setShowCal(v => !v); setShowGuests(false); setShowPrice(false); }}>
+              <Icon name="calendar_month" className="text-on-surface-variant flex-none" />
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Check-in / Check-out</span>
+                <span className="text-sm font-medium text-on-surface whitespace-nowrap truncate">{dateLabel}</span>
+              </div>
+              {showCal && (
+                <DateRangePicker
+                  checkIn={checkIn} checkOut={checkOut}
+                  onChange={setDates}
+                  onClose={() => setShowCal(false)}
+                />
+              )}
+            </div>
+
+            {/* Guests */}
+            <div ref={guestsRef} className="relative flex-1 flex items-center gap-2 px-3 py-1 cursor-pointer border-r border-outline-variant/30"
+                 onClick={() => { setShowGuests(v => !v); setShowCal(false); setShowPrice(false); }}>
+              <Icon name="group" className="text-on-surface-variant flex-none" />
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Số người</span>
+                <span className="text-sm font-medium text-on-surface whitespace-nowrap truncate">{guestsLabel}</span>
+              </div>
+              <Icon name="expand_more" size={18} className="text-on-surface-variant ml-auto flex-none" />
+              {showGuests && (
+                <GuestsSelector
+                  guests={guests}
+                  onChange={setGuests}
+                  onClose={() => setShowGuests(false)}
+                />
+              )}
+            </div>
+
+            {/* Search / Submit button */}
+            <button
+              onClick={e => { e.stopPropagation(); onSubmit(); }}
+              className="flex-none flex items-center gap-2 px-5 py-2 bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary-container active:scale-95 transition-all whitespace-nowrap"
+            >
+              <Icon name="search" size={20} className="text-white" />
+              Tìm kiếm
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: VietMap (with adjustable radius circle + clustered hotels)
+    // ══════════════════════════════════════════════════════════════════════════
+    function GoogleMapPanel({ radiusM, setRadiusM, userLocation, hotels, activeHotel, onHotelSelect }) {
+      const mapRef = useRef(null);
+      const mapObjRef = useRef(null);
+      const popupRef = useRef(null);
+      const userLocationMarkerRef = useRef(null);
+      const radiusHandleRef = useRef(null);
+      const hotelMarkersRef = useRef([]);
+      const hotelsRef = useRef(hotels);
+      const initialUserLocationCenteredRef = useRef(false);
+      const initialCircleRadiusSetRef = useRef(false);
+      const [mapReady, setMapReady] = useState(false);
+      const [mapError, setMapError] = useState(false);
+
+      useEffect(() => {
+        hotelsRef.current = hotels;
+      }, [hotels]);
+
+      function clearHotelMarkers() {
+        hotelMarkersRef.current.forEach(marker => marker.remove());
+        hotelMarkersRef.current = [];
+      }
+
+      function createHotelMarkers(hotels) {
+        clearHotelMarkers();
+        if (!mapObjRef.current || !window.vietmapgl) return;
+
+        hotels
+          .filter(hotel => hotel.lat != null && hotel.lng != null)
+          .forEach(hotel => {
+            const insideCircle = getDistanceMeters(userLocation, { lat: hotel.lat, lng: hotel.lng }) <= radiusM;
+            const size = insideCircle ? 52 : 42;
+            const element = document.createElement("div");
+            element.style.width = `${size}px`;
+            element.style.height = `${size}px`;
+            element.style.borderRadius = "50%";
+            element.style.overflow = "hidden";
+            element.style.boxShadow = "0 0 0 2px rgba(255,255,255,0.95),0 10px 22px rgba(0,0,0,0.22)";
+            element.style.border = "2px solid rgba(255,255,255,0.95)";
+            element.style.cursor = "pointer";
+            element.style.backgroundColor = "#ffffff";
+            element.style.transition = "width 0.2s ease, height 0.2s ease, transform 0.2s ease";
+            if (insideCircle) {
+              element.className = "hotel-marker-flicker";
+              element.style.transform = "scale(1.05)";
+            }
+
+            const image = document.createElement("img");
+            image.src = hotel.thumbnail || hotel.images?.[0] || "";
+            image.alt = hotel.name || "Hotel";
+            image.style.width = "100%";
+            image.style.height = "100%";
+            image.style.objectFit = "cover";
+            image.style.display = "block";
+            element.appendChild(image);
+
+            element.addEventListener("click", (event) => {
+              event.stopPropagation();
+              onHotelSelect?.(hotel);
+              showHotelPopup(hotel, [hotel.lng, hotel.lat]);
+            });
+
+            const marker = new window.vietmapgl.Marker({ element, anchor: "center" })
+              .setLngLat([hotel.lng, hotel.lat])
+              .addTo(mapObjRef.current);
+
+            hotelMarkersRef.current.push(marker);
+          });
+      }
+
+      function getDistanceMeters(a, b) {
+        const R = 6371000;
+        const φ1 = a.lat * Math.PI / 180;
+        const φ2 = b.lat * Math.PI / 180;
+        const Δφ = (b.lat - a.lat) * Math.PI / 180;
+        const Δλ = (b.lng - a.lng) * Math.PI / 180;
+        const sinΔφ = Math.sin(Δφ / 2);
+        const sinΔλ = Math.sin(Δλ / 2);
+        const h = sinΔφ * sinΔφ + Math.cos(φ1) * Math.cos(φ2) * sinΔλ * sinΔλ;
+        return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+      }
+
+      function buildCircleGeoJSON(center, radius) {
+        const coords = [];
+        const R = 6371000;
+        const φ1 = center.lat * Math.PI / 180;
+        const λ1 = center.lng * Math.PI / 180;
+        const δ = radius / R;
+
+        for (let i = 0; i <= 64; i += 1) {
+          const θ = (i / 64) * 2 * Math.PI;
+          const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
+          const λ2 = λ1 + Math.atan2(
+            Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+            Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2)
+          );
+          coords.push([λ2 * 180 / Math.PI, φ2 * 180 / Math.PI]);
+        }
+
+        return {
+          type: "Feature",
+          geometry: {
+            type: "Polygon",
+            coordinates: [coords],
+          },
+        };
+      }
+
+      function getRadiusHandleCoordinates(center, radius) {
+        return getCirclePoint(center, radius, 45);
+      }
+
+      function buildHotelGeoJSON(hotels) {
+        return {
+          type: "FeatureCollection",
+          features: hotels
+            .filter(hotel => hotel.lat != null && hotel.lng != null)
+            .map(hotel => ({
+              type: "Feature",
+              geometry: {
+                type: "Point",
+                coordinates: [hotel.lng, hotel.lat],
+              },
+              properties: {
+                hotelId: hotel.id,
+                name: hotel.name || "Hotel",
+                address: hotel.address || "",
+                price: hotel.pricePerNight || 0,
+                link: hotel.link || "",
+              },
+            })),
+        };
+      }
+
+      function getRadiusHandleCoordinates(center, radius) {
+        return getCirclePoint(center, radius, 45);
+      }
+
+      function getRadiusForCoverage(center, hotels, coverage = 0.5) {
+        const distances = hotels
+          .filter(hotel => hotel.lat != null && hotel.lng != null)
+          .map(hotel => getDistanceMeters(center, { lat: hotel.lat, lng: hotel.lng }))
+          .sort((a, b) => a - b);
+
+        if (!distances.length) return radiusM;
+        const index = Math.min(distances.length - 1, Math.max(0, Math.floor(distances.length * coverage) - 1));
+        return distances[index] * 1.15;
+      }
+
+      function buildBoundsForHotels(center, hotels, coverage = 0.5) {
+        const sorted = hotels
+          .filter(hotel => hotel.lat != null && hotel.lng != null)
+          .map(hotel => ({ hotel, distance: getDistanceMeters(center, { lat: hotel.lat, lng: hotel.lng }) }))
+          .sort((a, b) => a.distance - b.distance);
+
+        if (!sorted.length || !window.vietmapgl) return null;
+        const count = Math.max(1, Math.floor(sorted.length * coverage));
+        const bounds = new vietmapgl.LngLatBounds([center.lng, center.lat], [center.lng, center.lat]);
+        sorted.slice(0, count).forEach(item => bounds.extend([item.hotel.lng, item.hotel.lat]));
+        return bounds;
+      }
+
+      function getCirclePoint(center, radius, bearing = 90) {
+        const R = 6371000;
+        const φ1 = center.lat * Math.PI / 180;
+        const λ1 = center.lng * Math.PI / 180;
+        const δ = radius / R;
+        const θ = bearing * Math.PI / 180;
+        const φ2 = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ));
+        const λ2 = λ1 + Math.atan2(
+          Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+          Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2)
+        );
+        return [λ2 * 180 / Math.PI, φ2 * 180 / Math.PI];
+      }
+
+      function getCircleBounds(center, radius) {
+        const east = getCirclePoint(center, radius, 90);
+        const west = getCirclePoint(center, radius, 270);
+        const north = getCirclePoint(center, radius, 0);
+        const south = getCirclePoint(center, radius, 180);
+        const bounds = new window.vietmapgl.LngLatBounds(west, east);
+        bounds.extend(north);
+        bounds.extend(south);
+        return bounds;
+      }
+
+      function getPopupHtml(hotel) {
+        return `
+          <div style="font-family:Inter,sans-serif;font-size:14px;line-height:1.4;max-width:320px;">
+            <strong style="color:#00346f;">${hotel.name}</strong>
+            <div style="margin:6px 0 4px;color:#4d5a6b;font-size:13px;">${hotel.address || ""}</div>
+            <div style="font-weight:700;color:#ff5722;">${fmtPrice(hotel.pricePerNight)}</div>
+            ${hotel.link ? `<div style="margin-top:8px;"><a href="${hotel.link}" target="_blank" style="color:#00346f;font-weight:700;text-decoration:none;">Open hotel</a></div>` : ""}
+          </div>`;
+      }
+
+      function showHotelPopup(hotel, coordinates) {
+        if (!mapObjRef.current || !hotel || hotel.lat == null || hotel.lng == null) return;
+        if (popupRef.current) popupRef.current.remove();
+
+        const popup = new vietmapgl.Popup({ offset: 18, closeButton: false })
+          .setLngLat(coordinates || [hotel.lng, hotel.lat])
+          .setHTML(getPopupHtml(hotel))
+          .addTo(mapObjRef.current);
+
+        popupRef.current = popup;
+      }
+
+      useEffect(() => {
+        const loadVietMapScript = () => {
+          return new Promise((resolve, reject) => {
+            if (window.vietmapgl) return resolve(window.vietmapgl);
+
+            const existing = document.querySelector('script[src*="vietmap-gl.js"]');
+            if (existing) {
+              if (window.vietmapgl) return resolve(window.vietmapgl);
+              if (existing.readyState === "complete") {
+                return window.vietmapgl
+                  ? resolve(window.vietmapgl)
+                  : reject(new Error("VietMap library did not initialize after script load"));
+              }
+              existing.addEventListener("load", () => window.vietmapgl ? resolve(window.vietmapgl) : reject(new Error("VietMap library did not initialize")), { once: true });
+              existing.addEventListener("error", () => reject(new Error("VietMap script failed to load")), { once: true });
+              return;
+            }
+
+            const script = document.createElement("script");
+            script.src = "https://unpkg.com/@vietmap/vietmap-gl-js@6.0.1/dist/vietmap-gl.js";
+            script.async = true;
+            script.defer = true;
+            script.onload = () => window.vietmapgl ? resolve(window.vietmapgl) : reject(new Error("VietMap library did not initialize"));
+            script.onerror = () => reject(new Error("VietMap script failed to load"));
+            document.head.appendChild(script);
+          });
+        };
+
+        const initVietMap = async () => {
+          if (!mapRef.current) {
+            setMapError(true);
+            return;
+          }
+
+          try {
+            await loadVietMapScript();
+            const map = new window.vietmapgl.Map({
+              container: mapRef.current,
+              style: getVietMapStyleUrl(),
+              center: [userLocation.lng, userLocation.lat],
+              zoom: 14,
+              doubleClickZoom: false,
+            });
+
+            mapObjRef.current = map;
+
+            map.on("load", () => {
+              map.addSource("search-radius", {
+                type: "geojson",
+                data: buildCircleGeoJSON(userLocation, radiusM),
+              });
+
+              map.addLayer({
+                id: "search-radius-fill",
+                type: "fill",
+                source: "search-radius",
+                paint: {
+                  "fill-color": "#00346f",
+                  "fill-opacity": 0.08,
+                },
+              });
+
+              map.addLayer({
+                id: "search-radius-line",
+                type: "line",
+                source: "search-radius",
+                paint: {
+                  "line-color": "#00346f",
+                  "line-opacity": 0.7,
+                  "line-width": 2,
+                },
+              });
+
+              map.addSource("user-location", {
+                type: "geojson",
+                data: {
+                  type: "Feature",
+                  geometry: {
+                    type: "Point",
+                    coordinates: [userLocation.lng, userLocation.lat],
+                  },
+                },
+              });
+
+              map.addLayer({
+                id: "user-location-dot",
+                type: "circle",
+                source: "user-location",
+                paint: {
+                  "circle-color": "#00346f",
+                  "circle-radius": 10,
+                  "circle-stroke-color": "#ffffff",
+                  "circle-stroke-width": 3,
+                },
+              });
+
+              const locationElement = document.createElement("div");
+              locationElement.className = "user-location-marker";
+              userLocationMarkerRef.current = new window.vietmapgl.Marker({ element: locationElement, anchor: "center" })
+                .setLngLat([userLocation.lng, userLocation.lat])
+                .addTo(map);
+
+              map.addSource("hotels", {
+                type: "geojson",
+                data: buildHotelGeoJSON(hotels),
+                cluster: true,
+                clusterMaxZoom: 14,
+                clusterRadius: 50,
+              });
+
+              map.addLayer({
+                id: "clusters",
+                type: "circle",
+                source: "hotels",
+                filter: ["has", "point_count"],
+                paint: {
+                  "circle-color": "#ff5a3c",
+                  "circle-radius": ["step", ["get", "point_count"], 18, 10, 26, 30, 36],
+                  "circle-stroke-color": "#ffffff",
+                  "circle-stroke-width": 2,
+                },
+              });
+
+              map.addLayer({
+                id: "cluster-count",
+                type: "symbol",
+                source: "hotels",
+                filter: ["has", "point_count"],
+                layout: {
+                  "text-field": "{point_count_abbreviated}",
+                  "text-size": 12,
+                },
+                paint: {
+                  "text-color": "#ffffff",
+                },
+              });
+
+              map.on("click", "clusters", (e) => {
+                const feature = e.features?.[0];
+                if (!feature || !map.getSource("hotels")) return;
+                const clusterId = feature.properties.cluster_id;
+                map.getSource("hotels").getClusterExpansionZoom(clusterId, (err, zoom) => {
+                  if (err) return;
+                  map.easeTo({ center: feature.geometry.coordinates, zoom });
+                });
+              });
+
+              map.on("mouseenter", "clusters", () => {
+                map.getCanvas().style.cursor = "pointer";
+              });
+              map.on("mouseleave", "clusters", () => {
+                map.getCanvas().style.cursor = "";
+              });
+
+              map.resize();
+              setMapReady(true);
+              createHotelMarkers(hotels);
+            });
+
+            map.on("error", () => setMapError(true));
+
+            return () => {
+              if (popupRef.current) popupRef.current.remove();
+              map.remove();
+            };
+          } catch (err) {
+            console.error("VietMap initialization failed:", err);
+            setMapError(true);
+          }
+        };
+
+        initVietMap();
+      }, []);
+
+      function updateRadiusHandle(center, radius) {
+        if (!mapObjRef.current || !window.vietmapgl) return;
+        const map = mapObjRef.current;
+        const coords = getRadiusHandleCoordinates(center, radius);
+
+        function clampRadius(distance) {
+          return Math.min(40000, Math.max(500, Math.round(distance / 100) * 100));
+        }
+
+        function setHandleToRadius(nextRadius) {
+          const nextCoords = getRadiusHandleCoordinates(center, nextRadius);
+          if (radiusHandleRef.current) {
+            radiusHandleRef.current.setLngLat(nextCoords);
+          }
+        }
+
+        function setRadiusFromPointer(clientX, clientY) {
+          const rect = map.getContainer().getBoundingClientRect();
+          const point = map.unproject([clientX - rect.left, clientY - rect.top]);
+          const distance = getDistanceMeters(center, { lat: point.lat, lng: point.lng });
+          const nextRadius = clampRadius(distance);
+          setRadiusM(nextRadius);
+          setHandleToRadius(nextRadius);
+        }
+
+        if (radiusHandleRef.current) {
+          radiusHandleRef.current.setLngLat(coords);
+          return;
+        }
+
+        const element = document.createElement("div");
+        element.style.width = "28px";
+        element.style.height = "28px";
+        element.style.borderRadius = "50%";
+        element.style.background = "#ff5a3c";
+        element.style.border = "2px solid #fff";
+        element.style.boxShadow = "0 0 0 8px rgba(255,90,60,0.18)";
+        element.style.display = "flex";
+        element.style.alignItems = "center";
+        element.style.justifyContent = "center";
+        element.style.fontSize = "14px";
+        element.style.fontWeight = "700";
+        element.style.color = "#fff";
+        element.style.cursor = "grab";
+        element.style.userSelect = "none";
+        element.style.touchAction = "none";
+        element.innerText = "⇔";
+
+        const marker = new window.vietmapgl.Marker({ element, anchor: "center" })
+          .setLngLat(coords)
+          .addTo(map);
+
+        const onPointerMove = (evt) => {
+          if (!evt.isPrimary) return;
+          setRadiusFromPointer(evt.clientX, evt.clientY);
+        };
+
+        const onPointerUp = () => {
+          document.removeEventListener("pointermove", onPointerMove);
+          document.removeEventListener("pointerup", onPointerUp);
+          element.style.cursor = "grab";
+        };
+
+        element.addEventListener("pointerdown", (evt) => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          element.style.cursor = "grabbing";
+          document.addEventListener("pointermove", onPointerMove);
+          document.addEventListener("pointerup", onPointerUp, { once: true });
+        });
+
+        radiusHandleRef.current = marker;
+      }
+
+      useEffect(() => {
+        if (!mapReady || !mapObjRef.current) return;
+        mapObjRef.current.resize();
+      }, [mapReady]);
+
+      useEffect(() => {
+        if (!mapReady || !mapObjRef.current) return;
+        const handleResize = () => mapObjRef.current?.resize();
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+      }, [mapReady]);
+
+      useEffect(() => {
+        if (!mapReady || !mapObjRef.current) return;
+        const map = mapObjRef.current;
+        const source = map.getSource("hotels");
+        if (source) {
+          source.setData(buildHotelGeoJSON(hotels));
+        }
+
+        createHotelMarkers(hotels);
+
+        if (hotels.length > 0) {
+          const targetRadius = getRadiusForCoverage(userLocation, hotels, 0.5);
+          setRadiusM(prev => Math.max(prev, targetRadius));
+        }
+      }, [hotels, mapReady, userLocation, setRadiusM]);
+
+      useEffect(() => {
+        if (!mapReady || !mapObjRef.current) return;
+        const map = mapObjRef.current;
+        const radiusSource = map.getSource("search-radius");
+        if (radiusSource) {
+          radiusSource.setData(buildCircleGeoJSON(userLocation, radiusM));
+        }
+        const userSource = map.getSource("user-location");
+        if (userSource) {
+          userSource.setData({
+            type: "Feature",
+            geometry: {
+              type: "Point",
+              coordinates: [userLocation.lng, userLocation.lat],
+            },
+          });
+        }
+
+        if (userLocationMarkerRef.current) {
+          userLocationMarkerRef.current.setLngLat([userLocation.lng, userLocation.lat]);
+        }
+        updateRadiusHandle(userLocation, radiusM);
+        createHotelMarkers(hotels);
+
+        const bounds = getCircleBounds(userLocation, radiusM);
+        if (bounds && !bounds.isEmpty()) {
+          map.fitBounds(bounds, { padding: 100, maxZoom: 14 });
+        }
+      }, [mapReady, radiusM, userLocation, hotels]);
+
+      useEffect(() => {
+        if (!mapReady || !mapObjRef.current || initialUserLocationCenteredRef.current) return;
+        mapObjRef.current.easeTo({ center: [userLocation.lng, userLocation.lat], zoom: 14 });
+        initialUserLocationCenteredRef.current = true;
+      }, [mapReady, userLocation]);
+
+      useEffect(() => {
+        if (!mapReady || !mapObjRef.current || initialCircleRadiusSetRef.current) return;
+        const map = mapObjRef.current;
+        const bounds = map.getBounds();
+        if (!bounds.isEmpty()) {
+          const center = map.getCenter();
+          const north = bounds.getNorth();
+          const south = bounds.getSouth();
+          const east = bounds.getEast();
+          const west = bounds.getWest();
+          const dLat = Math.min(
+            getDistanceMeters({ lat: center.lat, lng: center.lng }, { lat: north, lng: center.lng }),
+            getDistanceMeters({ lat: center.lat, lng: center.lng }, { lat: south, lng: center.lng })
+          );
+          const dLng = Math.min(
+            getDistanceMeters({ lat: center.lat, lng: center.lng }, { lat: center.lat, lng: east }),
+            getDistanceMeters({ lat: center.lat, lng: center.lng }, { lat: center.lat, lng: west })
+          );
+          const nextRadius = Math.min(40000, Math.max(500, Math.round(Math.min(dLat, dLng) * 0.9 / 100) * 100));
+          setRadiusM(nextRadius);
+          initialCircleRadiusSetRef.current = true;
+        }
+      }, [mapReady, userLocation]);
+
+      useEffect(() => {
+        if (!mapReady || !mapObjRef.current || !activeHotel) return;
+        const map = mapObjRef.current;
+        const coords = [activeHotel.lng, activeHotel.lat];
+        map.easeTo({ center: coords, zoom: 16 });
+        showHotelPopup(activeHotel, coords);
+      }, [activeHotel, mapReady]);
+
+      function zoom(delta) {
+        if (!mapObjRef.current) return;
+        mapObjRef.current.easeTo({ zoom: (mapObjRef.current.getZoom() || 14) + delta });
+      }
+
+      function recenter() {
+        if (!mapObjRef.current) return;
+        const c = [userLocation.lng, userLocation.lat];
+        mapObjRef.current.easeTo({ center: c, zoom: 14 });
+      }
+
+      return (
+        <div className="flex-1 relative overflow-hidden bg-surface-container-highest min-h-[640px]">
+          <div ref={mapRef} className="absolute inset-0 w-full h-full" />
+          {mapError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-surface-container-low">
+              <div className="w-full h-full" style={{
+                background: "#e8eaed",
+                backgroundImage: `
+                  linear-gradient(rgba(255,255,255,.4) 1px,transparent 1px),
+                  linear-gradient(90deg,rgba(255,255,255,.4) 1px,transparent 1px),
+                  linear-gradient(rgba(0,0,0,.03) 1px,transparent 1px),
+                  linear-gradient(90deg,rgba(0,0,0,.03) 1px,transparent 1px)`,
+                backgroundSize: "100px 100px,100px 100px,20px 20px,20px 20px",
+              }} />
+              <div className="absolute flex flex-col items-center gap-2">
+                <Icon name="map" size={40} className="text-outline" />
+                <p className="text-sm font-semibold text-on-surface-variant bg-white/80 px-4 py-2 rounded-xl">
+                  VietMap failed to load — please check the script include and network.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!mapReady && !mapError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-surface-container-low/70 z-10">
+              <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-20">
+            <button onClick={() => zoom(1)}  className="bg-white p-2.5 rounded-xl shadow-card text-primary hover:bg-surface-container-low transition-colors"><Icon name="add" /></button>
+            <button onClick={() => zoom(-1)} className="bg-white p-2.5 rounded-xl shadow-card text-primary hover:bg-surface-container-low transition-colors"><Icon name="remove" /></button>
+            <button onClick={recenter}       className="bg-white p-2.5 rounded-xl shadow-card text-primary hover:bg-surface-container-low transition-colors mt-3"><Icon name="my_location" /></button>
+          </div>
+
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 glass rounded-2xl shadow-editorial px-5 py-3 flex items-center gap-4 border border-white/60">
+            <Icon name="radio_button_checked" className="text-primary" size={20} />
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Search Radius</label>
+              <input
+                type="range" min={500} max={40000} step={500} value={radiusM}
+                onChange={e => setRadiusM(Number(e.target.value))}
+                className="w-36 h-1.5 cursor-pointer accent-primary"
+              />
+            </div>
+            <span className="text-sm font-bold text-primary w-14 text-right">
+              {(radiusM/1000).toFixed(1)} km
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    const MAP_STYLE = [
+      {elementType:"geometry",stylers:[{color:"#f2f4f7"}]},
+      {elementType:"labels.text.fill",stylers:[{color:"#424751"}]},
+      {elementType:"labels.text.stroke",stylers:[{color:"#ffffff"}]},
+      {featureType:"road",elementType:"geometry",stylers:[{color:"#ffffff"}]},
+      {featureType:"road.arterial",elementType:"geometry",stylers:[{color:"#e6e8eb"}]},
+      {featureType:"water",elementType:"geometry",stylers:[{color:"#bee9ff"}]},
+      {featureType:"poi.park",elementType:"geometry",stylers:[{color:"#d8f0e0"}]},
+      {featureType:"poi",elementType:"labels",stylers:[{visibility:"off"}]},
+      {featureType:"transit",stylers:[{visibility:"off"}]},
+    ];
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: FilterModal
+    // ══════════════════════════════════════════════════════════════════════════
+    function FilterModal({ filters, onChange, onApply, onClose }) {
+      const [draft, setDraft] = useState({ ...filters });
+      function set(key, val) { setDraft(d => ({ ...d, [key]: val })); }
+
+      function toggleType(t) {
+        setDraft(d => ({
+          ...d,
+          types: d.types.includes(t) ? d.types.filter(x=>x!==t) : [...d.types, t],
+        }));
+      }
+
+      function toggleAmenity(a) {
+        setDraft(d => ({
+          ...d,
+          amenities: d.amenities.includes(a) ? d.amenities.filter(x=>x!==a) : [...d.amenities, a],
+        }));
+      }
+
+      function handleApply() { onChange(draft); onApply(); onClose(); }
+      function handleCancel() { onClose(); }
+
+      return (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={handleCancel} />
+          <div className="modal-anim relative bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+            <div className="flex items-start justify-between px-7 pt-7 pb-4">
+              <div>
+                <h2 className="font-headline text-xl font-extrabold text-primary">Bộ lọc tìm kiếm</h2>
+                <p className="text-xs text-on-surface-variant mt-0.5">Tùy chỉnh trải nghiệm lưu trú của bạn</p>
+              </div>
+              <button onClick={handleCancel} className="p-1.5 rounded-full hover:bg-surface-container-low transition-colors">
+                <Icon name="close" size={20} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-7 pb-4 flex flex-col gap-7">
+              {/* Star Rating */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Xếp hạng đánh giá</p>
+                <div className="flex gap-2">
+                  {[1,2,3,4,5].map(s => (
+                    <button key={s}
+                      onClick={() => set("starRating", draft.starRating===s ? null : s)}
+                      className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors
+                        ${draft.starRating===s ? "bg-primary text-white" : "bg-surface-container-low hover:bg-surface-container-high text-on-surface"}`}
+                    >
+                      {s} <Icon name="star" filled={true} size={16} className={draft.starRating===s?"text-amber-300":"text-amber-400"} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Property Type */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Loại hình lưu trú</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {PROPERTY_TYPES.map(t => {
+                    const active = draft.types.includes(t);
+                    return (
+                      <label key={t} className={`flex items-center gap-2.5 px-3 py-3 rounded-xl cursor-pointer transition-colors ${active ? "bg-primary/10 border border-primary/30" : "bg-surface-container-low border border-transparent hover:bg-surface-container-high"}`}>
+                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-none border-2 transition-colors ${active ? "bg-primary border-primary" : "border-outline-variant bg-white"}`}>
+                          {active && <Icon name="check" size={14} className="text-white" />}
+                        </div>
+                        <span className="text-sm font-medium">{t}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Amenities */}
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Tiện nghi</p>
+                <div className="flex gap-4 flex-wrap">
+                  {Object.entries(AMENITY_META).map(([key, meta]) => {
+                    const active = draft.amenities.includes(key);
+                    return (
+                      <div key={key} className="flex flex-col items-center gap-1.5 cursor-pointer" onClick={() => toggleAmenity(key)}>
+                        <div className={`amenity-circle ${active?"active":""}`}>
+                          <Icon name={meta.icon} size={24} className={active?"text-white":"text-on-surface-variant"} />
+                        </div>
+                        <span className={`text-[10px] font-bold uppercase tracking-wide ${active?"text-primary":"text-on-surface-variant"}`}>
+                          {meta.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Price Range */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">Khoảng giá (VNĐ)</p>
+                  <span className="text-sm font-bold text-primary">
+                    {draft.priceMin||0} - {draft.priceMax||100} Triệu
+                  </span>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  {PRICE_PRESETS.map(p => {
+                    const active = draft.priceMin===p.min && draft.priceMax===p.max;
+                    return (
+                      <button key={p.label}
+                        onClick={() => setDraft(d => ({...d, priceMin:p.min, priceMax:p.max}))}
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${active ? "border-primary bg-primary/5 text-primary" : "border-outline-variant/30 bg-surface-container-low hover:bg-surface-container-high text-on-surface"}`}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Available only */}
+              <div className="flex items-center justify-between bg-surface-container-low rounded-2xl px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <Icon name="event_available" className="text-green-600" size={22} />
+                  <span className="text-sm font-semibold">Chỉ hiển thị phòng còn trống</span>
+                </div>
+                <Toggle value={draft.availableOnly} onChange={v => set("availableOnly", v)} />
+              </div>
+            </div>
+
+            <div className="flex gap-3 px-7 py-5 border-t border-outline-variant/10">
+              <button onClick={handleCancel} className="flex-1 py-3.5 rounded-2xl font-bold text-sm border-2 border-outline-variant/30 hover:bg-surface-container-low transition-colors">
+                Hủy
+              </button>
+              <button onClick={handleApply} className="flex-[2] py-3.5 rounded-2xl font-bold text-sm bg-primary text-white hover:bg-primary-container transition-colors">
+                Áp dụng
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: HotelCard
+    // ══════════════════════════════════════════════════════════════════════════
+    function HotelCard({ hotel, onClick }) {
+      const imageSrc = hotel.images[0] || "https://via.placeholder.com/640x480?text=No+Image";
+      const amenityIcons = hotel.amenities.slice(0,3).map(a => {
+        const meta = AMENITY_META[a];
+        return meta ? meta : { icon: "check", label: String(a) };
+      });
+      return (
+        <article
+          onClick={() => onClick(hotel)}
+          className="group cursor-pointer rounded-2xl overflow-hidden bg-white shadow-card hover:-translate-y-1 hover:shadow-editorial transition-all duration-200"
+          role="button" tabIndex={0}
+          onKeyDown={e => e.key==="Enter" && onClick(hotel)}
+          aria-label={`View ${hotel.name}`}
+        >
+          <div className="relative h-52 overflow-hidden">
+            <img src={imageSrc} alt={hotel.name}
+                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+            <div className="absolute top-3 right-3 glass px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
+              <Icon name="star" filled size={14} className="text-amber-500" />
+              <span className="text-sm font-bold text-primary">{hotel.rating}</span>
+            </div>
+            {hotel.badge && (
+              <div className="absolute bottom-3 left-3">
+                <span className="bg-primary text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
+                  {hotel.badge}
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="font-headline font-bold text-lg text-primary leading-tight truncate">{hotel.name}</h3>
+                <p className="text-xs text-on-surface-variant flex items-center gap-0.5 mt-0.5">
+                  <Icon name="location_on" size={14} className="flex-none" />{hotel.address}
+                </p>
+              </div>
+              <div className="text-right flex-none">
+                <p className="text-base font-extrabold text-primary font-headline">{fmtPrice(hotel.pricePerNight)}</p>
+                <p className="text-[10px] text-outline uppercase font-semibold">per night</p>
+              </div>
+            </div>
+            <div className="flex gap-4 mt-3">
+              {amenityIcons.map(a => (
+                <div key={a.icon} className="flex items-center gap-1 text-on-surface-variant">
+                  <Icon name={a.icon} size={16} className="text-tertiary-container" />
+                  <span className="text-xs font-medium">{a.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </article>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: HotelSidebar  — Tinder-style single-card view with nav arrows
+    // ══════════════════════════════════════════════════════════════════════════
+    function HotelSidebar({ hotels, loading, onHotelClick, onFilterOpen }) {
+      const [idx, setIdx] = useState(0);
+
+      useEffect(() => { setIdx(0); }, [hotels]);
+
+      const total    = hotels.length;
+      const current  = hotels[idx] ?? null;
+      const isFirst  = idx === 0;
+      const isLast   = idx === total - 1;
+
+      return (
+        <aside id="hotel-sidebar"
+               className="w-full md:w-[420px] lg:w-[460px] bg-surface-container-lowest border-l border-outline-variant/20 flex flex-col flex-none overflow-hidden">
+          <div className="bg-surface-container-lowest/95 backdrop-blur-sm z-10 px-6 pt-6 pb-4 border-b border-outline-variant/10 flex-none">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-headline text-2xl font-extrabold text-primary tracking-tight">Curated Stays</h2>
+                <p className="text-on-surface-variant text-xs mt-0.5">Exclusively for Booking4LU members</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold uppercase tracking-widest text-secondary">
+                  {loading ? "…" : total === 0 ? "0 Results" : `${idx + 1} / ${total} Results`}
+                </span>
+                <button
+                  onClick={onFilterOpen}
+                  className="flex items-center gap-1.5 bg-secondary-container text-on-secondary-container px-3 py-2 rounded-xl font-bold text-xs hover:brightness-95 transition-all active:scale-95"
+                >
+                  <Icon name="tune" size={18} />
+                  Filters
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-hidden px-6 pt-6 pb-6">
+            {loading ? (
+              <div className="skeleton h-full w-full rounded-[32px]" />
+            ) : total === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 h-full text-center">
+                <Icon name="search_off" size={48} className="text-outline" />
+                <p className="font-headline font-bold text-lg text-primary">No stays found</p>
+                <p className="text-sm text-on-surface-variant">Try adjusting your filters or expanding the radius.</p>
+              </div>
+            ) : (
+              <div className="relative h-full">
+                <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-2">
+                  <button
+                    onClick={() => setIdx(i => Math.max(0, i - 1))}
+                    disabled={isFirst}
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-card border border-outline-variant/30 text-primary hover:bg-surface-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <Icon name="chevron_left" size={24} />
+                  </button>
+                  <button
+                    onClick={() => setIdx(i => Math.min(total - 1, i + 1))}
+                    disabled={isLast}
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-card border border-outline-variant/30 text-primary hover:bg-surface-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <Icon name="chevron_right" size={24} />
+                  </button>
+                </div>
+
+                <div className="h-full pt-14 pb-20">
+                  <HotelCard hotel={current} onClick={onHotelClick} />
+                </div>
+
+                <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-2">
+                  {hotels.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setIdx(i)}
+                      className={`rounded-full transition-all ${i === idx ? "w-6 h-2 bg-primary" : "w-2 h-2 bg-outline-variant hover:bg-primary/40"}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </aside>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: HotelPopup  (image carousel + details + Visit Hotel CTA)
+    // ══════════════════════════════════════════════════════════════════════════
+    function HotelPopup({ hotel, checkIn, checkOut, onClose }) {
+      const [slide, setSlide] = useState(0);
+      const [zoomed, setZoomed] = useState(false);
+      const [imgScale, setImgScale] = useState(1);
+      const [pan, setPan] = useState({ x: 0, y: 0 });
+      const [showAllAmenities, setShowAllAmenities] = useState(false);
+      const [showAllReviews, setShowAllReviews] = useState(false);
+      const dragRef = useRef({ dragging: false, startX: 0, startY: 0, panX: 0, panY: 0 });
+      const MIN_SCALE = 1, MAX_SCALE = 4, STEP = 0.5;
+
+      const visibleAmenities = showAllAmenities ? hotel.amenities : hotel.amenities.slice(0, 4);
+      const reviewList = Array.isArray(hotel.reviews) && hotel.reviews.length > 0
+        ? hotel.reviews
+        : hotel.latestReview
+          ? [hotel.latestReview]
+          : [];
+      const visibleReviews = showAllReviews ? reviewList : reviewList.slice(0, 2);
+
+      const nights = (checkIn && checkOut)
+        ? Math.max(1, Math.round((checkOut - checkIn) / 86400000))
+        : 3;
+
+      function resetView() { setImgScale(1); setPan({ x: 0, y: 0 }); }
+
+      function onMouseDown(e) {
+        if (imgScale <= 1) return;
+        e.preventDefault();
+        dragRef.current = { dragging: true, startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
+      }
+      function onMouseMove(e) {
+        if (!dragRef.current.dragging) return;
+        setPan({
+          x: dragRef.current.panX + (e.clientX - dragRef.current.startX),
+          y: dragRef.current.panY + (e.clientY - dragRef.current.startY),
+        });
+      }
+      function onMouseUp() { dragRef.current.dragging = false; }
+
+      useEffect(() => { if (imgScale <= 1) setPan({ x: 0, y: 0 }); }, [imgScale]);
+
+      useEffect(() => {
+        function h(e) { if (e.key==="Escape") { if (zoomed) setZoomed(false); else onClose(); } }
+        document.addEventListener("keydown", h);
+        return () => document.removeEventListener("keydown", h);
+      }, [onClose, zoomed]);
+
+      function prev() { setSlide(s => (s - 1 + hotel.images.length) % hotel.images.length); }
+      function next() { setSlide(s => (s + 1) % hotel.images.length); }
+
+      const total = hotel.pricePerNight * nights;
+
+      return (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+
+          {/* Zoom Lightbox */}
+          {zoomed && (
+            <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/90"
+                 onClick={() => { setZoomed(false); resetView(); }}
+                 onMouseMove={onMouseMove}
+                 onMouseUp={onMouseUp}
+                 onMouseLeave={onMouseUp}>
+              <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+                <button onClick={e => { e.stopPropagation(); setImgScale(s => Math.max(MIN_SCALE, +(s - STEP).toFixed(1))); }}
+                        disabled={imgScale <= MIN_SCALE}
+                        className="bg-white/20 hover:bg-white/40 disabled:opacity-30 p-2 rounded-full transition-colors" title="Thu nhỏ">
+                  <Icon name="zoom_out" size={22} className="text-white" />
+                </button>
+                <span className="text-white text-xs font-bold w-10 text-center select-none">
+                  {Math.round(imgScale * 100)}%
+                </span>
+                <button onClick={e => { e.stopPropagation(); setImgScale(s => Math.min(MAX_SCALE, +(s + STEP).toFixed(1))); }}
+                        disabled={imgScale >= MAX_SCALE}
+                        className="bg-white/20 hover:bg-white/40 disabled:opacity-30 p-2 rounded-full transition-colors" title="Phóng to">
+                  <Icon name="zoom_in" size={22} className="text-white" />
+                </button>
+                <button onClick={() => { setZoomed(false); resetView(); }}
+                        className="bg-white/20 hover:bg-white/40 p-2 rounded-full transition-colors ml-1" title="Đóng">
+                  <Icon name="close" size={22} className="text-white" />
+                </button>
+              </div>
+              {hotel.images.length > 1 && (
+                <>
+                  <button onClick={e => { e.stopPropagation(); prev(); resetView(); }}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 p-2 rounded-full z-10 transition-colors">
+                    <Icon name="chevron_left" size={24} className="text-white" />
+                  </button>
+                  <button onClick={e => { e.stopPropagation(); next(); resetView(); }}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 p-2 rounded-full z-10 transition-colors">
+                    <Icon name="chevron_right" size={24} className="text-white" />
+                  </button>
+                </>
+              )}
+              <div className="overflow-hidden max-w-[90vw] max-h-[90vh] flex items-center justify-center"
+                   onClick={e => e.stopPropagation()}
+                   onMouseDown={onMouseDown}
+                   style={{ cursor: imgScale > 1 ? (dragRef.current.dragging ? "grabbing" : "grab") : "default" }}>
+                <img src={hotel.images[slide]} alt={`${hotel.name} ${slide+1}`}
+                     draggable={false}
+                     style={{
+                       transform: `scale(${imgScale}) translate(${pan.x / imgScale}px, ${pan.y / imgScale}px)`,
+                       transition: dragRef.current.dragging ? "none" : "transform .2s ease",
+                       transformOrigin: "center center",
+                       userSelect: "none",
+                     }}
+                     className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl" />
+              </div>
+              {hotel.images.length > 1 && (
+                <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2">
+                  {hotel.images.map((_,i) => (
+                    <button key={i} onClick={e => { e.stopPropagation(); setSlide(i); resetView(); }}
+                            className={`w-2 h-2 rounded-full transition-colors ${i===slide?"bg-white":"bg-white/40"}`} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Card */}
+          <div className="modal-anim relative bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[90vh]">
+            {/* ── Left: Carousel ── */}
+            <div className="relative w-full md:w-[50%] flex-none overflow-hidden bg-surface-container-highest" style={{minHeight:300}}>
+              <div className="carousel-track flex h-full" style={{transform:`translateX(-${slide*100}%)`}}>
+                {hotel.images.map((src,i) => (
+                  <img key={i} src={src} alt={`${hotel.name} ${i+1}`}
+                       className="w-full h-full object-cover flex-none" style={{minWidth:"100%"}} />
+                ))}
+              </div>
+              <button onClick={() => setZoomed(true)}
+                      className="absolute top-3 right-3 bg-white/80 hover:bg-white p-2 rounded-full shadow-card z-10 transition-colors"
+                      title="Phóng to ảnh">
+                <Icon name="zoom_in" size={20} />
+              </button>
+              {hotel.images.length > 1 && (
+                <>
+                  <button onClick={prev} className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow-card z-10 transition-colors">
+                    <Icon name="chevron_left" size={20} />
+                  </button>
+                  <button onClick={next} className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow-card z-10 transition-colors">
+                    <Icon name="chevron_right" size={20} />
+                  </button>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                    {hotel.images.map((_,i) => (
+                      <button key={i} onClick={() => setSlide(i)}
+                              className={`w-2 h-2 rounded-full transition-colors ${i===slide?"bg-white":"bg-white/40"}`} />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* ── Right: Details ── */}
+            <div className="flex-1 flex flex-col overflow-y-auto">
+              <button onClick={onClose}
+                      className="absolute top-4 right-4 bg-white/90 hover:bg-white p-1.5 rounded-full shadow-card z-20 transition-colors">
+                <Icon name="close" size={20} />
+              </button>
+
+              <div className="p-6 flex flex-col gap-5 flex-1">
+                <div>
+                  <h2 className="font-headline text-2xl font-extrabold text-primary leading-tight">{hotel.name}</h2>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="flex gap-0.5">
+                      {Array.from({length:5},(_,i) => (
+                        <Icon key={i} name="star" filled={i<Math.round(hotel.rating)} size={16}
+                              className={i<Math.round(hotel.rating)?"text-amber-500":"text-outline-variant"} />
+                      ))}
+                    </div>
+                    <span className="text-sm font-bold text-secondary">{hotel.rating.toFixed(1)}</span>
+                    <span className="text-xs text-on-surface-variant">({hotel.reviewCount.toLocaleString()} reviews)</span>
+                  </div>
+                  <p className="text-sm text-on-surface-variant flex items-center gap-1 mt-1">
+                    <Icon name="location_on" size={16} className="flex-none" />{hotel.address}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Featured Amenities</p>
+                      {hotel.amenities.length > 4 && (
+                        <button
+                          onClick={() => setShowAllAmenities(v => !v)}
+                          className="text-[11px] font-bold text-primary hover:text-primary-container transition-colors"
+                        >
+                          {showAllAmenities ? "Thu gọn" : "Xem thêm"}
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {visibleAmenities.map(a => {
+                        const m = AMENITY_META[a] || { icon: "check", label: String(a) };
+                        return (
+                          <div key={`${a}-${showAllAmenities}`} className="flex flex-col items-center gap-1.5 px-2 py-2 bg-surface-container-low rounded-3xl w-full text-center min-h-[64px]">
+                            <Icon name={m.icon} size={22} className="text-primary" />
+                            <span className="text-[11px] font-headline font-semibold text-primary leading-snug whitespace-normal break-words tracking-tight">
+                              {m.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">Nearby Landmarks</p>
+                    <ul className="flex flex-col gap-1.5">
+                      {hotel.nearbyLandmarks.map((l,i) => (
+                        <li key={i} className="flex items-center justify-between text-sm text-on-surface-variant">
+                          <span className="truncate">{l.name}</span>
+                          <span className="text-[11px] font-bold text-secondary ml-2 whitespace-nowrap">{l.distance}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="bg-surface-container-low rounded-2xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Đánh giá khách</p>
+                    {reviewList.length > 2 && (
+                      <button
+                        onClick={() => setShowAllReviews(v => !v)}
+                        className="text-[11px] font-bold text-primary hover:text-primary-container transition-colors"
+                      >
+                        {showAllReviews ? "Thu gọn" : `Xem thêm (${reviewList.length})`}
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    {visibleReviews.map((review, index) => (
+                      <div key={`${review.author}-${index}`} className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary-fixed flex items-center justify-center flex-none">
+                          <Icon name="person" size={18} className="text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-primary">{review.author}</p>
+                          <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">{review.text}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {reviewList.length === 0 && (
+                      <p className="text-xs text-on-surface-variant">Chưa có đánh giá.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-surface-container-low rounded-2xl p-4 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-2">AI Score</p>
+                  <p className="text-3xl font-extrabold text-primary">—</p>
+                  <p className="text-xs text-on-surface-variant">Đã sẵn sàng để triển khai trong giai đoạn tiếp theo</p>
+                </div>
+
+                {/* Check Availability */}
+                <div className="rounded-2xl p-5" style={{background:"#0d2d5e"}}>
+                  <p className="text-white font-headline font-bold text-lg mb-4">Check Availability</p>
+                  <div className="flex gap-3">
+                    <div className="flex-1 rounded-xl px-4 py-3 cursor-pointer hover:brightness-110 transition-all"
+                         style={{background:"rgba(255,255,255,0.12)"}}>
+                      <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{color:"rgba(255,255,255,0.6)"}}>Check In</p>
+                      <p className="text-sm font-bold text-white">
+                        {checkIn ? checkIn.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "Select date"}
+                      </p>
+                    </div>
+                    <div className="flex-1 rounded-xl px-4 py-3 cursor-pointer hover:brightness-110 transition-all"
+                         style={{background:"rgba(255,255,255,0.12)"}}>
+                      <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{color:"rgba(255,255,255,0.6)"}}>Check Out</p>
+                      <p className="text-sm font-bold text-white">
+                        {checkOut ? checkOut.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "Select date"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-surface-container-low rounded-2xl p-5 text-center mt-auto">
+                  <div className="flex items-baseline justify-center gap-1 mb-0.5">
+                    <span className="text-3xl font-headline font-extrabold text-primary">{fmtPrice(hotel.pricePerNight)}</span>
+                    <span className="text-sm text-on-surface-variant">/ night</span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant mb-4">
+                    Total for {nights} nights: {fmtPrice(total)} (incl. taxes & fees)
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => alert(`Booking flow for "${hotel.name}" — wire to booking API here.`)}
+                      className="w-full bg-gradient-to-r from-primary to-primary-container text-white py-3.5 rounded-2xl font-bold text-sm hover:shadow-editorial transition-shadow active:scale-95"
+                    >
+                      Book Now
+                    </button>
+                    <button
+                      onClick={() => window.location.href = hotel.link || `hotel-react.html?id=${hotel.id}`}
+                      className="w-full border-2 border-primary text-primary py-3 rounded-2xl font-bold text-sm hover:bg-primary-fixed transition-colors active:scale-95"
+                    >
+                      Visit Hotel Page
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // COMPONENT: Navbar
+    // ══════════════════════════════════════════════════════════════════════════
+    function Navbar() {
+      const [langOpen, setLangOpen] = useState(false);
+      const [lang, setLang] = useState({ code:"EN", flag:"🇺🇸" });
+      const LANGS = [
+        {code:"EN",flag:"🇺🇸",label:"English"},
+        {code:"VI",flag:"🇻🇳",label:"Tiếng Việt"},
+        {code:"ZH",flag:"🇨🇳",label:"简体中文"},
+        {code:"JA",flag:"🇯🇵",label:"日本語"},
+        {code:"IT",flag:"🇮🇹",label:"Italiano"},
+        {code:"DE",flag:"🇩🇪",label:"Deutsch"},
+      ];
+      return (
+        <header className="flex-none w-full z-50 glass shadow-editorial">
+          <nav className="flex items-center justify-between px-6 py-3 max-w-screen-2xl mx-auto gap-4">
+            <a href="homepage-react.html" className="text-2xl font-headline font-extrabold tracking-tighter text-primary whitespace-nowrap">
+              Booking4LU
+            </a>
+            <div className="hidden md:flex items-center gap-8">
+              <a href="#" className="text-sm font-semibold text-primary border-b-2 border-secondary pb-0.5">Hotels</a>
+              <a href="#" className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors">Experiences</a>
+              <a href="#" className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors">Social</a>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <button onClick={() => setLangOpen(v=>!v)}
+                        className="flex items-center gap-1 p-2 rounded-full hover:bg-surface-container transition-colors">
+                  <Icon name="language" className="text-primary" size={22} />
+                  <span className="text-xs font-bold text-primary">{lang.code}</span>
+                </button>
+                {langOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-44 glass rounded-xl shadow-editorial border border-outline-variant/20 z-50 overflow-hidden">
+                    <div className="p-2 flex flex-col gap-0.5">
+                      {LANGS.map(l => (
+                        <button key={l.code}
+                          onClick={() => { setLang(l); setLangOpen(false); }}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                            ${lang.code===l.code?"bg-surface-container-low":"hover:bg-surface-container-low"}`}
+                        >
+                          {l.flag} {l.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <AccountMenu />
+            </div>
+          </nav>
+        </header>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ROOT: App
+    // ══════════════════════════════════════════════════════════════════════════
+    function App() {
+      const [location, setLocation]   = useState("Ho Chi Minh City, Vietnam");
+      const [checkIn,  setCheckIn]    = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d; });
+      const [checkOut, setCheckOut]   = useState(() => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+3); return d; });
+      const [radiusM,  setRadiusM]    = useState(3000);
+      const [userLoc,  setUserLoc]    = useState({ lat:10.7769, lng:106.7009 });
+      const [hotels,   setHotels]     = useState([]);
+      const [loading,  setLoading]    = useState(false);
+      const [filters,  setFilters]    = useState({
+        priceMin:null, priceMax:null, types:[], amenities:[], starRating:null, availableOnly:false,
+      });
+      const [guests, setGuests] = useState({
+        adults: 2, children: 0, childrenAges: [],
+      });
+      const [minPrice, setMinPrice] = useState(1);
+      const [maxPrice, setMaxPrice] = useState(5000000);
+      const [searchResults, setSearchResults] = useState(null);
+      const [filterOpen,  setFilterOpen]  = useState(false);
+      const [activeHotel, setActiveHotel] = useState(null);
+      const [sidebarWidth, setSidebarWidth] = useState(420);
+      const [isResizing, setIsResizing] = useState(false);
+      const resizeRef = useRef(null);
+
+      useEffect(() => {
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+          p => setUserLoc({ lat:p.coords.latitude, lng:p.coords.longitude }),
+          err => console.warn("Geolocation error:", err),
+          { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+        );
+      }, []);
+
+      function startSidebarResize(e) {
+        e.preventDefault();
+        resizeRef.current = { startX: e.clientX, startWidth: sidebarWidth };
+        setIsResizing(true);
+      }
+
+      useEffect(() => {
+        if (!isResizing) return;
+
+        function onPointerMove(event) {
+          if (!resizeRef.current) return;
+          const delta = event.clientX - resizeRef.current.startX;
+          const nextWidth = Math.max(300, Math.min(620, resizeRef.current.startWidth - delta));
+          setSidebarWidth(nextWidth);
+        }
+
+        function onPointerUp() {
+          setIsResizing(false);
+          resizeRef.current = null;
+        }
+
+        document.addEventListener("pointermove", onPointerMove);
+        document.addEventListener("pointerup", onPointerUp);
+
+        return () => {
+          document.removeEventListener("pointermove", onPointerMove);
+          document.removeEventListener("pointerup", onPointerUp);
+        };
+      }, [isResizing]);
+
+      // Only search when the user explicitly presses Submit.
+      function handleDates({ checkIn:ci, checkOut:co }) {
+        setCheckIn(ci); setCheckOut(co);
+      }
+
+      function handlePriceChange({ minPrice: mn, maxPrice: mx }) {
+        setMinPrice(mn);
+        setMaxPrice(mx);
+      }
+
+      async function handleSubmit() {
+        // API requires children ages to be integers between 1–17; filter out age 0
+        const childrenAges = guests.childrenAges
+          .map(a => Math.round(a))
+          .filter(a => a >= 1 && a <= 17);
+
+        const payload = {
+          language: "vi",
+          address: location,
+          check_in:  (checkIn  || new Date()).toISOString(),
+          check_out: (checkOut || new Date()).toISOString(),
+          min_price: 1,
+          max_price: 1000000000,
+          radius: radiusM,
+          children:  childrenAges,
+          adults:    guests.adults,
+          personality: "string",
+        };
+
+const TARGET = "http://localhost:8010/proxy/api/v1/discover";
+        // Proxies tried in order; first success wins
+        const PROXIES = [
+          TARGET, // last resort: direct (works if server adds CORS later)
+        ];
+
+        try {
+          setLoading(true);
+          let res = null;
+          let lastErr = null;
+
+          for (const url of PROXIES) {
+            try {
+              res = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+              if (res.ok) break; // success — stop trying
+              lastErr = `HTTP ${res.status}`;
+              res = null;
+            } catch (e) {
+              lastErr = e.message;
+              res = null;
+            }
+          }
+
+          if (!res) {
+            console.error("All proxy attempts failed. Last error:", lastErr);
+            return;
+          }
+
+          const data = await res.json();
+          console.log("Search results:", data);
+          setSearchResults(data);
+
+          const inner = data?.data;
+          const rawItems = Array.isArray(inner)
+            ? inner
+            : inner && Array.isArray(inner.hotels)
+              ? inner.hotels
+              : inner && Array.isArray(inner.results)
+                ? inner.results
+                : [];
+
+          const normalized = rawItems.map(item => normalizeHotelResult(item, location));
+          setHotels(normalized);
+        } catch (err) {
+          console.error("Search request failed:", err);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      return (
+        <div className="h-screen flex flex-col overflow-hidden">
+          <Navbar />
+
+          <SearchBar
+            location={location} setLocation={setLocation}
+            checkIn={checkIn} checkOut={checkOut} setDates={handleDates}
+            guests={guests} setGuests={setGuests}
+            minPrice={minPrice} maxPrice={maxPrice}
+            onPriceChange={handlePriceChange}
+            onSubmit={handleSubmit}
+          />
+
+          <main className="flex-1 flex overflow-hidden min-h-0 relative">
+            <div className="flex-1 min-w-0">
+              <GoogleMapPanel
+                radiusM={radiusM}
+                setRadiusM={setRadiusM}
+                userLocation={userLoc}
+                hotels={hotels}
+                activeHotel={activeHotel}
+                onHotelSelect={setActiveHotel}
+              />
+            </div>
+            <div className="relative flex-none border-l border-outline-variant/20 bg-surface-container-lowest" style={{ width: sidebarWidth, minWidth: 300, maxWidth: 620 }}>
+              <div
+                className={`absolute left-0 top-0 bottom-0 z-20 flex items-center justify-center px-1 ${isResizing ? "bg-primary/10" : "hover:bg-outline-variant/30"}`}
+                style={{ cursor: "col-resize", width: 18, marginLeft: -18 }}
+                onPointerDown={startSidebarResize}
+              >
+                <div className="w-1 h-16 rounded-full bg-on-surface-variant" />
+              </div>
+              <HotelSidebar hotels={hotels} loading={loading} onHotelClick={setActiveHotel} onFilterOpen={() => setFilterOpen(true)} />
+            </div>
+          </main>
+
+          <footer className="flex-none border-t border-outline-variant/20 bg-surface-container-low">
+            <div className="flex flex-col md:flex-row items-center justify-between px-10 py-4 gap-3 max-w-screen-2xl mx-auto">
+              <span className="font-headline font-extrabold text-primary">Booking4LU</span>
+              <div className="flex gap-6">
+                {["About","Privacy","Terms","Support"].map(l => (
+                  <a key={l} href="#" className="text-[11px] uppercase tracking-widest font-semibold text-on-surface-variant hover:text-secondary transition-colors">{l}</a>
+                ))}
+              </div>
+              <p className="text-[10px] text-outline">© 2024 Booking4LU. Editorial Excellence in Travel.</p>
+            </div>
+          </footer>
+
+          {filterOpen && (
+            <FilterModal
+              filters={filters}
+              onChange={setFilters}
+              onApply={() => {}}
+              onClose={() => setFilterOpen(false)}
+            />
+          )}
+          {activeHotel && (
+            <HotelPopup
+              hotel={activeHotel}
+              checkIn={checkIn} checkOut={checkOut}
+              onClose={() => setActiveHotel(null)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
