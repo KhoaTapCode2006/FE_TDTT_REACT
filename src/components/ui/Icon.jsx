@@ -1,12 +1,11 @@
-function Icon({ name, filled = false, size = 22, className = "" }) {
+const Icon = ({ name, className = "", size = 24 }) => {
   return (
-    <span
-      className={`ms ${filled ? "ms-filled" : ""} ${className}`}
+    <span 
+      className={`material-symbols-outlined ${className}`} 
       style={{ fontSize: size }}
     >
       {name}
     </span>
   );
-}
-
+};
 export default Icon;

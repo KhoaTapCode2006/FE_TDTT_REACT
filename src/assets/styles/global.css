@@ -70,3 +70,41 @@ html, body, #root {
   white-space: nowrap;
   direction: ltr;
 }
+@layer components {
+  /* Khung chứa lịch */
+  .calendar-container {
+    @apply p-4 bg-white rounded-2xl shadow-2xl border border-gray-100 min-w-[320px];
+  }
+
+  /* Lưới 7 cột cho Thứ 2 -> Chủ nhật */
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+  }
+
+  /* Header Thứ (T2, T3...) */
+  .cal-weekday {
+    @apply text-[10px] font-bold text-gray-400 uppercase text-center py-2 tracking-widest;
+  }
+
+  /* Ô ngày mặc định */
+  .cal-day {
+    @apply relative h-10 w-10 flex items-center justify-center rounded-xl text-sm font-semibold transition-all cursor-pointer hover:bg-[#1a2d24]/5 text-[#1a2d24];
+  }
+
+  /* NGÀY ĐƯỢC CHỌN (TRẠNG THÁI TICK XANH) */
+  .cal-day.selected {
+    @apply bg-[#1a2d24] text-white shadow-md z-10;
+  }
+
+  /* KHOẢNG GIỮA (Màu xanh nhạt) */
+  .cal-day.in-range {
+    @apply bg-[#1a2d24]/10 rounded-none;
+  }
+
+  /* Ngày không thuộc tháng hiện tại */
+  .cal-day.empty {
+    @apply text-gray-200 cursor-default hover:bg-transparent;
+  }
+}
