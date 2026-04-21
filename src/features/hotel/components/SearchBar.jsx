@@ -1,7 +1,6 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/app/AppContext";
 import { searchHotels } from "@/services/backend/hotel.service";
-import { MOCK_HOTELS } from "@/constants/enums";
 import Icon from "@/components/ui/Icon";
 import LocationInput from "@/components/ui/LocationInput";
 import DateRangePicker from "@/components/ui/DateRangePicker";
@@ -19,6 +18,9 @@ function SearchBar() {
     loading,
     setLoading,
     setActiveHotel,
+    filters,
+    radiusM,
+    userLoc
   } = useApp();
 
   const [showCal, setShowCal] = useState(false);
@@ -40,6 +42,13 @@ function SearchBar() {
     return () => document.removeEventListener("mousedown", handleDocumentClick);
   }, []);
 
+  // Auto-search when location, dates, or guests change
+  useEffect(() => {
+    if (location && dates.checkIn && dates.checkOut && userLoc) {
+      handleSearch();
+    }
+  }, [location, dates, guests, userLoc]);
+
   const { checkIn, checkOut } = dates;
 
   const dateLabel = checkIn
@@ -53,25 +62,36 @@ function SearchBar() {
   })();
 
   async function handleSearch() {
+    if (!location || !checkIn || !checkOut) return;
+    
     setLoading(true);
+    setActiveHotel(null); // Clear active hotel when searching
+    
     try {
+      // Convert filters to priceRange format
+      const priceRange = {};
+      if (filters.priceMin !== null) priceRange.minPrice = filters.priceMin;
+      if (filters.priceMax !== null) priceRange.maxPrice = filters.priceMax;
+
       const results = await searchHotels({
         location,
         checkIn,
         checkOut,
         guests,
+        priceRange,
+        radius: radiusM,
+        filters
       });
+      
+      console.log('Search results:', results.length, 'hotels found');
       setHotels(results);
     } catch (error) {
       console.error("SearchBar searchHotels failed:", error);
+      // Set empty array on error to prevent infinite loading
+      setHotels([]);
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleDemoPopup() {
-    // Mở popup với hotel đầu tiên từ MOCK_HOTELS
-    setActiveHotel(MOCK_HOTELS[0]);
   }
 
   return (
@@ -144,25 +164,22 @@ function SearchBar() {
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            handleDemoPopup();
-          }}
-          className="flex-none flex items-center gap-2 px-4 py-2 bg-secondary text-on-secondary rounded-xl font-bold text-sm hover:bg-secondary-container active:scale-95 transition-all whitespace-nowrap"
-        >
-          <Icon name="visibility" size={18} />
-          Demo
-        </button>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
             handleSearch();
           }}
           disabled={loading}
           className="flex-none flex items-center gap-2 px-5 py-2 bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary-container active:scale-95 transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Icon name="search" size={20} className="text-white" />
-          Tìm kiếm
+          {loading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Đang tìm...
+            </>
+          ) : (
+            <>
+              <Icon name="search" size={20} className="text-white" />
+              Tìm kiếm
+            </>
+          )}
         </button>
       </div>
     </div>

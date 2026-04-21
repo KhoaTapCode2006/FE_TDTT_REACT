@@ -172,12 +172,14 @@ const HomePage = () => {
       ) : null}
 
       {/* 4. Filter Modal */}
-      <FilterModal
-        isOpen={filterModalOpen}
-        filters={filters}
-        onClose={() => setFilterModalOpen(false)}
-        onApply={handleFilterApply}
-      />
+      {filterModalOpen && (
+        <FilterModal
+          isOpen={filterModalOpen}
+          filters={filters}
+          onClose={() => setFilterModalOpen(false)}
+          onApply={handleFilterApply}
+        />
+      )}
     </div>
   );
 };

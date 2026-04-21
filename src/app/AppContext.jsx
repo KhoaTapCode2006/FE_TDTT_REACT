@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useMemo, useEffect, useCallback } from 'react';
 import { MOCK_HOTELS, DEFAULT_FILTER_STATE } from '@/constants/enums';
-import { transformBackendResponse } from '@/services/backend/backend-data.service';
 
 const AppContext = createContext();
 
@@ -20,8 +19,8 @@ export const AppProvider = ({ children }) => {
 
   const [guests, setGuests] = useState({ adults: 2, children: 0, childrenAges: [] });
   
-  // Sử dụng MOCK_HOTELS để demo popup
-  const [hotels, setHotels] = useState(MOCK_HOTELS);
+  // Start with empty hotels array, will be populated by search
+  const [hotels, setHotels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeHotel, setActiveHotel] = useState(null);
 
@@ -92,21 +91,34 @@ export const AppProvider = ({ children }) => {
     return count;
   }, [filters]);
 
-  // Load backend data on mount
+  // Load mock backend data on mount for demo purposes
   useEffect(() => {
-    // Dynamic import để tránh circular dependency
-    import('@/constants/mock-backend-data').then(module => {
-      const MOCK_BACKEND_DATA = module.MOCK_BACKEND_DATA;
-      if (MOCK_BACKEND_DATA && MOCK_BACKEND_DATA.data) {
-        const transformedHotels = transformBackendResponse(MOCK_BACKEND_DATA);
-        console.log('✅ Loaded backend data, hotels count:', transformedHotels.length);
-        setHotels(transformedHotels);
+    // Load mock data for initial demo
+    const loadMockData = async () => {
+      try {
+        // Dynamic import để tránh circular dependency
+        const module = await import('@/constants/mock-backend-data');
+        const MOCK_BACKEND_DATA = module.MOCK_BACKEND_DATA;
+        
+        if (MOCK_BACKEND_DATA && MOCK_BACKEND_DATA.data) {
+          // Use the normalizeHotelResult function from utils/format.js
+          const { normalizeHotelResult } = await import('@/utils/format');
+          const transformedHotels = MOCK_BACKEND_DATA.data.map((hotel, index) => 
+            normalizeHotelResult(hotel, location)
+          ).filter(Boolean);
+          
+          console.log('✅ Loaded mock backend data, hotels count:', transformedHotels.length);
+          setHotels(transformedHotels);
+        }
+      } catch (err) {
+        console.warn('Note: Using MOCK_HOTELS from constants as fallback');
+        // Fallback to MOCK_HOTELS
+        setHotels(MOCK_HOTELS);
       }
-    }).catch(err => {
-      console.warn('Note: Using MOCK_HOTELS from constants');
-      // Fallback to MOCK_HOTELS is already set
-    });
-  }, []);
+    };
+
+    loadMockData();
+  }, [location]);
 
   // Clear filters when location changes (URL state synchronization)
   useEffect(() => {
@@ -123,7 +135,8 @@ export const AppProvider = ({ children }) => {
     return () => {
       // Cleanup if needed
     };
-  }, [location]);
+  }, [location, clearFilters]);
+
   // Cluster hotels state for sidebar integration
   const [clusterHotels, setClusterHotels] = useState([]);
 
@@ -132,18 +145,18 @@ export const AppProvider = ({ children }) => {
 
   const value = {
     location, setLocation,
-    userLoc, setUserLoc,     // Thêm vào đây
+    userLoc, setUserLoc,
     dates, setDates,
     guests, setGuests,
     hotels, setHotels,
     loading, setLoading,
     activeHotel, setActiveHotel,
-    radiusM, setRadiusM,     // Thêm vào đây
+    radiusM, setRadiusM,
     // Filter state and functions
     filters, setFilters,
     updateFilter, clearFilters,
     hasActiveFilters, activeFilterCount,
-    radiusM, setRadiusM,      // Thêm vào đây
+    // Cluster and hover state
     clusterHotels, setClusterHotels,
     hoveredHotelId, setHoveredHotelId
   };
