@@ -4,7 +4,7 @@ import HotelCard from "./HotelCard";
 import Icon from "@/components/ui/Icon";
 
 function HotelSidebar({ onFilterOpen }) {
-  const { hotels, loading, setActiveHotel } = useApp();
+  const { hotels, loading, setActiveHotel, hasActiveFilters, activeFilterCount } = useApp();
   const [idx, setIdx] = useState(0);
 
   useEffect(() => {
@@ -31,10 +31,15 @@ function HotelSidebar({ onFilterOpen }) {
             <button
               type="button"
               onClick={onFilterOpen}
-              className="flex items-center gap-1.5 bg-secondary-container text-on-secondary-container px-3 py-2 rounded-xl font-bold text-xs hover:brightness-95 transition-all active:scale-95"
+              className="relative flex items-center gap-1.5 bg-secondary-container text-on-secondary-container px-3 py-2 rounded-xl font-bold text-xs hover:brightness-95 transition-all active:scale-95"
             >
               <Icon name="tune" size={18} />
               Filters
+              {hasActiveFilters && (
+                <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-primary text-white text-[10px] font-bold rounded-full border-2 border-white flex items-center justify-center">
+                  {activeFilterCount}
+                </div>
+              )}
             </button>
           </div>
         </div>

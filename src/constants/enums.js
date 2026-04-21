@@ -24,6 +24,24 @@ export const PROPERTY_TYPES = [
   "Chung cư",
 ];
 
+// Filter-related constants
+export const PRICE_PRESETS = [
+  { label: "Dưới 1tr", min: null, max: 1000000 },
+  { label: "1-5tr", min: 1000000, max: 5000000 },
+  { label: "5-15tr", min: 5000000, max: 15000000 },
+  { label: "15-50tr", min: 15000000, max: 50000000 },
+  { label: "50-100tr", min: 50000000, max: 100000000 },
+];
+
+export const DEFAULT_FILTER_STATE = {
+  starRating: null,
+  types: [],
+  amenities: [],
+  priceMin: null,
+  priceMax: null,
+  availableOnly: false,
+};
+
 export const MOCK_HOTELS = [
   {
     id: "1",

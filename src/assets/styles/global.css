@@ -137,6 +137,27 @@ html, body, #root {
     from { transform: translateY(12px); opacity: 0; }
     to   { transform: translateY(0);    opacity: 1; }
   }
+
+  /* Modal animation for FilterModal */
+  .modal-anim {
+    animation: modalSlideUp 0.25s ease-out;
+  }
+  
+  @keyframes modalSlideUp {
+    from { 
+      transform: translateY(20px) scale(0.95); 
+      opacity: 0; 
+    }
+    to { 
+      transform: translateY(0) scale(1); 
+      opacity: 1; 
+    }
+  }
+  
+  /* Filter state change transitions */
+  .filter-transition {
+    transition: all 0.2s ease-out;
+  }
   
   .imageSection {
     position: relative;
@@ -436,7 +457,7 @@ html, body, #root {
   font-weight: 600;
 }
   
-@media (max-width: 640px) {
+  @media (max-width: 640px) {
     .popup { flex-direction: column; max-height: 95vh; }
     .imageSection { flex: 0 0 220px; }
     .twoCol { grid-template-columns: 1fr; }
