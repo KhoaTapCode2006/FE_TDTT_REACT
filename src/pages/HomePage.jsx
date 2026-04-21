@@ -116,7 +116,6 @@ const HomePage = () => {
     setActiveHotel(null);
     setClusterHotels([]);
   };
-  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
