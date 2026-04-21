@@ -63,12 +63,16 @@ export function normalizeHotelResult(raw, fallbackLocation) {
 
   const latestReview = raw.latestReview || reviews[0] || null;
 
+  // Calculate rating and star rating
+  const rating = Number(raw.raw_rating || raw.ai_score || raw.rating || 0);
+  const starRating = Math.ceil(rating); // Convert decimal rating to star rating (1-5)
+
   return {
     id: raw.id || raw.property_token || raw.link || Math.random().toString(36).slice(2),
     name: raw.name || "Unknown Hotel",
     type: raw.type || "Hotel",
     badge: raw.badge || raw.deal || null,
-    rating: Number(raw.raw_rating || raw.ai_score || raw.rating || 0),
+    rating,
     reviewCount: Number(raw.reviewCount || reviews.length || 0),
     pricePerNight: Number(raw.price || raw.pricePerNight || 0),
     currency: raw.currency || "VND",
@@ -76,6 +80,7 @@ export function normalizeHotelResult(raw, fallbackLocation) {
     lat: parseFloat(gps.latitude) || null,
     lng: parseFloat(gps.longitude) || null,
     amenities,
+    starRating, // Add this field for filter compatibility
     images: normalizedImages,
     thumbnail: normalizedImages[0] || null,
     latestReview,
