@@ -4,7 +4,7 @@ import HotelCard from "./HotelCard";
 import Icon from "@/components/ui/Icon";
 
 function HotelSidebar({ onFilterOpen }) {
-  const { hotels, loading, setActiveHotel } = useApp();
+  const { hotels, loading, setActiveHotel, clusterHotels, activeHotel } = useApp();
   const [idx, setIdx] = useState(0);
 
   useEffect(() => {
@@ -15,6 +15,7 @@ function HotelSidebar({ onFilterOpen }) {
   const current = hotels[idx] || null;
   const isFirst = idx === 0;
   const isLast = idx === total - 1;
+  const hasCluster = clusterHotels && clusterHotels.length > 0;
 
   return (
     <aside className="w-full md:w-[420px] lg:w-[460px] bg-surface-container-lowest border-l border-outline-variant/20 flex flex-col overflow-hidden">
@@ -48,6 +49,47 @@ function HotelSidebar({ onFilterOpen }) {
             <Icon name="search_off" size={48} className="text-outline" />
             <p className="font-headline font-bold text-lg text-primary">No stays found</p>
             <p className="text-sm text-on-surface-variant">Try adjusting your filters or expanding the radius.</p>
+          </div>
+        ) : hasCluster ? (
+          <div className="h-full overflow-y-auto">
+            <div className="mb-4">
+              <h3 className="font-headline text-lg font-bold text-primary mb-2">Hotels in this cluster</h3>
+              <p className="text-xs text-on-surface-variant">{clusterHotels.length} hotels at this location</p>
+            </div>
+            <div className="space-y-2">
+              {clusterHotels.map((hotel) => (
+                <button
+                  key={hotel.id}
+                  onClick={() => setActiveHotel(hotel)}
+                  className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
+                    activeHotel?.id === hotel.id
+                      ? 'border-primary bg-primary/5'
+                      : 'border-outline-variant/30 bg-surface-container hover:bg-surface-container-high'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {hotel.images && hotel.images[0] && (
+                      <img
+                        src={hotel.images[0]}
+                        alt={hotel.name}
+                        className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h4 className={`font-bold text-sm mb-1 truncate ${
+                        activeHotel?.id === hotel.id ? 'text-primary' : 'text-on-surface'
+                      }`}>
+                        {hotel.name}
+                      </h4>
+                      <p className="text-xs text-on-surface-variant truncate">{hotel.address}</p>
+                      <p className="text-xs font-bold text-secondary mt-1">
+                        {hotel.pricePerNight ? `${(hotel.pricePerNight / 1000).toFixed(0)}K VND/night` : 'Price N/A'}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="relative h-full">

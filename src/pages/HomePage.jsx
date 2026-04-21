@@ -1,12 +1,18 @@
 import SearchBar from '@/features/hotel/components/SearchBar';
 import HotelSidebar from '@/features/hotel/components/HotelSidebar';
 import HotelPopup from '@/features/hotel/components/HotelPopup';
-import VietMapPanel from '@/features/map/VietMapPanel'; // Huy nhớ bóc tách file này nhé
+import ClusterSplitView from '@/features/hotel/components/ClusterSplitView';
+import VietMapPanel from '@/features/map/VietMapPanel';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { useApp } from '@/app/AppContext';
 
 const HomePage = () => {
-  const { activeHotel, setActiveHotel } = useApp();
+  const { activeHotel, setActiveHotel, clusterHotels, setClusterHotels } = useApp();
+
+  const handleClosePopup = () => {
+    setActiveHotel(null);
+    setClusterHotels([]);
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
@@ -26,13 +32,15 @@ const HomePage = () => {
         <HotelSidebar />
       </main>
 
-      {/* 3. Popup chi tiết hiển thị đè lên khi có khách sạn được chọn */}
-      {activeHotel && (
+      {/* 3. Conditional rendering: Split-view for clusters, standard popup for single hotels */}
+      {clusterHotels && clusterHotels.length > 0 ? (
+        <ClusterSplitView />
+      ) : activeHotel ? (
         <HotelPopup 
           hotel={activeHotel} 
-          onClose={() => setActiveHotel(null)} 
+          onClose={handleClosePopup} 
         />
-      )}
+      ) : null}
     </div>
   );
 };

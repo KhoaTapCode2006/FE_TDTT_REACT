@@ -214,24 +214,39 @@ export function getRadiusHandleCoordinates(center, radius) {
  * @param {Object} hotel - Hotel object with properties
  * @param {boolean} insideCircle - Whether hotel is inside search radius
  * @param {Function} onSelect - Callback when hotel is selected
- * @returns {HTMLElement} Marker element
+ * @param {boolean} isHovered - Whether this hotel is currently hovered in sidebar
+ * @returns {HTMLElement} Marker element with wrapper and inner structure
  */
-export function createHotelMarkerElement(hotel, insideCircle, onSelect) {
+export function createHotelMarkerElement(hotel, insideCircle, onSelect, isHovered = false) {
   const size = insideCircle ? 52 : 42;
-  const element = document.createElement("div");
-  element.style.width = `${size}px`;
-  element.style.height = `${size}px`;
-  element.style.borderRadius = "50%";
-  element.style.overflow = "hidden";
-  element.style.boxShadow = "0 0 0 2px rgba(255,255,255,0.95),0 10px 22px rgba(0,0,0,0.22)";
-  element.style.border = "2px solid rgba(255,255,255,0.95)";
-  element.style.cursor = "pointer";
-  element.style.backgroundColor = "#ffffff";
-  element.style.transition = "width 0.2s ease, height 0.2s ease, transform 0.2s ease";
   
-  if (insideCircle) {
-    element.className = "hotel-marker-flicker";
-    element.style.transform = "scale(1.05)";
+  // Create wrapper div (no styles - map handles positioning)
+  const wrapper = document.createElement("div");
+  wrapper.dataset.hotelId = hotel.id; // Store hotel ID for later updates
+  wrapper.style.zIndex = isHovered ? '1000' : '1'; // Elevated z-index when hovered
+  
+  // Create inner div with all visual styles
+  const inner = document.createElement("div");
+  inner.className = "hotel-marker-item hotel-marker-inner";
+  inner.dataset.hotelId = hotel.id;
+  inner.style.width = `${size}px`;
+  inner.style.height = `${size}px`;
+  inner.style.borderRadius = "50%";
+  inner.style.overflow = "hidden";
+  inner.style.boxShadow = "0 0 0 2px rgba(255,255,255,0.95),0 10px 22px rgba(0,0,0,0.22)";
+  inner.style.border = "2px solid rgba(255,255,255,0.95)";
+  inner.style.cursor = "pointer";
+  inner.style.backgroundColor = "#ffffff";
+  inner.style.transition = "transform 0.2s ease";
+  
+  // Apply hover scale effect
+  if (isHovered) {
+    inner.style.transform = "scale(1.3)";
+  } else if (insideCircle) {
+    inner.className = "hotel-marker-flicker hotel-marker-item hotel-marker-inner";
+    inner.style.transform = "scale(1.05)";
+  } else {
+    inner.style.transform = "scale(1)";
   }
 
   const image = document.createElement("img");
@@ -241,14 +256,15 @@ export function createHotelMarkerElement(hotel, insideCircle, onSelect) {
   image.style.height = "100%";
   image.style.objectFit = "cover";
   image.style.display = "block";
-  element.appendChild(image);
+  inner.appendChild(image);
 
-  element.addEventListener("click", (event) => {
+  inner.addEventListener("click", (event) => {
     event.stopPropagation();
     onSelect?.(hotel);
   });
 
-  return element;
+  wrapper.appendChild(inner);
+  return wrapper;
 }
 
 /**
@@ -282,4 +298,195 @@ export function getPopupHtml(hotel) {
  */
 export function clampRadius(radius) {
   return Math.min(40000, Math.max(500, Math.round(radius / 100) * 100));
+}
+
+
+// ── Supercluster Utility Functions ──────────────────────────────────────────
+
+/**
+ * Validate hotel coordinates to filter out invalid entries
+ * @param {Array} hotels - Array of hotel objects
+ * @returns {Array} Array of hotels with valid coordinates
+ */
+export function validateHotelCoordinates(hotels) {
+  if (!Array.isArray(hotels)) {
+    console.warn('validateHotelCoordinates: hotels is not an array');
+    return [];
+  }
+
+  return hotels.filter(hotel => {
+    if (!hotel) return false;
+    
+    const { lat, lng } = hotel;
+    
+    // Check if coordinates exist
+    if (lat == null || lng == null) return false;
+    
+    // Check if coordinates are numbers
+    if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+    
+    // Check if coordinates are not NaN
+    if (isNaN(lat) || isNaN(lng)) return false;
+    
+    // Check if coordinates are finite
+    if (!isFinite(lat) || !isFinite(lng)) return false;
+    
+    return true;
+  });
+}
+
+/**
+ * Convert hotel objects to GeoJSON Feature format for supercluster
+ * @param {Array} hotels - Array of hotel objects
+ * @returns {Array} Array of GeoJSON Feature objects
+ */
+export function convertHotelsToSuperclusterPoints(hotels) {
+  if (!Array.isArray(hotels)) {
+    console.warn('convertHotelsToSuperclusterPoints: hotels is not an array');
+    return [];
+  }
+
+  return hotels.map(hotel => ({
+    type: 'Feature',
+    geometry: {
+      type: 'Point',
+      coordinates: [hotel.lng, hotel.lat]
+    },
+    properties: {
+      hotel: hotel
+    }
+  }));
+}
+
+/**
+ * Get hotel thumbnail URL with fallbacks
+ * @param {Object} hotel - Hotel object
+ * @returns {string} Thumbnail URL or placeholder
+ */
+export function getHotelThumbnailUrl(hotel) {
+  if (!hotel) return '/placeholder-hotel.jpg';
+  
+  // Try thumbnail first
+  if (hotel.thumbnail) return hotel.thumbnail;
+  
+  // Try first image
+  if (hotel.images && Array.isArray(hotel.images) && hotel.images.length > 0) {
+    return hotel.images[0];
+  }
+  
+  // Fallback to placeholder
+  return '/placeholder-hotel.jpg';
+}
+
+/**
+ * Get cluster badge text showing additional hotel count
+ * @param {number} count - Total number of hotels in cluster
+ * @returns {string} Badge text (e.g., "+2" for 3 hotels) or empty string
+ */
+export function getClusterBadgeText(count) {
+  if (typeof count !== 'number' || count <= 1) return '';
+  return `+${count - 1}`;
+}
+
+
+/**
+ * Create cluster marker element with hotel thumbnail and badge
+ * @param {Object} cluster - Cluster object from supercluster
+ * @param {Object} firstHotel - First hotel in the cluster
+ * @param {number} hotelCount - Total number of hotels in cluster
+ * @param {Function} onClick - Click handler callback
+ * @param {Array} clusterHotelIds - Array of hotel IDs in this cluster
+ * @param {string} hoveredHotelId - ID of currently hovered hotel
+ * @returns {HTMLElement} Cluster marker element
+ */
+export function createClusterMarkerElement(cluster, firstHotel, hotelCount, onClick, clusterHotelIds = [], hoveredHotelId = null) {
+  // ── Wrapper ──────────────────────────────────────────────────────────────
+  // Fixed 60×60 size + position:relative so the badge's absolute positioning
+  // anchors to this box, not to some distant ancestor.
+  // The map library applies its own transform to this element for geo-positioning,
+  // so we must NOT put any scale/transition here.
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'relative';
+  wrapper.style.width = '60px';
+  wrapper.style.height = '60px';
+  wrapper.style.cursor = 'pointer';
+  wrapper.dataset.clusterId = cluster.properties?.cluster_id || 'single';
+  wrapper.dataset.clusterHotelIds = JSON.stringify(clusterHotelIds);
+
+  // ── Inner (main circle with hotel photo) ─────────────────────────────────
+  // Fills the wrapper exactly. All visual styles + scale transition live here.
+  const inner = document.createElement('div');
+  inner.className = 'cluster-marker-inner';
+  inner.dataset.clusterHotelIds = JSON.stringify(clusterHotelIds);
+  inner.style.width = '100%';
+  inner.style.height = '100%';
+  inner.style.borderRadius = '50%';
+  inner.style.border = '3px solid white';
+  inner.style.boxShadow = '0 4px 14px rgba(0,0,0,0.18)';
+  inner.style.overflow = 'hidden';
+  inner.style.backgroundColor = '#ffffff';
+  inner.style.transition = 'transform 0.2s ease-out';
+
+  // Native mouse-hover (direct map interaction)
+  inner.addEventListener('mouseenter', () => {
+    if (!inner.classList.contains('is-active-hover')) {
+      inner.style.transform = 'scale(1.08)';
+    }
+  });
+  inner.addEventListener('mouseleave', () => {
+    if (!inner.classList.contains('is-active-hover')) {
+      inner.style.transform = 'scale(1)';
+    }
+  });
+
+  // Hotel photo
+  const thumbnailUrl = getHotelThumbnailUrl(firstHotel);
+  const img = document.createElement('img');
+  img.src = thumbnailUrl;
+  img.alt = firstHotel?.name || 'Hotel';
+  img.style.width = '100%';
+  img.style.height = '100%';
+  img.style.objectFit = 'cover';
+  img.style.display = 'block';
+  inner.appendChild(img);
+
+  // ── Badge (quantity circle) ───────────────────────────────────────────────
+  // Sibling of inner (NOT inside it) so overflow:hidden never clips it.
+  // Anchored to the 60×60 wrapper via absolute positioning.
+  const badgeText = getClusterBadgeText(hotelCount);
+  if (badgeText) {
+    const badge = document.createElement('div');
+    badge.className = 'cluster-count-badge';
+    badge.textContent = badgeText;
+    badge.style.position = 'absolute';
+    badge.style.top = '-8px';    // overlaps the top-right edge of the 60px circle
+    badge.style.right = '-8px';
+    badge.style.width = '28px';
+    badge.style.height = '28px';
+    badge.style.borderRadius = '50%';
+    badge.style.background = '#ff5a3c';
+    badge.style.color = 'white';
+    badge.style.fontSize = '12px';
+    badge.style.fontWeight = '800';
+    badge.style.display = 'flex';
+    badge.style.alignItems = 'center';
+    badge.style.justifyContent = 'center';
+    badge.style.border = '2px solid white';
+    badge.style.boxShadow = '0 2px 6px rgba(0,0,0,0.25)';
+    badge.style.lineHeight = '1';
+    badge.style.zIndex = '10';
+    badge.style.pointerEvents = 'none';
+    wrapper.appendChild(badge);
+  }
+
+  // Click handler
+  if (onClick) {
+    inner.addEventListener('click', (event) => {
+      event.stopPropagation();
+      onClick(cluster);
+    });
+  }
+
+  wrapper.appendChild(inner);
+  return wrapper;
 }

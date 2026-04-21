@@ -5,7 +5,7 @@ import { AMENITY_META } from "@/constants/enums";
 import Icon from "@/components/ui/Icon";
 import styles from "./Hotel.module.css";
 
-function HotelPopup({ hotel, onClose }) {
+function HotelPopup({ hotel, onClose, embedded = false }) {
   const { dates } = useApp();
   const { checkIn, checkOut } = dates;
   const [slide, setSlide] = useState(0);
@@ -13,6 +13,14 @@ function HotelPopup({ hotel, onClose }) {
   const [imgScale, setImgScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragRef = useRef({ dragging: false, startX: 0, startY: 0, panX: 0, panY: 0 });
+
+  // Reset slide when hotel changes
+  useEffect(() => {
+    setSlide(0);
+    setImageViewerOpen(false);
+    setImgScale(1);
+    setPan({ x: 0, y: 0 });
+  }, [hotel?.id]);
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 1;
@@ -125,160 +133,177 @@ function HotelPopup({ hotel, onClose }) {
     return stars;
   };
 
-  return (
+  // Render the popup content
+  const popupContent = (
     <>
-      {/* Main Popup */}
-      <div className={styles.overlay} onClick={onClose}>
-        <div className={styles.popup} onClick={(e) => e.stopPropagation()}>
-          {/* Image Section */}
-          <div className={styles.imageSection}>
-            <img
-              src={images[slide]}
-              alt={`${hotel.name} ${slide + 1}`}
-              className={styles.hotelImage}
-              onClick={openImageViewer}
-            />
+      {/* Image Section */}
+      <div className={styles.imageSection}>
+        <img
+          src={images[slide]}
+          alt={`${hotel.name} ${slide + 1}`}
+          className={styles.hotelImage}
+          onClick={openImageViewer}
+        />
 
-            {/* Carousel Navigation */}
-            {images.length > 1 && (
-              <>
-                <button className={`${styles.carouselBtn} ${styles.carouselBtnLeft}`} onClick={goPrev}>
-                  <Icon name="chevron_left" size={20} />
-                </button>
-                <button className={`${styles.carouselBtn} ${styles.carouselBtnRight}`} onClick={goNext}>
-                  <Icon name="chevron_right" size={20} />
-                </button>
-              </>
-            )}
+        {/* Carousel Navigation */}
+        {images.length > 1 && (
+          <>
+            <button className={`${styles.carouselBtn} ${styles.carouselBtnLeft}`} onClick={goPrev}>
+              <Icon name="chevron_left" size={20} />
+            </button>
+            <button className={`${styles.carouselBtn} ${styles.carouselBtnRight}`} onClick={goNext}>
+              <Icon name="chevron_right" size={20} />
+            </button>
+          </>
+        )}
 
-            {/* Dots Indicator */}
-            {images.length > 1 && (
-              <div className={styles.dots}>
-                {images.map((_, index) => (
-                  <div
-                    key={index}
-                    className={`${styles.dot} ${index === slide ? styles.dotActive : ""}`}
-                    onClick={() => setSlide(index)}
-                  />
-                ))}
-              </div>
-            )}
+        {/* Dots Indicator */}
+        {images.length > 1 && (
+          <div className={styles.dots}>
+            {images.map((_, index) => (
+              <div
+                key={index}
+                className={`${styles.dot} ${index === slide ? styles.dotActive : ""}`}
+                onClick={() => setSlide(index)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Info Panel */}
+      <div className={styles.infoPanel}>
+        {!embedded && (
+          <button className={styles.closeBtn} onClick={onClose}>
+            <Icon name="close" size={20} />
+          </button>
+        )}
+
+        {/* Header */}
+        <div className={styles.header}>
+          <h1 className={styles.hotelName}>{hotel.name}</h1>
+          
+          {/* Rating */}
+          <div className={styles.ratingRow}>
+            <div className={styles.stars}>
+              {renderStars(hotel.rating)}
+            </div>
+            <span className={styles.ratingNum}>{hotel.rating}</span>
+            <span className={styles.reviewCount}>({hotel.reviewCount} reviews)</span>
           </div>
 
-          {/* Info Panel */}
-          <div className={styles.infoPanel}>
-            <button className={styles.closeBtn} onClick={onClose}>
-              <Icon name="close" size={20} />
-            </button>
+          {/* Address */}
+          <div className={styles.address}>
+            <Icon name="location_on" size={16} />
+            <span>{hotel.address}</span>
+          </div>
+        </div>
 
-            {/* Header */}
-            <div className={styles.header}>
-              <h1 className={styles.hotelName}>{hotel.name}</h1>
-              
-              {/* Rating */}
-              <div className={styles.ratingRow}>
-                <div className={styles.stars}>
-                  {renderStars(hotel.rating)}
-                </div>
-                <span className={styles.ratingNum}>{hotel.rating}</span>
-                <span className={styles.reviewCount}>({hotel.reviewCount} reviews)</span>
-              </div>
+        {/* Price Section */}
+        <div>
+          <p className={styles.sectionLabel}>Giá phòng</p>
+          <div className={styles.priceRow}>
+            <span className={styles.price}>{fmtPrice(hotel.pricePerNight)}</span>
+            <span className={styles.perNight}>/ đêm</span>
+          </div>
+        </div>
 
-              {/* Address */}
-              <div className={styles.address}>
-                <Icon name="location_on" size={16} />
-                <span>{hotel.address}</span>
-              </div>
-            </div>
-
-            {/* Price Section */}
-            <div>
-              <p className={styles.sectionLabel}>Giá phòng</p>
-              <div className={styles.priceRow}>
-                <span className={styles.price}>{fmtPrice(hotel.pricePerNight)}</span>
-                <span className={styles.perNight}>/ đêm</span>
-              </div>
-            </div>
-
-            {/* Two Column Layout */}
-            <div className={styles.twoCol}>
-              {/* Amenities */}
-              <div>
-                <p className={styles.sectionLabel}>Tiện nghi</p>
-                <div className={styles.amenities}>
-                  {visibleAmenities.map((amenity) => {
-                    const meta = AMENITY_META[amenity] || { icon: "check", label: amenity };
-                    return (
-                      <div key={amenity} className={styles.amenityItem}>
-                        <div className={styles.amenityIcon}>
-                          <Icon name={meta.icon} size={20} />
-                        </div>
-                        <span className={styles.amenityLabel}>{meta.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Nearby Landmarks */}
-              {hotel.nearbyLandmarks && hotel.nearbyLandmarks.length > 0 && (
-                <div>
-                  <p className={styles.sectionLabel}>Địa điểm gần đây</p>
-                  <ul className={styles.landmarks}>
-                    {hotel.nearbyLandmarks.slice(0, 4).map((landmark, index) => (
-                      <li key={index} className={styles.landmarkItem}>
-                        <span className={styles.landmarkName}>{landmark.name}</span>
-                        <span className={styles.landmarkDist}>{landmark.distance}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            {/* Latest Review */}
-            {hotel.latestReview && (
-              <div>
-                <p className={styles.sectionLabel}>Đánh giá gần đây</p>
-                <div className={styles.reviewBox}>
-                  <div className={styles.reviewInner}>
-                    <div className={styles.reviewAvatar}>
-                      <Icon name="person" size={16} />
+        {/* Two Column Layout */}
+        <div className={styles.twoCol}>
+          {/* Amenities */}
+          <div>
+            <p className={styles.sectionLabel}>Tiện nghi</p>
+            <div className={styles.amenities}>
+              {visibleAmenities.map((amenity) => {
+                const meta = AMENITY_META[amenity] || { icon: "check", label: amenity };
+                return (
+                  <div key={amenity} className={styles.amenityItem}>
+                    <div className={styles.amenityIcon}>
+                      <Icon name={meta.icon} size={20} />
                     </div>
-                    <div>
-                      <p className={styles.reviewAuthor}>{hotel.latestReview.author}</p>
-                      <p className={styles.reviewContent}>{hotel.latestReview.text}</p>
-                    </div>
+                    <span className={styles.amenityLabel}>{meta.label}</span>
                   </div>
-                </div>
-              </div>
-            )}
+                );
+              })}
+            </div>
+          </div>
 
-            {/* Booking Section */}
-            <div className={styles.bookingBox}>
-              <h3 className={styles.bookingTitle}>Chi tiết đặt phòng</h3>
-              <div className={styles.dateRow}>
-                <div className={styles.dateBox}>
-                  <span className={styles.dateLabel}>Nhận phòng</span>
-                  <span className={styles.dateValue}>{fmtDate(checkIn)}</span>
+          {/* Nearby Landmarks */}
+          {hotel.nearbyLandmarks && hotel.nearbyLandmarks.length > 0 && (
+            <div>
+              <p className={styles.sectionLabel}>Địa điểm gần đây</p>
+              <ul className={styles.landmarks}>
+                {hotel.nearbyLandmarks.slice(0, 4).map((landmark, index) => (
+                  <li key={index} className={styles.landmarkItem}>
+                    <span className={styles.landmarkName}>{landmark.name}</span>
+                    <span className={styles.landmarkDist}>{landmark.distance}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Latest Review */}
+        {hotel.latestReview && (
+          <div>
+            <p className={styles.sectionLabel}>Đánh giá gần đây</p>
+            <div className={styles.reviewBox}>
+              <div className={styles.reviewInner}>
+                <div className={styles.reviewAvatar}>
+                  <Icon name="person" size={16} />
                 </div>
-                <div className={styles.dateBox}>
-                  <span className={styles.dateLabel}>Trả phòng</span>
-                  <span className={styles.dateValue}>{fmtDate(checkOut)}</span>
+                <div>
+                  <p className={styles.reviewAuthor}>{hotel.latestReview.author}</p>
+                  <p className={styles.reviewContent}>{hotel.latestReview.text}</p>
                 </div>
               </div>
-              <div style={{ marginTop: "12px", textAlign: "center" }}>
-                <div style={{ color: "rgba(255,255,255,0.8)", fontSize: "12px", marginBottom: "4px" }}>
-                  {nights} đêm • Tổng cộng
-                </div>
-                <div style={{ color: "#fff", fontSize: "18px", fontWeight: "800" }}>
-                  {fmtPrice(total)}
-                </div>
-              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Booking Section */}
+        <div className={styles.bookingBox}>
+          <h3 className={styles.bookingTitle}>Chi tiết đặt phòng</h3>
+          <div className={styles.dateRow}>
+            <div className={styles.dateBox}>
+              <span className={styles.dateLabel}>Nhận phòng</span>
+              <span className={styles.dateValue}>{fmtDate(checkIn)}</span>
+            </div>
+            <div className={styles.dateBox}>
+              <span className={styles.dateLabel}>Trả phòng</span>
+              <span className={styles.dateValue}>{fmtDate(checkOut)}</span>
+            </div>
+          </div>
+          <div style={{ marginTop: "12px", textAlign: "center" }}>
+            <div style={{ color: "rgba(255,255,255,0.8)", fontSize: "12px", marginBottom: "4px" }}>
+              {nights} đêm • Tổng cộng
+            </div>
+            <div style={{ color: "#fff", fontSize: "18px", fontWeight: "800" }}>
+              {fmtPrice(total)}
             </div>
           </div>
         </div>
       </div>
+    </>
+  );
+
+  return (
+    <>
+      {/* Main Popup */}
+      {embedded ? (
+        // Embedded mode: render content directly without overlay
+        <div className={styles.popup} style={{ position: 'relative', maxWidth: 'none', width: '100%', height: '100%' }}>
+          {popupContent}
+        </div>
+      ) : (
+        // Standalone mode: render with overlay
+        <div className={styles.overlay} onClick={onClose}>
+          <div className={styles.popup} onClick={(e) => e.stopPropagation()}>
+            {popupContent}
+          </div>
+        </div>
+      )}
 
       {/* Image Viewer Modal */}
       {imageViewerOpen && (

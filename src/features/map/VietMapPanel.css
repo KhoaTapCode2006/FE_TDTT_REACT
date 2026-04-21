@@ -48,3 +48,42 @@
 .shadow-editorial {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
+
+/* Marker hover effects - smooth transitions */
+.hotel-marker-inner,
+.cluster-marker-inner {
+  transition: transform 0.2s ease-out;
+}
+
+/* External hover highlight - triggered from sidebar card hover */
+.is-active-hover {
+  transform: scale(1.3) !important;
+  z-index: 99;
+}
+
+/* Cluster count badge - always visible, never clipped */
+.cluster-count-badge {
+  pointer-events: none;
+  transition: transform 0.2s ease-out;
+}
+
+/* When cluster inner is highlighted, badge scales with it */
+.cluster-marker-inner.is-active-hover + .cluster-count-badge,
+.is-active-hover ~ .cluster-count-badge {
+  transform: scale(1.1);
+}
+
+/* Ensure markers never cover popups/overlays */
+.maplibregl-marker {
+  z-index: 1;
+}
+
+/* Popups always on top of markers */
+.maplibregl-popup {
+  z-index: 500;
+}
+
+/* Cluster split view overlay - highest priority, always above markers */
+[class*="z-\\[1000\\]"] {
+  z-index: 1000 !important;
+}

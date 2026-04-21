@@ -24,6 +24,12 @@ export const AppProvider = ({ children }) => {
   // PHẢI CÓ DÒNG NÀY: Fix lỗi "NaN km" trên giao diện
   const [radiusM, setRadiusM] = useState(3000); 
 
+  // Cluster hotels state for sidebar integration
+  const [clusterHotels, setClusterHotels] = useState([]);
+
+  // Hovered hotel ID for map marker highlighting
+  const [hoveredHotelId, setHoveredHotelId] = useState(null);
+
   const value = {
     location, setLocation,
     userLoc, setUserLoc,     // Thêm vào đây
@@ -32,7 +38,9 @@ export const AppProvider = ({ children }) => {
     hotels, setHotels,
     loading, setLoading,
     activeHotel, setActiveHotel,
-    radiusM, setRadiusM      // Thêm vào đây
+    radiusM, setRadiusM,      // Thêm vào đây
+    clusterHotels, setClusterHotels,
+    hoveredHotelId, setHoveredHotelId
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
