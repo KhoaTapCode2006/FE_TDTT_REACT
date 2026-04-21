@@ -13,9 +13,9 @@
   
   .popup {
     display: flex;
-    width: 100%;
-    max-width: 860px;
-    max-height: 90vh;
+  width: 80vw;
+  max-width: 1280px;
+  height: 80vh;
     background: #fff;
     border-radius: 16px;
     overflow: hidden;
@@ -29,17 +29,39 @@
   
   .imageSection {
     position: relative;
-    flex: 0 0 42%;
-    overflow: hidden;
+  flex: 0 0 56%;
+  overflow: hidden;
     background: #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
   }
   .hotelImage {
-    width: 100%;
-    height: 100%;
+  width: 100%;
+  height: calc(100% - 88px);
     object-fit: cover;
-    display: block;
+  display: block;
   cursor: zoom-in;
-  }
+  border-radius: 12px;
+}
+
+.thumbnailList {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.thumbnailImage {
+  width: 90px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 10px;
+  cursor: pointer;
+  border: 1px solid #dbe2ea;
+  flex: 0 0 auto;
+}
   
   .carouselBtn {
     position: absolute;
@@ -81,8 +103,8 @@
   .dotActive { background: #fff; }
   
   .infoPanel {
-    flex: 1;
-    overflow-y: auto;
+  flex: 0 0 44%;
+    overflow: hidden;
     padding: 24px 24px 20px;
     position: relative;
     display: flex;
@@ -103,10 +125,16 @@
     padding: 4px;
     border-radius: 6px;
     transition: color 0.15s, background 0.15s;
+    z-index: 5;
   }
   .closeBtn:hover { color: #1e293b; background: #f1f5f9; }
   
   .header { display: flex; flex-direction: column; gap: 6px; }
+  .stickyTop {
+    position: relative;
+    z-index: 3;
+    background: #fff;
+  }
   
   .hotelName {
     font-size: 20px;
@@ -121,6 +149,7 @@
   .stars { display: flex; gap: 1px; }
   .ratingNum { font-size: 14px; font-weight: 700; color: #1e293b; }
   .reviewCount { font-size: 13px; color: #64748b; }
+  .aiScore { margin: 0; font-size: 13px; font-weight: 700; color: #2563eb; }
   
   .address { display: flex; align-items: center; gap: 4px; font-size: 13px; color: #64748b; }
   
@@ -132,10 +161,61 @@
     color: #94a3b8;
     margin: 0 0 8px;
   }
+
+  .tabRow {
+    display: flex;
+    gap: 8px;
+    padding-bottom: 2px;
+    border-bottom: 1px solid #e2e8f0;
+    overflow-x: auto;
+    margin-top: 4px;
+  }
+
+  .tabBtn {
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 2px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+
+  .tabBtnActive {
+    color: #0f766e;
+    border-bottom-color: #0f766e;
+  }
+
+  .tabPanel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  .descriptionText {
+    margin: 0;
+    font-size: 13px;
+    color: #475569;
+    line-height: 1.6;
+  }
+
+  .reviewSummary {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
   
-  .twoCol { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  
-  .amenities { display: flex; flex-wrap: wrap; gap: 10px; }
+.amenities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
   .amenityItem { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 60px; }
   .amenityIcon {
     width: 48px;
@@ -149,6 +229,24 @@
     background: #f0fdf8;
   }
   .amenityLabel { font-size: 11px; color: #475569; text-align: center; }
+
+.amenitiesToggleBtn {
+  align-self: flex-start;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.amenitiesToggleBtn:hover {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+}
   
   .landmarks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   .landmarkItem { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
@@ -169,6 +267,7 @@
     color: #64748b;
   }
   .reviewAuthor { font-size: 13px; font-weight: 700; color: #1e293b; margin: 0 0 3px; }
+  .reviewRawStar { display: flex; gap: 2px; margin: 0 0 6px; }
   .reviewContent { font-size: 13px; color: #475569; margin: 0; line-height: 1.5; }
   
   .bookingBox { background: #0f2554; border-radius: 12px; padding: 14px 16px; }
@@ -326,9 +425,10 @@
 }
   
   @media (max-width: 640px) {
-    .popup { flex-direction: column; max-height: 95vh; }
-    .imageSection { flex: 0 0 220px; }
-    .twoCol { grid-template-columns: 1fr; }
+  .popup { flex-direction: column; height: min(95vh, 760px); }
+  .imageSection { flex: 0 0 280px; }
+  .hotelImage { height: calc(100% - 74px); }
+  .thumbnailImage { width: 72px; height: 56px; }
     .imageViewerOverlay { padding: 16px; }
     .imageViewerContent { width: 100%; height: min(82vh, 620px); }
     .imageViewerNavBtn { width: 36px; height: 36px; }
