@@ -3,6 +3,7 @@ import SearchBar from '@/features/hotel/components/SearchBar';
 import HotelSidebar from '@/features/hotel/components/HotelSidebar';
 import HotelPopup from '@/features/hotel/components/HotelPopup';
 import FilterModal from '@/features/hotel/components/FilterModal';
+import ClusterSplitView from '@/features/hotel/components/ClusterSplitView';
 import VietMapPanel from '@/features/map/VietMapPanel'; // Huy nhớ bóc tách file này nhé
 import ErrorBoundary from '@/components/ErrorBoundary';
 import Icon from '@/components/ui/Icon';
@@ -14,7 +15,8 @@ const HomePage = () => {
     activeHotel, setActiveHotel, 
     filters, setFilters,
     location, dates, guests, radiusM,
-    setHotels, setLoading
+    setHotels, setLoading,
+    clusterHotels, setClusterHotels
   } = useApp();
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [error, setError] = useState(null);
@@ -110,6 +112,12 @@ const HomePage = () => {
     debouncedHotelSearch(filters);
   };
 
+  const handleClosePopup = () => {
+    setActiveHotel(null);
+    setClusterHotels([]);
+  };
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
       {/* 1. Thanh tìm kiếm nằm trên cùng */}
@@ -154,13 +162,15 @@ const HomePage = () => {
         <HotelSidebar onFilterOpen={() => setFilterModalOpen(true)} />
       </main>
 
-      {/* 3. Popup chi tiết hiển thị đè lên khi có khách sạn được chọn */}
-      {activeHotel && (
+      {/* 3. Conditional rendering: Split-view for clusters, standard popup for single hotels */}
+      {clusterHotels && clusterHotels.length > 0 ? (
+        <ClusterSplitView />
+      ) : activeHotel ? (
         <HotelPopup 
           hotel={activeHotel} 
-          onClose={() => setActiveHotel(null)} 
+          onClose={handleClosePopup} 
         />
-      )}
+      ) : null}
 
       {/* 4. Filter Modal */}
       <FilterModal

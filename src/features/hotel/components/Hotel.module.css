@@ -15,7 +15,7 @@
     display: flex;
     width: 100%;
     max-width: 860px;
-    max-height: 90vh;
+    height: 80vh;
     background: #fff;
     border-radius: 16px;
     overflow: hidden;
@@ -30,6 +30,7 @@
   .imageSection {
     position: relative;
     flex: 0 0 42%;
+    min-height: 0;
     overflow: hidden;
     background: #e5e7eb;
   }
@@ -38,7 +39,7 @@
     height: 100%;
     object-fit: cover;
     display: block;
-  cursor: zoom-in;
+    cursor: zoom-in;
   }
   
   .carouselBtn {
@@ -326,8 +327,8 @@
 }
   
 @media (max-width: 640px) {
-    .popup { flex-direction: column; max-height: 95vh; }
-    .imageSection { flex: 0 0 220px; }
+    .popup { flex-direction: column; height: 95vh; }
+    .imageSection { flex: 0 0 220px; min-height: 220px; }
     .twoCol { grid-template-columns: 1fr; }
     .imageViewerOverlay { padding: 16px; }
     .imageViewerContent { width: 100%; height: min(82vh, 620px); }

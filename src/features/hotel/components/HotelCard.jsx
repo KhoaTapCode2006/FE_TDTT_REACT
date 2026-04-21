@@ -1,8 +1,10 @@
 ﻿import { fmtPrice } from "@/utils/format";
 import { AMENITY_META } from "@/constants/enums";
 import Icon from "@/components/ui/Icon";
+import { useApp } from "@/app/AppContext";
 
 function HotelCard({ hotel, onClick }) {
+  const { setHoveredHotelId } = useApp();
   const imageSrc = hotel?.images?.[0] || "https://via.placeholder.com/640x480?text=No+Image";
   const amenityIcons = (hotel?.amenities || []).slice(0, 3).map((a) => {
     const meta = AMENITY_META[a];
@@ -12,6 +14,8 @@ function HotelCard({ hotel, onClick }) {
   return (
     <article
       onClick={() => onClick?.(hotel)}
+      onMouseEnter={() => setHoveredHotelId(hotel?.id ?? null)}
+      onMouseLeave={() => setHoveredHotelId(null)}
       className="group cursor-pointer rounded-2xl overflow-hidden bg-white shadow-card hover:-translate-y-1 hover:shadow-editorial transition-all duration-200"
       role="button"
       tabIndex={0}

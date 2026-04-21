@@ -1,16 +1,18 @@
 ﻿import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import Supercluster from "supercluster";
 import { useApp } from "@/app/AppContext";
 import {
   getVietMapStyleUrl,
   buildCircleGeoJSON,
-  buildHotelGeoJSON,
   getDistanceMeters,
   getRadiusForCoverage,
   getRadiusHandleCoordinates,
   createHotelMarkerElement,
-  getPopupHtml,
+  createClusterMarkerElement,
   clampRadius,
   getCircleBounds,
+  validateHotelCoordinates,
+  convertHotelsToSuperclusterPoints,
 } from "@/services/external/vietmap.service";
 import Icon from "@/components/ui/Icon";
 import "./VietMapPanel.css";
@@ -18,13 +20,13 @@ import "./VietMapPanel.css";
 
 
 function VietMapPanel() {
-  const { userLoc, hotels, activeHotel, setActiveHotel, radiusM, setRadiusM } = useApp();
+  const { userLoc, hotels, activeHotel, setActiveHotel, radiusM, setRadiusM, setClusterHotels, hoveredHotelId } = useApp();
   const mapRef = useRef(null);
   const mapObjRef = useRef(null);
-  const hotelMarkersRef = useRef([]);
+  const clusterMarkersRef = useRef([]);
+  const superclusterRef = useRef(null);
   const userLocationMarkerRef = useRef(null);
   const radiusHandleRef = useRef(null);
-  const popupRef = useRef(null);
   const hotelsRef = useRef(hotels);
   const initialUserLocationCenteredRef = useRef(false);
   const initialCircleRadiusSetRef = useRef(false);
@@ -41,48 +43,169 @@ function VietMapPanel() {
     return userLoc;
   }, [userLoc]);
 
+  // Memoize valid hotels and supercluster points
+  const validHotels = useMemo(() => validateHotelCoordinates(hotels), [hotels]);
+  
+  const superclusterPoints = useMemo(() => 
+    convertHotelsToSuperclusterPoints(validHotels),
+    [validHotels]
+  );
+
+  // Initialize and update supercluster
+  useEffect(() => {
+    if (!superclusterRef.current) {
+      superclusterRef.current = new Supercluster({
+        radius: 50,
+        maxZoom: 14,
+        minPoints: 2,
+      });
+    }
+
+    if (superclusterPoints.length > 0) {
+      try {
+        superclusterRef.current.load(superclusterPoints);
+      } catch (error) {
+        console.error('Error loading supercluster:', error);
+      }
+    }
+  }, [superclusterPoints]);
+
   useEffect(() => {
     hotelsRef.current = hotels;
   }, [hotels]);
 
-  // Helper functions for hotel markers and popups
-  function clearHotelMarkers() {
-    hotelMarkersRef.current.forEach(marker => marker.remove());
-    hotelMarkersRef.current = [];
+  // Helper functions for cluster markers
+  function clearClusterMarkers() {
+    clusterMarkersRef.current.forEach(marker => marker.remove());
+    clusterMarkersRef.current = [];
   }
 
-  const createHotelMarkers = useCallback((hotels) => {
-    clearHotelMarkers();
-    if (!mapObjRef.current || !window.vietmapgl) return;
-
-    hotels
-      .filter(hotel => hotel.lat != null && hotel.lng != null)
-      .forEach(hotel => {
-        const insideCircle = getDistanceMeters(validUserLoc, { lat: hotel.lat, lng: hotel.lng }) <= radiusM;
-        const element = createHotelMarkerElement(hotel, insideCircle, (selectedHotel) => {
-          setActiveHotel(selectedHotel);
-          showHotelPopup(selectedHotel, [selectedHotel.lng, selectedHotel.lat]);
-        });
-
-        const marker = new window.vietmapgl.Marker({ element, anchor: "center" })
-          .setLngLat([hotel.lng, hotel.lat])
-          .addTo(mapObjRef.current);
-
-        hotelMarkersRef.current.push(marker);
+  // Render clusters function
+  const renderClusters = useCallback(() => {
+    if (!mapReady || !mapObjRef.current || !superclusterRef.current || !window.vietmapgl) return;
+    
+    const map = mapObjRef.current;
+    
+    try {
+      const bounds = map.getBounds().toArray().flat();
+      const zoom = Math.floor(map.getZoom());
+      
+      const clusters = superclusterRef.current.getClusters(bounds, zoom);
+      
+      // Clear existing cluster markers
+      clearClusterMarkers();
+      
+      // Render each cluster or single hotel
+      clusters.forEach(cluster => {
+        const [lng, lat] = cluster.geometry.coordinates;
+        const { cluster: isCluster, point_count: pointCount } = cluster.properties;
+        
+        if (isCluster) {
+          // Get hotels in this cluster
+          const clusterId = cluster.properties.cluster_id;
+          const clusterHotels = superclusterRef.current.getLeaves(clusterId, Infinity);
+          
+          if (clusterHotels.length === 0) return;
+          
+          const firstHotel = clusterHotels[0].properties.hotel;
+          const clusterHotelIds = clusterHotels.map(c => c.properties.hotel.id);
+          
+          // Create cluster marker element (hover handled by useEffect)
+          const element = createClusterMarkerElement(
+            cluster,
+            firstHotel,
+            pointCount,
+            () => {
+              // Handle cluster click - open split view overlay
+              const hotels = clusterHotels.map(c => c.properties.hotel);
+              setClusterHotels(hotels);
+              setActiveHotel(firstHotel);
+              // Don't show map popup for clusters - use split view instead
+            },
+            clusterHotelIds,
+            null // Don't pass hoveredHotelId, handled by useEffect
+          );
+          
+          const marker = new window.vietmapgl.Marker({ element, anchor: 'center' })
+            .setLngLat([lng, lat])
+            .addTo(map);
+          
+          clusterMarkersRef.current.push(marker);
+        } else {
+          // Single hotel - render as regular hotel marker
+          const hotel = cluster.properties.hotel;
+          const insideCircle = getDistanceMeters(validUserLoc, { lat, lng }) <= radiusM;
+          
+          // Create hotel marker element (hover handled by useEffect)
+          const element = createHotelMarkerElement(hotel, insideCircle, (selectedHotel) => {
+            setClusterHotels([]);
+            setActiveHotel(selectedHotel);
+            showHotelPopup(selectedHotel, [lng, lat]);
+          }, false); // Don't pass isHovered, handled by useEffect
+          
+          const marker = new window.vietmapgl.Marker({ element, anchor: 'center' })
+            .setLngLat([lng, lat])
+            .addTo(map);
+          
+          clusterMarkersRef.current.push(marker);
+        }
       });
-  }, [validUserLoc, radiusM, setActiveHotel]);
+    } catch (error) {
+      console.error('Error rendering clusters:', error);
+    }
+  }, [mapReady, validUserLoc, radiusM, setActiveHotel, setClusterHotels]);
 
-  function showHotelPopup(hotel, coordinates) {
-    if (!mapObjRef.current || !hotel || hotel.lat == null || hotel.lng == null) return;
-    if (popupRef.current) popupRef.current.remove();
+  // Hover effect: add/remove CSS class on marker inner elements (no re-render)
+  useEffect(() => {
+    if (!mapReady) return;
 
-    const popup = new window.vietmapgl.Popup({ offset: 18, closeButton: false })
-      .setLngLat(coordinates || [hotel.lng, hotel.lat])
-      .setHTML(getPopupHtml(hotel))
-      .addTo(mapObjRef.current);
+    // Reset all hotel markers
+    document.querySelectorAll('.hotel-marker-item').forEach(inner => {
+      inner.classList.remove('is-active-hover');
+      const wrapper = inner.parentElement;
+      if (wrapper) wrapper.style.zIndex = '';
+    });
 
-    popupRef.current = popup;
-  }
+    // Reset all cluster markers
+    document.querySelectorAll('.cluster-marker-inner').forEach(inner => {
+      inner.classList.remove('is-active-hover');
+      const wrapper = inner.parentElement;
+      if (wrapper) wrapper.style.zIndex = '';
+    });
+
+    if (!hoveredHotelId) return;
+
+    // Highlight matching single hotel marker
+    document.querySelectorAll('.hotel-marker-item').forEach(inner => {
+      if (inner.dataset.hotelId === String(hoveredHotelId)) {
+        inner.classList.add('is-active-hover');
+        const wrapper = inner.parentElement;
+        if (wrapper) wrapper.style.zIndex = '99';
+      }
+    });
+
+    // Highlight cluster marker if it contains the hovered hotel
+    document.querySelectorAll('.cluster-marker-inner').forEach(inner => {
+      try {
+        const ids = JSON.parse(inner.dataset.clusterHotelIds || '[]');
+        if (ids.includes(hoveredHotelId) || ids.includes(String(hoveredHotelId))) {
+          inner.classList.add('is-active-hover');
+          const wrapper = inner.parentElement;
+          if (wrapper) wrapper.style.zIndex = '99';
+        }
+      } catch (_) {}
+    });  }, [hoveredHotelId, mapReady]);
+
+  // Debounced version of renderClusters
+  const debouncedRenderClusters = useMemo(() => {
+    let timeoutId;
+    return () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        renderClusters();
+      }, 150);
+    };
+  }, [renderClusters]);
 
   const updateRadiusHandle = useCallback((center, radius) => {
     if (!mapObjRef.current || !window.vietmapgl) return;
@@ -336,65 +459,8 @@ function VietMapPanel() {
                 .addTo(map);
             }
 
-            // Add hotels source with clustering
-            map.addSource("hotels", {
-              type: "geojson",
-              data: buildHotelGeoJSON(hotels),
-              cluster: true,
-              clusterMaxZoom: 14,
-              clusterRadius: 50,
-            });
-
-            // Add cluster layers
-            map.addLayer({
-              id: "clusters",
-              type: "circle",
-              source: "hotels",
-              filter: ["has", "point_count"],
-              paint: {
-                "circle-color": "#ff5a3c",
-                "circle-radius": ["step", ["get", "point_count"], 18, 10, 26, 30, 36],
-                "circle-stroke-color": "#ffffff",
-                "circle-stroke-width": 2,
-              },
-            });
-
-            map.addLayer({
-              id: "cluster-count",
-              type: "symbol",
-              source: "hotels",
-              filter: ["has", "point_count"],
-              layout: {
-                "text-field": "{point_count_abbreviated}",
-                "text-size": 12,
-              },
-              paint: {
-                "text-color": "#ffffff",
-              },
-            });
-
-            // Add cluster click handling
-            map.on("click", "clusters", (e) => {
-              const feature = e.features?.[0];
-              if (!feature || !map.getSource("hotels")) return;
-              const clusterId = feature.properties.cluster_id;
-              map.getSource("hotels").getClusterExpansionZoom(clusterId, (err, zoom) => {
-                if (err) return;
-                map.easeTo({ center: feature.geometry.coordinates, zoom });
-              });
-            });
-
-            // Add cluster hover effects
-            map.on("mouseenter", "clusters", () => {
-              map.getCanvas().style.cursor = "pointer";
-            });
-            map.on("mouseleave", "clusters", () => {
-              map.getCanvas().style.cursor = "";
-            });
-
             map.resize();
             setMapReady(true);
-            createHotelMarkers(hotels);
             console.log("✅ Map is ready!");
           } catch (err) {
             console.error("Error in map.on('load'):", err);
@@ -420,7 +486,6 @@ function VietMapPanel() {
             setTimeout(() => {
               if (!mapReady && mounted) {
                 setMapReady(true);
-                createHotelMarkers(hotels);
               }
             }, 1000);
           }
@@ -438,7 +503,6 @@ function VietMapPanel() {
               console.log("✅ Map ready detected via interval check");
               clearInterval(readyCheckInterval);
               setMapReady(true);
-              createHotelMarkers(hotels);
             }
           } catch (intervalError) {
             console.warn("Error in ready check interval:", intervalError);
@@ -462,28 +526,33 @@ function VietMapPanel() {
       mounted = false;
       clearTimeout(loadTimeout);
     };
-  }, [sdkReady, validUserLoc, radiusM, hotels, createHotelMarkers]); // Add dependencies
+  }, [sdkReady, validUserLoc, radiusM, hotels]); // Add dependencies
 
-  // 2. CẬP NHẬT MARKERS & RADIUS KHI DỮ LIỆU THAY ĐỔI
+  // 2. RENDER CLUSTERS ON MAP READY AND HOTEL CHANGES
   useEffect(() => {
     if (!mapReady || !mapObjRef.current) return;
-    const map = mapObjRef.current;
-
-    // Update hotel clustering data
-    const source = map.getSource("hotels");
-    if (source) {
-      source.setData(buildHotelGeoJSON(hotels));
-    }
-
-    // Update hotel markers
-    createHotelMarkers(hotels);
-
+    
+    // Initial render
+    renderClusters();
+    
     // Auto-adjust radius for hotel coverage
     if (hotels.length > 0) {
       const targetRadius = getRadiusForCoverage(validUserLoc, hotels, 0.5);
       setRadiusM(prev => Math.max(prev, targetRadius));
     }
-  }, [hotels, mapReady, validUserLoc, setRadiusM, createHotelMarkers]);
+  }, [hotels, mapReady, validUserLoc, setRadiusM, renderClusters]);
+
+  // 3. ADD MOVEEND EVENT LISTENER FOR CLUSTER UPDATES
+  useEffect(() => {
+    if (!mapReady || !mapObjRef.current) return;
+    
+    const map = mapObjRef.current;
+    map.on('moveend', debouncedRenderClusters);
+    
+    return () => {
+      map.off('moveend', debouncedRenderClusters);
+    };
+  }, [mapReady, debouncedRenderClusters]);
 
   // 3. CẬP NHẬT RADIUS VÀ USER LOCATION
   useEffect(() => {
@@ -518,8 +587,8 @@ function VietMapPanel() {
       // Update radius handle
       updateRadiusHandle(validUserLoc, radiusM);
 
-      // Update hotel markers for radius changes
-      createHotelMarkers(hotels);
+      // Update cluster markers for radius changes
+      renderClusters();
 
       // Fit bounds to search circle with comprehensive error handling
       try {
@@ -558,19 +627,7 @@ function VietMapPanel() {
     } catch (error) {
       console.error("Error in radius/location update effect:", error);
     }
-  }, [mapReady, radiusM, validUserLoc, hotels, updateRadiusHandle, createHotelMarkers]);
-
-  // 4. ĐIỀU HƯỚNG KHI CHỌN KHÁCH SẠN
-  useEffect(() => {
-    if (mapReady && mapObjRef.current && activeHotel) {
-      const coords = [activeHotel.lng, activeHotel.lat];
-      mapObjRef.current.easeTo({
-        center: coords,
-        zoom: 16,
-      });
-      showHotelPopup(activeHotel, coords);
-    }
-  }, [mapReady, activeHotel]);
+  }, [mapReady, radiusM, validUserLoc, updateRadiusHandle, renderClusters]);
 
   // 5. INITIAL USER LOCATION CENTERING
   useEffect(() => {
@@ -616,6 +673,13 @@ function VietMapPanel() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, [mapReady]);
+
+  // 8. CLEANUP CLUSTER MARKERS ON UNMOUNT
+  useEffect(() => {
+    return () => {
+      clearClusterMarkers();
+    };
+  }, []);
 
   // Helper functions for map controls
   function zoom(delta) {
@@ -673,20 +737,6 @@ function VietMapPanel() {
         <button onClick={() => zoom(1)} className="bg-white p-2.5 rounded-xl shadow-md text-primary hover:bg-gray-50 transition-colors"><Icon name="add" /></button>
         <button onClick={() => zoom(-1)} className="bg-white p-2.5 rounded-xl shadow-md text-primary hover:bg-gray-50 transition-colors"><Icon name="remove" /></button>
         <button onClick={recenter} className="bg-white p-2.5 rounded-xl shadow-md text-primary hover:bg-gray-50 transition-colors mt-3"><Icon name="my_location" /></button>
-      </div>
-
-      {/* Radius UI */}
-      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 glass rounded-2xl shadow-editorial px-5 py-3 flex items-center gap-4 border border-white/60">
-        <Icon name="radio_button_checked" className="text-primary" size={20} />
-        <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Search Radius</label>
-          <input 
-            type="range" min={500} max={40000} step={500} 
-            value={radiusM} onChange={(e) => setRadiusM(Number(e.target.value))} 
-            className="w-36 h-1.5 cursor-pointer accent-primary" 
-          />
-        </div>
-        <span className="text-sm font-bold text-primary w-12 text-right">{(radiusM / 1000).toFixed(1)}km</span>
       </div>
     </div>
   );

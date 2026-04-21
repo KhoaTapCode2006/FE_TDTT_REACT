@@ -124,6 +124,11 @@ export const AppProvider = ({ children }) => {
       // Cleanup if needed
     };
   }, [location]);
+  // Cluster hotels state for sidebar integration
+  const [clusterHotels, setClusterHotels] = useState([]);
+
+  // Hovered hotel ID for map marker highlighting
+  const [hoveredHotelId, setHoveredHotelId] = useState(null);
 
   const value = {
     location, setLocation,
@@ -137,7 +142,10 @@ export const AppProvider = ({ children }) => {
     // Filter state and functions
     filters, setFilters,
     updateFilter, clearFilters,
-    hasActiveFilters, activeFilterCount
+    hasActiveFilters, activeFilterCount,
+    radiusM, setRadiusM,      // Thêm vào đây
+    clusterHotels, setClusterHotels,
+    hoveredHotelId, setHoveredHotelId
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
