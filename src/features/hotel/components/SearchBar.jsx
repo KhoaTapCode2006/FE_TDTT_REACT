@@ -1,6 +1,7 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/app/AppContext";
 import { searchHotels } from "@/services/backend/hotel.service";
+import { MOCK_HOTELS } from "@/constants/enums";
 import Icon from "@/components/ui/Icon";
 import LocationInput from "@/components/ui/LocationInput";
 import DateRangePicker from "@/components/ui/DateRangePicker";
@@ -17,6 +18,7 @@ function SearchBar() {
     setHotels,
     loading,
     setLoading,
+    setActiveHotel,
   } = useApp();
 
   const [showCal, setShowCal] = useState(false);
@@ -65,6 +67,11 @@ function SearchBar() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleDemoPopup() {
+    // Mở popup với hotel đầu tiên từ MOCK_HOTELS
+    setActiveHotel(MOCK_HOTELS[0]);
   }
 
   return (
@@ -132,6 +139,18 @@ function SearchBar() {
             />
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDemoPopup();
+          }}
+          className="flex-none flex items-center gap-2 px-4 py-2 bg-secondary text-on-secondary rounded-xl font-bold text-sm hover:bg-secondary-container active:scale-95 transition-all whitespace-nowrap"
+        >
+          <Icon name="visibility" size={18} />
+          Demo
+        </button>
 
         <button
           type="button"

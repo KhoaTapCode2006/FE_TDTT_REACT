@@ -2,6 +2,7 @@ import SearchBar from '@/features/hotel/components/SearchBar';
 import HotelSidebar from '@/features/hotel/components/HotelSidebar';
 import HotelPopup from '@/features/hotel/components/HotelPopup';
 import VietMapPanel from '@/features/map/VietMapPanel'; // Huy nhớ bóc tách file này nhé
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { useApp } from '@/app/AppContext';
 
 const HomePage = () => {
@@ -16,7 +17,9 @@ const HomePage = () => {
       <main className="flex-1 flex overflow-hidden relative min-h-0">
         {/* Bản đồ bên trái (hoặc nền) */}
         <div className="flex-1 min-w-0">
-          <VietMapPanel />
+          <ErrorBoundary>
+            <VietMapPanel />
+          </ErrorBoundary>
         </div>
 
         {/* Sidebar bên phải */}

@@ -1,12 +1,13 @@
 import React, { createContext, useState, useContext } from 'react';
+import { MOCK_HOTELS } from '@/constants/enums';
 
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
   const [location, setLocation] = useState("Ho Chi Minh City, Vietnam");
   
-  // Tọa độ mặc định (Ví dụ: Chợ Bến Thành) để bản đồ không bị trắng
-  const [userLoc, setUserLoc] = useState({ lat: 10.7719, lng: 10.6983 }); 
+  // Tọa độ mặc định (Chợ Bến Thành, TP.HCM) để bản đồ không bị trắng
+  const [userLoc, setUserLoc] = useState({ lat: 10.7719, lng: 106.6983 }); 
 
   const [dates, setDates] = useState({
     checkIn: new Date(),
@@ -14,7 +15,9 @@ export const AppProvider = ({ children }) => {
   });
 
   const [guests, setGuests] = useState({ adults: 2, children: 0, childrenAges: [] });
-  const [hotels, setHotels] = useState([]);
+  
+  // Sử dụng MOCK_HOTELS để demo popup
+  const [hotels, setHotels] = useState(MOCK_HOTELS);
   const [loading, setLoading] = useState(false);
   const [activeHotel, setActiveHotel] = useState(null);
 

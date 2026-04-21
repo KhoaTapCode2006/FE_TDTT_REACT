@@ -1,14 +1,15 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "@/app/AppContext";
-import { fmtPrice } from "@/utils/format";
+import { fmtPrice, fmtDate } from "@/utils/format";
 import { AMENITY_META } from "@/constants/enums";
 import Icon from "@/components/ui/Icon";
+import styles from "./Hotel.module.css";
 
 function HotelPopup({ hotel, onClose }) {
   const { dates } = useApp();
   const { checkIn, checkOut } = dates;
   const [slide, setSlide] = useState(0);
-  const [zoomed, setZoomed] = useState(false);
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
   const [imgScale, setImgScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragRef = useRef({ dragging: false, startX: 0, startY: 0, panX: 0, panY: 0 });
@@ -31,8 +32,8 @@ function HotelPopup({ hotel, onClose }) {
   useEffect(() => {
     function handleKeyDown(event) {
       if (event.key === "Escape") {
-        if (zoomed) {
-          setZoomed(false);
+        if (imageViewerOpen) {
+          setImageViewerOpen(false);
           setImgScale(1);
         } else {
           onClose?.();
@@ -42,7 +43,7 @@ function HotelPopup({ hotel, onClose }) {
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, zoomed]);
+  }, [onClose, imageViewerOpen]);
 
   if (!hotel) {
     return null;
@@ -84,137 +85,263 @@ function HotelPopup({ hotel, onClose }) {
     setImgScale(1);
   }
 
-  const visibleAmenities = (hotel.amenities || []).slice(0, 6);
+  function openImageViewer() {
+    setImageViewerOpen(true);
+    setImgScale(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  function closeImageViewer() {
+    setImageViewerOpen(false);
+    setImgScale(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  function zoomIn() {
+    setImgScale(prev => Math.min(prev + 0.5, 3));
+  }
+
+  function zoomOut() {
+    setImgScale(prev => Math.max(prev - 0.5, 1));
+  }
+
+  const visibleAmenities = (hotel.amenities || []).slice(0, 8);
+
+  // Render stars
+  const renderStars = (rating) => {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+    
+    for (let i = 0; i < 5; i++) {
+      if (i < fullStars) {
+        stars.push(<Icon key={i} name="star" size={14} style={{ color: "#fbbf24" }} />);
+      } else if (i === fullStars && hasHalfStar) {
+        stars.push(<Icon key={i} name="star_half" size={14} style={{ color: "#fbbf24" }} />);
+      } else {
+        stars.push(<Icon key={i} name="star_border" size={14} style={{ color: "#d1d5db" }} />);
+      }
+    }
+    return stars;
+  };
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 flex w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl md:flex-row md:h-[85vh]">
-        <div className="relative h-80 md:h-auto md:w-1/2 overflow-hidden bg-surface-container-highest">
-          <div
-            className="h-full w-full cursor-pointer"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-          >
+    <>
+      {/* Main Popup */}
+      <div className={styles.overlay} onClick={onClose}>
+        <div className={styles.popup} onClick={(e) => e.stopPropagation()}>
+          {/* Image Section */}
+          <div className={styles.imageSection}>
             <img
               src={images[slide]}
               alt={`${hotel.name} ${slide + 1}`}
-              draggable={false}
-              className="h-full w-full object-cover"
-              style={{
-                transform: `scale(${imgScale}) translate(${pan.x / imgScale}px, ${pan.y / imgScale}px)`,
-                transition: dragRef.current.dragging ? "none" : "transform 0.2s ease",
-                transformOrigin: "center center",
-              }}
+              className={styles.hotelImage}
+              onClick={openImageViewer}
             />
+
+            {/* Carousel Navigation */}
+            {images.length > 1 && (
+              <>
+                <button className={`${styles.carouselBtn} ${styles.carouselBtnLeft}`} onClick={goPrev}>
+                  <Icon name="chevron_left" size={20} />
+                </button>
+                <button className={`${styles.carouselBtn} ${styles.carouselBtnRight}`} onClick={goNext}>
+                  <Icon name="chevron_right" size={20} />
+                </button>
+              </>
+            )}
+
+            {/* Dots Indicator */}
+            {images.length > 1 && (
+              <div className={styles.dots}>
+                {images.map((_, index) => (
+                  <div
+                    key={index}
+                    className={`${styles.dot} ${index === slide ? styles.dotActive : ""}`}
+                    onClick={() => setSlide(index)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (zoomed) {
-                setZoomed(false);
-                setImgScale(1);
-              } else {
-                setZoomed(true);
-                setImgScale(2);
-              }
-            }}
-            className="absolute right-4 top-4 rounded-full bg-white/90 p-2 shadow-sm transition hover:bg-white"
-          >
-            <Icon name={zoomed ? "zoom_out" : "zoom_in"} size={20} />
-          </button>
+          {/* Info Panel */}
+          <div className={styles.infoPanel}>
+            <button className={styles.closeBtn} onClick={onClose}>
+              <Icon name="close" size={20} />
+            </button>
 
-          {images.length > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={goPrev}
-                className="absolute left-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow-sm transition hover:bg-white"
-              >
-                <Icon name="chevron_left" size={24} />
-              </button>
-              <button
-                type="button"
-                onClick={goNext}
-                className="absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-white/90 p-2 shadow-sm transition hover:bg-white"
-              >
-                <Icon name="chevron_right" size={24} />
-              </button>
-            </>
-          )}
-        </div>
+            {/* Header */}
+            <div className={styles.header}>
+              <h1 className={styles.hotelName}>{hotel.name}</h1>
+              
+              {/* Rating */}
+              <div className={styles.ratingRow}>
+                <div className={styles.stars}>
+                  {renderStars(hotel.rating)}
+                </div>
+                <span className={styles.ratingNum}>{hotel.rating}</span>
+                <span className={styles.reviewCount}>({hotel.reviewCount} reviews)</span>
+              </div>
 
-        <div className="flex flex-1 flex-col overflow-y-auto p-6">
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-auto mb-4 rounded-full bg-surface-container-low px-3 py-2 text-on-surface hover:bg-surface-container transition"
-          >
-            <Icon name="close" size={20} />
-          </button>
+              {/* Address */}
+              <div className={styles.address}>
+                <Icon name="location_on" size={16} />
+                <span>{hotel.address}</span>
+              </div>
+            </div>
 
-          <div className="space-y-4">
+            {/* Price Section */}
             <div>
-              <h2 className="text-3xl font-headline font-extrabold text-primary">{hotel.name}</h2>
-              <p className="mt-2 flex items-center gap-2 text-sm text-on-surface-variant">
-                <Icon name="location_on" size={16} className="text-primary" />
-                {hotel.address}
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-3xl bg-surface-container-low p-5">
-                <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Stay details</p>
-                <p className="mt-3 text-lg font-semibold text-primary">{nights} night{nights > 1 ? "s" : ""}</p>
-                <p className="text-sm text-on-surface-variant">{fmtPrice(hotel.pricePerNight)} per night</p>
-              </div>
-              <div className="rounded-3xl bg-surface-container-low p-5">
-                <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Total price</p>
-                <p className="mt-3 text-3xl font-headline font-extrabold text-primary">{fmtPrice(total)}</p>
+              <p className={styles.sectionLabel}>Giá phòng</p>
+              <div className={styles.priceRow}>
+                <span className={styles.price}>{fmtPrice(hotel.pricePerNight)}</span>
+                <span className={styles.perNight}>/ đêm</span>
               </div>
             </div>
 
-            <div className="rounded-3xl bg-surface-container-low p-5">
-              <div className="flex items-center justify-between">
-                <p className="text-[10px] uppercase tracking-widest text-on-surface-variant">Amenities</p>
-                <span className="text-xs font-semibold text-secondary">{hotel.amenities?.length || 0} items</span>
+            {/* Two Column Layout */}
+            <div className={styles.twoCol}>
+              {/* Amenities */}
+              <div>
+                <p className={styles.sectionLabel}>Tiện nghi</p>
+                <div className={styles.amenities}>
+                  {visibleAmenities.map((amenity) => {
+                    const meta = AMENITY_META[amenity] || { icon: "check", label: amenity };
+                    return (
+                      <div key={amenity} className={styles.amenityItem}>
+                        <div className={styles.amenityIcon}>
+                          <Icon name={meta.icon} size={20} />
+                        </div>
+                        <span className={styles.amenityLabel}>{meta.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {visibleAmenities.map((amenity) => {
-                  const meta = AMENITY_META[amenity] || { icon: "check", label: amenity };
-                  return (
-                    <div key={amenity} className="flex items-center gap-3 rounded-3xl bg-white p-3 shadow-sm">
-                      <Icon name={meta.icon} size={18} className="text-primary" />
-                      <span className="text-sm font-medium text-primary">{meta.label}</span>
+
+              {/* Nearby Landmarks */}
+              {hotel.nearbyLandmarks && hotel.nearbyLandmarks.length > 0 && (
+                <div>
+                  <p className={styles.sectionLabel}>Địa điểm gần đây</p>
+                  <ul className={styles.landmarks}>
+                    {hotel.nearbyLandmarks.slice(0, 4).map((landmark, index) => (
+                      <li key={index} className={styles.landmarkItem}>
+                        <span className={styles.landmarkName}>{landmark.name}</span>
+                        <span className={styles.landmarkDist}>{landmark.distance}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Latest Review */}
+            {hotel.latestReview && (
+              <div>
+                <p className={styles.sectionLabel}>Đánh giá gần đây</p>
+                <div className={styles.reviewBox}>
+                  <div className={styles.reviewInner}>
+                    <div className={styles.reviewAvatar}>
+                      <Icon name="person" size={16} />
                     </div>
-                  );
-                })}
+                    <div>
+                      <p className={styles.reviewAuthor}>{hotel.latestReview.author}</p>
+                      <p className={styles.reviewContent}>{hotel.latestReview.text}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
-            <div className="flex gap-3 flex-col sm:flex-row">
-              <button
-                type="button"
-                onClick={() => alert(`Booking flow for ${hotel.name}`)}
-                className="w-full rounded-2xl bg-primary px-6 py-3 text-sm font-bold text-white transition hover:bg-primary-container"
-              >
-                Book Now
-              </button>
-              <button
-                type="button"
-                onClick={() => window.open(hotel.link || "#", "_blank")}
-                className="w-full rounded-2xl border border-primary px-6 py-3 text-sm font-bold text-primary transition hover:bg-surface-container"
-              >
-                Visit Hotel Page
-              </button>
+            {/* Booking Section */}
+            <div className={styles.bookingBox}>
+              <h3 className={styles.bookingTitle}>Chi tiết đặt phòng</h3>
+              <div className={styles.dateRow}>
+                <div className={styles.dateBox}>
+                  <span className={styles.dateLabel}>Nhận phòng</span>
+                  <span className={styles.dateValue}>{fmtDate(checkIn)}</span>
+                </div>
+                <div className={styles.dateBox}>
+                  <span className={styles.dateLabel}>Trả phòng</span>
+                  <span className={styles.dateValue}>{fmtDate(checkOut)}</span>
+                </div>
+              </div>
+              <div style={{ marginTop: "12px", textAlign: "center" }}>
+                <div style={{ color: "rgba(255,255,255,0.8)", fontSize: "12px", marginBottom: "4px" }}>
+                  {nights} đêm • Tổng cộng
+                </div>
+                <div style={{ color: "#fff", fontSize: "18px", fontWeight: "800" }}>
+                  {fmtPrice(total)}
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Image Viewer Modal */}
+      {imageViewerOpen && (
+        <div className={styles.imageViewerOverlay} onClick={closeImageViewer}>
+          <div className={styles.imageViewerContent} onClick={(e) => e.stopPropagation()}>
+            <button className={styles.imageViewerCloseBtn} onClick={closeImageViewer}>
+              <Icon name="close" size={16} />
+            </button>
+
+            {/* Navigation Buttons */}
+            {images.length > 1 && (
+              <>
+                <button className={`${styles.imageViewerNavBtn} ${styles.imageViewerNavBtnLeft}`} onClick={goPrev}>
+                  <Icon name="chevron_left" size={24} />
+                </button>
+                <button className={`${styles.imageViewerNavBtn} ${styles.imageViewerNavBtnRight}`} onClick={goNext}>
+                  <Icon name="chevron_right" size={24} />
+                </button>
+              </>
+            )}
+
+            {/* Image Canvas */}
+            <div 
+              className={`${styles.imageViewerCanvas} ${imgScale > 1 ? styles.canvasZoomed : ""} ${dragRef.current.dragging ? styles.canvasDragging : ""}`}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+            >
+              <img
+                src={images[slide]}
+                alt={`${hotel.name} ${slide + 1}`}
+                className={styles.imageViewerImage}
+                draggable={false}
+                style={{
+                  transform: `scale(${imgScale}) translate(${pan.x / imgScale}px, ${pan.y / imgScale}px)`,
+                  transition: dragRef.current.dragging ? "none" : "transform 0.2s ease",
+                }}
+              />
+            </div>
+
+            {/* Zoom Controls */}
+            <div className={styles.zoomControls}>
+              <button 
+                className={styles.zoomBtn} 
+                onClick={zoomOut} 
+                disabled={imgScale <= 1}
+              >
+                −
+              </button>
+              <span className={styles.zoomLabel}>{Math.round(imgScale * 100)}%</span>
+              <button 
+                className={styles.zoomBtn} 
+                onClick={zoomIn} 
+                disabled={imgScale >= 3}
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
