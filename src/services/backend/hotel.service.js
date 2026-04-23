@@ -1,8 +1,8 @@
 ﻿import axios from "axios";
 import { normalizeHotelResult } from "@/utils/format";
 
-const DISCOVER_ENDPOINT = "http://localhost:8010/proxy/api/v1/discover";
-
+// const DISCOVER_ENDPOINT = "http://localhost:8010/proxy/api/v1/discover";
+const DISCOVER_ENDPOINT = "/sample_output_2.json";
 // Result caching
 const resultCache = new Map();
 const CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes

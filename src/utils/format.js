@@ -39,62 +39,103 @@ export function normalizeAmenityKey(rawAmenity) {
 }
 
 export function normalizeHotelResult(raw, fallbackLocation) {
+  // ── Safety: reject completely malformed input ──────────────────────────
+  if (!raw || typeof raw !== 'object') return null;
+
+  // ── Coordinates ────────────────────────────────────────────────────────
+  // sample_output_2.json: { gps_coordinates: { latitude, longitude } }
   const gps = raw.gps_coordinates || {};
-  const images = Array.isArray(raw.images)
-    ? raw.images
-        .map(img => (typeof img === "string" ? img : img.original_image || img.url || img.thumbnail))
-        .filter(Boolean)
-    : [];
+  const lat = parseFloat(gps.latitude ?? raw.lat ?? raw.latitude) || null;
+  const lng = parseFloat(gps.longitude ?? raw.lng ?? raw.longitude) || null;
 
-  const normalizedImages = images.length > 0
-    ? images
-    : ["https://via.placeholder.com/640x480?text=No+Image"];
+  // ── Images ─────────────────────────────────────────────────────────────
+  // sample_output_2.json: images: [{ thumbnail, original_image }]
+  const rawImages = Array.isArray(raw.images) ? raw.images : [];
+  const imageUrls = rawImages
+    .map(img =>
+      typeof img === 'string'
+        ? img
+        : img.original_image || img.thumbnail || img.url || null
+    )
+    .filter(Boolean);
 
+  // Always guarantee at least one image so cluster markers never break
+  const images = imageUrls.length > 0
+    ? imageUrls
+    : ['/placeholder.png'];
+
+  // ── Rating ─────────────────────────────────────────────────────────────
+  // sample_output_2.json: raw_rating (0–5), ai_score (float)
+  const rating = Number(raw.raw_rating || raw.ai_score || raw.rating || 0);
+  const starRating = Math.min(5, Math.max(0, Math.ceil(rating)));
+
+  // ── Amenities ──────────────────────────────────────────────────────────
+  // sample_output_2.json: amenities: ["Đỗ xe miễn phí", ...]
   const amenities = Array.isArray(raw.amenities)
     ? raw.amenities
-        .map(a => (typeof a === "string" ? a : a.label || String(a)))
+        .map(a => (typeof a === 'string' ? a : a.label || String(a)))
         .map(normalizeAmenityKey)
         .filter(Boolean)
     : [];
 
+  // ── Reviews ────────────────────────────────────────────────────────────
+  // sample_output_2.json: user_reviews: [{ text, raw_stars }]
   const reviews = Array.isArray(raw.user_reviews)
-    ? raw.user_reviews.map(r => ({ 
-        author: r.reviewer_name || r.author || "Khách", 
-        text: r.review_text || r.text || r.comment || "Đã nhận xét",
-        raw_star: r.raw_stars || r.raw_star || Math.round(rating)
+    ? raw.user_reviews.map(r => ({
+        author: r.reviewer_name || r.author || 'Khách',
+        text: r.review_text || r.text || r.comment || '',
+        raw_star: r.raw_stars ?? r.raw_star ?? 0,
       }))
     : [];
 
   const latestReview = raw.latestReview || reviews[0] || null;
 
-  // Calculate rating and star rating
-  const rating = Number(raw.raw_rating || raw.ai_score || raw.rating || 0);
-  const starRating = Math.ceil(rating); // Convert decimal rating to star rating (1-5)
+  // ── Nearby places ──────────────────────────────────────────────────────
+  // sample_output_2.json: nearby_places: []
+  const nearbyLandmarks = Array.isArray(raw.nearby_places)
+    ? raw.nearby_places.map(p => ({
+        name: p.name || String(p),
+        distance: p.distance || '',
+      }))
+    : Array.isArray(raw.nearbyLandmarks)
+      ? raw.nearbyLandmarks
+      : [];
 
   return {
+    // Identity
     id: raw.id || raw.property_token || raw.link || Math.random().toString(36).slice(2),
-    name: raw.name || "Unknown Hotel",
-    type: raw.type || "Hotel",
+    name: raw.name || 'Unknown Hotel',
+    type: raw.type || 'Hotel',
     badge: raw.badge || raw.deal || null,
-    rating,
-    reviewCount: Number(raw.reviewCount || reviews.length || 0),
+    link: raw.link || null,
+
+    // Geography — null means Supercluster will skip this point (safe)
+    lat,
+    lng,
+
+    // Pricing
     pricePerNight: Number(raw.price || raw.pricePerNight || 0),
-    currency: raw.currency || "VND",
-    address: raw.address || fallbackLocation || "",
-    lat: parseFloat(gps.latitude) || null,
-    lng: parseFloat(gps.longitude) || null,
+    currency: raw.currency || 'VND',
+
+    // Location
+    address: raw.address || fallbackLocation || '',
+    nearbyLandmarks,
+
+    // Visuals — always an array with at least one URL
+    images,
+    thumbnail: images[0],
+
+    // Ratings
+    rating,
+    starRating,
+    reviewCount: Number(raw.reviewCount ?? reviews.length),
+
+    // Content
     amenities,
-    starRating, // Add this field for filter compatibility
-    images: normalizedImages,
-    thumbnail: normalizedImages[0] || null,
     latestReview,
     reviews,
-    nearbyLandmarks: Array.isArray(raw.nearby_places)
-      ? raw.nearby_places.map(place => ({ name: place.name || place, distance: place.distance || "" }))
-      : Array.isArray(raw.nearbyLandmarks)
-        ? raw.nearbyLandmarks
-        : [],
-    link: raw.link || null,
-    ai_score: raw.ai_score !== undefined ? Number(raw.ai_score) : null, // Add AI score mapping
+
+    // AI metadata
+    ai_score: raw.ai_score != null ? Number(raw.ai_score) : null,
   };
 }
