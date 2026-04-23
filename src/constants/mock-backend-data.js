@@ -21,7 +21,7 @@ export const MOCK_BACKEND_DATA = {
       gps_coordinates: { latitude: 10.890787099999999, longitude: 106.7786708 },
       price: 242182,
       images: [{ original_image: "https://via.placeholder.com/640x480?text=Hotel+Hoa+Cuc" }],
-      amenities: ["Free Wi-Fi", "Free parking", "Air conditioning"],
+      amenities: ["WiFi", "Free parking", "Air conditioning"],
       ai_score: 3.97,
       user_reviews: [{ reviewer_name: "Guest", review_text: "Great stay", raw_stars: 5 }],
       address: "District 11, HCM"
@@ -32,7 +32,7 @@ export const MOCK_BACKEND_DATA = {
       gps_coordinates: { latitude: 10.879, longitude: 106.77081899999999 },
       price: 205627,
       images: [{ original_image: "https://via.placeholder.com/640x480?text=Nha+Nghi" }],
-      amenities: ["Free parking"],
+      amenities: ["Parking"],
       ai_score: 4.17,
       user_reviews: [],
       address: "District 11, HCM"

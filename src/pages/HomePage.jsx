@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
-import SearchBar from '@/features/hotel/components/SearchBar';
-import HotelSidebar from '@/features/hotel/components/HotelSidebar';
-import HotelPopup from '@/features/hotel/components/HotelPopup';
-import FilterModal from '@/features/hotel/components/FilterModal';
-import ClusterSplitView from '@/features/hotel/components/ClusterSplitView';
-import VietMapPanel from '@/features/map/VietMapPanel'; // Huy nhớ bóc tách file này nhé
+import SearchBar from '@/components/search/SearchBar';
+import HotelSidebar from '@/components/hotel/components/HotelSidebar';
+import HotelPopup from '@/components/hotel/components/HotelPopup';
+import FilterModal from '@/components/filter/FilterModal';
+import ClusterSplitView from '@/components/hotel/components/ClusterSplitView';
+import VietMapPanel from '@/components/map/VietMapPanel'; 
 import ErrorBoundary from '@/components/ErrorBoundary';
 import Icon from '@/components/ui/Icon';
 import { useApp } from '@/app/AppContext';

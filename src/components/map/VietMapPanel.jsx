@@ -71,9 +71,10 @@ function VietMapPanel() {
 
   // Show hotel popup function
   const showHotelPopup = useCallback((hotel, coordinates) => {
-    // This will be handled by the HotelPopup component
-    console.log('Show hotel popup for:', hotel.name);
-  }, []);
+    // Set active hotel to trigger popup
+    setActiveHotel(hotel);
+    console.log('Show hotel popup for:', hotel.name, 'at coordinates:', coordinates);
+  }, [setActiveHotel]);
 
   // Render clusters function
   const renderClusters = useCallback(() => {
@@ -113,8 +114,9 @@ function VietMapPanel() {
             () => {
               // Handle cluster click - open split view overlay
               const hotels = clusterHotels.map(c => c.properties.hotel);
+              console.log('Cluster clicked, opening split view with hotels:', hotels.length);
               setClusterHotels(hotels);
-              setActiveHotel(firstHotel);
+              setActiveHotel(hotels[0]); // Set first hotel as active
             },
             clusterHotelIds,
             null
@@ -132,8 +134,9 @@ function VietMapPanel() {
           
           // Create hotel marker element
           const element = createHotelMarkerElement(hotel, insideCircle, (selectedHotel) => {
-            setClusterHotels([]);
-            setActiveHotel(selectedHotel);
+            console.log('Single hotel marker clicked:', selectedHotel.name);
+            setClusterHotels([]); // Clear cluster view
+            setActiveHotel(selectedHotel); // This will trigger the standalone popup
             showHotelPopup(selectedHotel, [lng, lat]);
           }, false);
           
