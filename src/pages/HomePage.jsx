@@ -69,7 +69,7 @@ const HomePage = () => {
         console.error('Error applying filters:', error);
         
         // Set user-friendly error message
-        let errorMessage = 'Có ỗi xảy ra khi tìm kiếm khách sạn. Vui lòng thử lại.';
+        let errorMessage = 'Có lỗi xảy ra khi tìm kiếm khách sạn. Vui lòng thử lại.';
         
         if (error.code === 'NETWORK_ERROR' || !navigator.onLine) {
           errorMessage = 'Không thể kết nối mạng. Vui lòng kiểm tra kết nối internet.';
