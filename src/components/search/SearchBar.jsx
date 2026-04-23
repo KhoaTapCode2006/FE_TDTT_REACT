@@ -108,18 +108,24 @@ function SearchBar() {
 
         <div
           ref={calRef}
-          className="relative flex-1 flex items-center gap-2 px-3 py-1 cursor-pointer border-r border-outline-variant/30"
+          className={`relative flex-1 flex items-center gap-2 px-3 py-1 cursor-pointer border-r border-outline-variant/30 transition-all duration-200 ${
+            showCal ? 'bg-blue-50 border-blue-200' : 'hover:bg-surface-container-low'
+          }`}
           onClick={() => {
             setShowCal((v) => !v);
             setShowGuests(false);
           }}
         >
-          <Icon name="calendar_month" className="text-on-surface-variant flex-none" />
+          <Icon name="calendar_month" className={`flex-none transition-colors ${showCal ? 'text-blue-600' : 'text-on-surface-variant'}`} />
           <div className="flex flex-col min-w-0">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            <span className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${
+              showCal ? 'text-blue-600' : 'text-on-surface-variant'
+            }`}>
               Check-in / Check-out
             </span>
-            <span className="text-sm font-medium text-on-surface whitespace-nowrap truncate">
+            <span className={`text-sm font-medium whitespace-nowrap truncate transition-colors ${
+              showCal ? 'text-blue-700' : 'text-on-surface'
+            }`}>
               {dateLabel}
             </span>
           </div>
@@ -135,22 +141,34 @@ function SearchBar() {
 
         <div
           ref={guestsRef}
-          className="relative flex-1 flex items-center gap-2 px-3 py-1 cursor-pointer border-r border-outline-variant/30"
+          className={`relative flex-1 flex items-center gap-2 px-3 py-1 cursor-pointer border-r border-outline-variant/30 transition-all duration-200 ${
+            showGuests ? 'bg-blue-50 border-blue-200' : 'hover:bg-surface-container-low'
+          }`}
           onClick={() => {
             setShowGuests((v) => !v);
             setShowCal(false);
           }}
         >
-          <Icon name="group" className="text-on-surface-variant flex-none" />
+          <Icon name="group" className={`flex-none transition-colors ${showGuests ? 'text-blue-600' : 'text-on-surface-variant'}`} />
           <div className="flex flex-col min-w-0">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            <span className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${
+              showGuests ? 'text-blue-600' : 'text-on-surface-variant'
+            }`}>
               Số người
             </span>
-            <span className="text-sm font-medium text-on-surface whitespace-nowrap truncate">
+            <span className={`text-sm font-medium whitespace-nowrap truncate transition-colors ${
+              showGuests ? 'text-blue-700' : 'text-on-surface'
+            }`}>
               {guestsLabel}
             </span>
           </div>
-          <Icon name="expand_more" size={18} className="text-on-surface-variant ml-auto flex-none" />
+          <Icon 
+            name={showGuests ? "expand_less" : "expand_more"} 
+            size={18} 
+            className={`ml-auto flex-none transition-all duration-200 ${
+              showGuests ? 'text-blue-600 rotate-0' : 'text-on-surface-variant'
+            }`} 
+          />
           {showGuests && (
             <GuestsSelector
               guests={guests}

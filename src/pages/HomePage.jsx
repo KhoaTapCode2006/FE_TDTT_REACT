@@ -1,14 +1,15 @@
 import { useState, useCallback, useRef } from 'react';
-import SearchBar from '@/features/hotel/components/SearchBar';
-import HotelSidebar from '@/features/hotel/components/HotelSidebar';
-import HotelPopup from '@/features/hotel/components/HotelPopup';
-import FilterModal from '@/features/hotel/components/FilterModal';
-import ClusterSplitView from '@/features/hotel/components/ClusterSplitView';
-import VietMapPanel from '@/features/map/VietMapPanel'; // Huy nhớ bóc tách file này nhé
+import SearchBar from '@/components/search/SearchBar';
+import HotelSidebar from '@/components/hotel/components/HotelSidebar';
+import HotelPopup from '@/components/hotel/components/HotelPopup';
+import FilterModal from '@/components/filter/FilterModal';
+import ClusterSplitView from '@/components/hotel/components/ClusterSplitView';
+import VietMapPanel from '@/components/map/VietMapPanel'; 
 import ErrorBoundary from '@/components/ErrorBoundary';
 import Icon from '@/components/ui/Icon';
 import { useApp } from '@/app/AppContext';
 import { searchHotels } from '@/services/backend/hotel.service';
+
 
 const HomePage = () => {
   const { 
@@ -68,7 +69,7 @@ const HomePage = () => {
         console.error('Error applying filters:', error);
         
         // Set user-friendly error message
-        let errorMessage = 'Có lỗi xảy ra khi tìm kiếm khách sạn. Vui lòng thử lại.';
+        let errorMessage = 'Có ỗi xảy ra khi tìm kiếm khách sạn. Vui lòng thử lại.';
         
         if (error.code === 'NETWORK_ERROR' || !navigator.onLine) {
           errorMessage = 'Không thể kết nối mạng. Vui lòng kiểm tra kết nối internet.';

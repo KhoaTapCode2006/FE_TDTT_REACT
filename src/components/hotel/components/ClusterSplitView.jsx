@@ -83,6 +83,11 @@ function ClusterSplitView() {
                     <p className="text-xs text-on-surface-variant line-clamp-1 mb-1">
                       {hotel.address}
                     </p>
+                    {hotel.ai_score && (
+                      <p className="text-xs text-blue-600 font-semibold mb-1">
+                        AI Score: {Number(hotel.ai_score).toFixed(1)}
+                      </p>
+                    )}
                     <p className="text-sm font-bold text-secondary">
                       {fmtPrice(hotel.pricePerNight)}
                     </p>

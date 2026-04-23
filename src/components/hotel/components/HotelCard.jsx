@@ -34,6 +34,12 @@ function HotelCard({ hotel, onClick }) {
           <span className="text-sm font-bold text-primary">{hotel?.rating ?? "-"}</span>
         </div>
 
+        {hotel?.ai_score && (
+          <div className="absolute top-3 left-3 bg-blue-600/90 text-white px-2.5 py-1 rounded-full">
+            <span className="text-xs font-bold">AI: {Number(hotel.ai_score).toFixed(1)}</span>
+          </div>
+        )}
+
         {hotel?.badge && (
           <div className="absolute bottom-3 left-3">
             <span className="bg-primary text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">

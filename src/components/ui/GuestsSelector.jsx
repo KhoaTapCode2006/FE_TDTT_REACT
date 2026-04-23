@@ -47,7 +47,7 @@ function GuestsSelector({ guests, onChange, onClose }) {
           <button
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onInc(); }}
-            className="w-8 h-8 rounded-full border-2 border-primary bg-primary flex items-center justify-center text-white font-bold hover:bg-primary-container transition-colors"
+            className="w-8 h-8 rounded-full border-2 border-blue-600 bg-blue-600 flex items-center justify-center text-white font-bold hover:bg-blue-700 hover:border-blue-700 transition-colors"
           >
             <Icon name="add" size={16} />
           </button>
@@ -97,7 +97,7 @@ function GuestsSelector({ guests, onChange, onClose }) {
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => { e.stopPropagation(); changeChildAge(i, e.target.value); }}
-                className="border border-outline-variant/40 rounded-xl pl-3 pr-8 py-1.5 text-sm font-medium text-on-surface bg-surface-container-low focus:outline-none focus:ring-2 focus:ring-primary/30 appearance-none"
+                className="border border-outline-variant/40 rounded-xl pl-3 pr-8 py-1.5 text-sm font-medium text-on-surface bg-surface-container-low focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 appearance-none transition-colors"
               >
                 {Array.from({ length: 13 }, (_, v) => (
                   <option key={v} value={v}>{v} tuổi</option>
@@ -111,7 +111,7 @@ function GuestsSelector({ guests, onChange, onClose }) {
       <button
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); onClose(); }}
-        className="mt-4 w-full py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary-container transition-colors"
+        className="mt-4 w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors"
       >
         Xác nhận
       </button>

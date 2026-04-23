@@ -58,7 +58,11 @@ export function normalizeHotelResult(raw, fallbackLocation) {
     : [];
 
   const reviews = Array.isArray(raw.user_reviews)
-    ? raw.user_reviews.map(r => ({ author: r.author || "Khách", text: r.text || r.comment || "Đã nhận xét" }))
+    ? raw.user_reviews.map(r => ({ 
+        author: r.reviewer_name || r.author || "Khách", 
+        text: r.review_text || r.text || r.comment || "Đã nhận xét",
+        raw_star: r.raw_stars || r.raw_star || Math.round(rating)
+      }))
     : [];
 
   const latestReview = raw.latestReview || reviews[0] || null;
@@ -91,5 +95,6 @@ export function normalizeHotelResult(raw, fallbackLocation) {
         ? raw.nearbyLandmarks
         : [],
     link: raw.link || null,
+    ai_score: raw.ai_score !== undefined ? Number(raw.ai_score) : null, // Add AI score mapping
   };
 }

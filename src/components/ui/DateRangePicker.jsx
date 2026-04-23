@@ -133,11 +133,11 @@ function DateRangePicker({ checkIn, checkOut, onChange, onClose }) {
         </button>
 
         <div className="flex gap-6 text-sm font-semibold text-on-surface-variant">
-          <span className={selecting === "in" ? "text-primary font-bold" : ""}>
+          <span className={selecting === "in" ? "text-blue-600 font-bold" : ""}>
             Check-in: {checkIn ? fmtDate(checkIn) : "Select date"}
           </span>
           <span>→</span>
-          <span className={selecting === "out" ? "text-primary font-bold" : ""}>
+          <span className={selecting === "out" ? "text-blue-600 font-bold" : ""}>
             Check-out: {checkOut ? fmtDate(checkOut) : "Select date"}
           </span>
         </div>
@@ -161,14 +161,14 @@ function DateRangePicker({ checkIn, checkOut, onChange, onClose }) {
         <button
           onMouseDown={(e) => e.stopPropagation()}
           onClick={() => { onChange({ checkIn: null, checkOut: null }); setSelecting("in"); }}
-          className="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors"
+          className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-blue-600 transition-colors"
         >
           Clear
         </button>
         <button
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onClose(); }}
-          className="px-5 py-2 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary-container transition-colors"
+          className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors"
         >
           Done
         </button>
