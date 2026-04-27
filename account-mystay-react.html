@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<!--
+  account-mystay-react.html — Booking4LU My Stays Account Page (React Edition)
+  Self-contained React app — no build step required.
+  Features:
+    ✓ Sidebar navigation (My Stays, Saved Lists, Reviews, Friends — placeholders for future pages)
+    ✓ Profile header with edit/share actions
+    ✓ Stay tabs: All / Upcoming / Completed
+    ✓ Loyalty status progress card
+    ✓ Quick links (Payment Methods, Concierge Chat)
+    ✓ Auth guard — redirects to login if not signed in
+    ✓ All API stubs ready for backend wiring
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Booking4LU | My Stays</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary:                     "#00346f",
+            "primary-container":         "#004a99",
+            "primary-fixed":             "#d7e2ff",
+            "on-primary":                "#ffffff",
+            secondary:                   "#775a19",
+            "secondary-container":       "#fed488",
+            "on-secondary-container":    "#785a1a",
+            background:                  "#f7f9fc",
+            surface:                     "#f7f9fc",
+            "surface-container-lowest":  "#ffffff",
+            "surface-container-low":     "#f2f4f7",
+            "surface-container":         "#eceef1",
+            "surface-container-high":    "#e6e8eb",
+            "on-surface":                "#191c1e",
+            "on-surface-variant":        "#424751",
+            outline:                     "#737783",
+            "outline-variant":           "#c2c6d3",
+          },
+          fontFamily: {
+            headline: ["Manrope", "sans-serif"],
+            body:     ["Inter",   "sans-serif"],
+          },
+          boxShadow: {
+            editorial: "0px 12px 32px rgba(0,52,111,0.08)",
+            card:      "0px 4px 16px rgba(0,52,111,0.06)",
+          },
+        },
+      },
+    };
+  </script>
+
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    .ms {
+      font-family: 'Material Symbols Outlined';
+      font-variation-settings: 'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;
+      font-size: 20px; line-height: 1;
+      user-select: none; display: inline-block;
+    }
+    .ms-filled { font-variation-settings: 'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24; }
+    @keyframes fadeIn {
+      from { opacity:0; transform:translateY(10px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .fade-in { animation: fadeIn .3s ease forwards; }
+    body::-webkit-scrollbar { width:6px; }
+    body::-webkit-scrollbar-thumb { background:#c2c6d3; border-radius:4px; }
+  </style>
+</head>
+
+<body class="bg-background font-body text-on-surface antialiased">
+  <div id="root"></div>
+
+  <script>
+    // ── Mock stays data ────────────────────────────────────────────────────
+    window.MOCK_STAYS = [
+      {
+        id: "s1", status: "upcoming",
+        hotelName: "Azure Bay Retreat",
+        location: "Phu Quoc, Vietnam",
+        rating: 4.9,
+        review: "The panoramic ocean views from the terrace were breathtaking. Looking forward to returning this summer for the spa expansion.",
+        checkIn: "July 14, 2024", checkOut: "July 21, 2024",
+        confirmation: "#AZR-92834",
+        price: "$4,250",
+        image: "https://lh3.googleusercontent.com/aida-public/AB6AXuB8_Up820xTy9L7dCfBvhEMebEI2SbLeOcrnhDT6S65F7l2IeuTzFiU5Ku0P0Gh1ca1yAdXi5lpaT2F3VBFO5EWr8Fx3K1RVCxE5TJx-fwdzd_RAwQ_iT8jymVnuJAfw6Tasm0PdSsaBOKS3m0ilcS218QSbIc4LPN5LhgzsRp_Wgoj-G7SRopesItOitbFDZ1O-48wBZn23-z96FgSmxngMYTL20bIawlXIwsUHtNsDqtBEd4wzQ_BrG2EA9UnP5IN9eBFFqMgkSg",
+      },
+      {
+        id: "s2", status: "completed",
+        hotelName: "The Glass House",
+        location: "Provence, France",
+        rating: 5.0,
+        review: "Unmatched privacy and the most comfortable bed I've ever slept in. The local wine tasting arranged was a highlight.",
+        checkIn: "May 02, 2024", checkOut: "May 09, 2024",
+        confirmation: "#GH-44821",
+        price: "$6,100",
+        image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCW0nryQUYa1dFi-wPdmEBZ-xEFW9BFdP2glZqi_jXvygP4MVTYXQcTQBhVompi_g8BUe7lj7J3JMGLRtvRezVmY_lr-NUwjT17CWFyuOzaaNMQCjqkwTEGnfDJJwQn6ksp4qy2vp9wZBKU5Ru6o8AWE0Km9oclaLlvx1EAwliKBYVOYiprenA_48dCyaTSn1k0UgG3R_Yb4-uXNv42WZ86QwtQcvwEwg8imEBXz6gFJ2ZwlAe3S-FhF238CWv0DOCu5Tqu-pG-z28",
+      },
+      {
+        id: "s3", status: "completed",
+        hotelName: "Summit Peak Lodge",
+        location: "St. Moritz, Switzerland",
+        rating: 4.7,
+        review: "The ski-in/ski-out accessibility was perfect. Service was attentive, though the restaurant was quite busy.",
+        checkIn: "Feb 12, 2024", checkOut: "Feb 19, 2024",
+        confirmation: "#SPL-77302",
+        price: "$8,900",
+        image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCdT-tkeqqMwu7a090Frmt7FtFibb_hp29IHEEbYoFLaAT-D9fHm_AkQVxOH-cYPMdUPo2FAz0N1ryQlWazhl75Ggcv-Ttw-fr15Po3caDasTcbvXwxj1j3g7-7IFOKRW9WsLk5bNOpCkpPx7X8ryM3zF1XhpQ5sKVIpSikNW6bDZRgnaa1WUsaPHtjB74_-_JM2Ba5tTNnaxfM3AApjqWEaJqx34rWyhnx1y_vdvyJr-NjwaWb8SuLviarCjhmi3rTdLPO0DVDp4A",
+      },
+    ];
+
+    // ── Account API stubs ──────────────────────────────────────────────────
+    window.ACCOUNT_API = {
+      async getStays() {
+        await new Promise(r => setTimeout(r, 300));
+        return window.MOCK_STAYS;
+      },
+      async logout() {
+        localStorage.removeItem("b4lu_user");
+        window.location.href = "login-react.html";
+      },
+    };
+  </script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // ── Auth guard ─────────────────────────────────────────────────────────
+    const storedUser = JSON.parse(localStorage.getItem("b4lu_user") || "null");
+
+    function Icon({ name, filled = false, size = 20, className = "" }) {
+      return (
+        <span className={`ms ${filled ? "ms-filled" : ""} ${className}`} style={{ fontSize: size }}>
+          {name}
+        </span>
+      );
+    }
+
+    // ── Sidebar ────────────────────────────────────────────────────────────
+    function Sidebar({ user, active }) {
+      const navItems = [
+        { id: "mystay",    icon: "hotel",        label: "My Stays",    href: "account-mystay-react.html" },
+        { id: "savedlist", icon: "bookmark",      label: "Saved Lists", href: "account-savedlist-react.html" },
+        { id: "reviews",   icon: "rate_review",   label: "Reviews",     href: "account-review-react.html" },   // placeholder
+        { id: "friends",   icon: "group",         label: "Friends",     href: "account-friend-react.html" },
+      ];
+
+      return (
+        <aside className="w-56 flex-none bg-white border-r border-outline-variant/20 flex flex-col min-h-screen">
+          {/* Logo */}
+          <div className="px-5 py-5 border-b border-outline-variant/20">
+            <a href="homepage-react.html" className="font-headline font-extrabold text-lg text-primary tracking-tighter">
+              Booking4LU
+            </a>
+          </div>
+
+          {/* Profile mini */}
+          <div className="px-5 py-4 border-b border-outline-variant/20">
+            <div className="flex items-center gap-2 mb-0.5">
+              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white font-bold text-sm flex-none">
+                {user ? user.fullName?.[0] ?? "U" : "?"}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-on-surface truncate">{user?.fullName ?? "Guest"}</p>
+                <p className="text-xs text-on-surface-variant truncate">{user?.memberTier ?? ""} Member</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Book CTA */}
+          <div className="px-4 py-3 border-b border-outline-variant/20">
+            <a href="homepage-react.html"
+              className="block w-full text-center bg-primary text-white text-sm font-bold py-2 rounded-xl hover:bg-primary-container transition-colors">
+              Book New Stay
+            </a>
+          </div>
+
+          {/* Nav */}
+          <nav className="flex-1 px-3 py-3 flex flex-col gap-0.5">
+            {navItems.map(item => (
+              <a key={item.id} href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors
+                  ${active === item.id
+                    ? "bg-primary-fixed text-primary"
+                    : "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface"}`}>
+                <Icon name={item.icon} size={18} filled={active === item.id} />
+                {item.label}
+              </a>
+            ))}
+          </nav>
+
+          {/* Bottom links */}
+          <div className="px-3 py-4 border-t border-outline-variant/20 flex flex-col gap-0.5">
+            <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-on-surface-variant hover:bg-surface-container-low transition-colors">
+              <Icon name="help_outline" size={18} /> Help Center
+            </a>
+            <button onClick={() => window.ACCOUNT_API.logout()}
+              className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-on-surface-variant hover:bg-surface-container-low transition-colors w-full text-left">
+              <Icon name="logout" size={18} /> Logout
+            </button>
+          </div>
+        </aside>
+      );
+    }
+
+    // ── Profile Header ─────────────────────────────────────────────────────
+    function ProfileHeader({ user }) {
+      return (
+        <div className="relative rounded-2xl overflow-hidden mb-6 bg-primary"
+             style={{ minHeight: 180 }}>
+          {/* Background image */}
+          <img
+            src="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&q=80"
+            alt="Profile background"
+            className="absolute inset-0 w-full h-full object-cover opacity-40"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/80 to-transparent" />
+
+          <div className="relative z-10 flex items-end gap-5 p-6">
+            {/* Avatar */}
+            <div className="relative flex-none">
+              <div className="w-20 h-20 rounded-2xl bg-white/20 border-2 border-white/40 flex items-center justify-center overflow-hidden">
+                {user?.avatar
+                  ? <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                  : <Icon name="person" size={40} className="text-white" />
+                }
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-secondary-container flex items-center justify-center">
+                <Icon name="verified" size={14} className="text-primary" />
+              </div>
+            </div>
+
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <h2 className="font-headline font-extrabold text-white text-xl leading-tight">
+                {user?.fullName ?? "Traveler"}
+              </h2>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Icon name="location_on" size={14} className="text-white/70" />
+                <span className="text-white/70 text-sm">London, United Kingdom</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 flex-none">
+              <button className="px-4 py-2 rounded-xl border border-white/40 text-white text-sm font-semibold hover:bg-white/10 transition-colors">
+                Edit Profile
+              </button>
+              <button className="px-4 py-2 rounded-xl bg-secondary-container text-on-secondary-container text-sm font-bold hover:brightness-95 transition-colors">
+                Share Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Upcoming Stay Card ─────────────────────────────────────────────────
+    function UpcomingCard({ stay }) {
+      return (
+        <div className="bg-white rounded-2xl shadow-card overflow-hidden fade-in">
+          <div className="flex flex-col md:flex-row">
+            {/* Image */}
+            <div className="relative md:w-48 h-44 md:h-auto flex-none">
+              <img src={stay.image} alt={stay.hotelName} className="w-full h-full object-cover" />
+              <span className="absolute top-3 left-3 bg-primary text-white text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
+                Upcoming
+              </span>
+            </div>
+            {/* Content */}
+            <div className="flex-1 p-5 flex flex-col justify-between">
+              <div>
+                <h3 className="font-headline font-bold text-lg text-primary mb-1">{stay.hotelName}</h3>
+                <div className="flex items-center gap-1 mb-2">
+                  <Icon name="star" filled size={14} className="text-amber-500" />
+                  <span className="text-sm font-semibold text-on-surface">{stay.rating}</span>
+                </div>
+                <p className="text-sm text-on-surface-variant italic leading-relaxed mb-3">"{stay.review}"</p>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+                    <Icon name="calendar_today" size={15} />
+                    <span>{stay.checkIn} — {stay.checkOut}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+                    <Icon name="confirmation_number" size={15} />
+                    <span>Conf: {stay.confirmation}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-outline-variant/20">
+                <span className="font-headline font-bold text-xl text-on-surface">{stay.price} <span className="text-sm font-normal text-on-surface-variant">total</span></span>
+                <button className="px-5 py-2 bg-surface-container rounded-xl text-sm font-bold text-on-surface hover:bg-surface-container-high transition-colors">
+                  Details
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Completed Stay Card ────────────────────────────────────────────────
+    function CompletedCard({ stay }) {
+      return (
+        <div className="bg-white rounded-2xl shadow-card overflow-hidden fade-in">
+          <div className="relative h-44">
+            <img src={stay.image} alt={stay.hotelName} className="w-full h-full object-cover" />
+            <span className="absolute top-3 right-3 bg-white/90 text-on-surface text-xs font-bold px-2.5 py-1 rounded-full">
+              Completed
+            </span>
+          </div>
+          <div className="p-4">
+            <div className="flex items-start justify-between mb-1">
+              <h3 className="font-headline font-bold text-base text-primary">{stay.hotelName}</h3>
+              <div className="flex items-center gap-1 flex-none ml-2">
+                <Icon name="star" filled size={13} className="text-amber-500" />
+                <span className="text-sm font-semibold">{stay.rating}</span>
+              </div>
+            </div>
+            <p className="text-xs text-on-surface-variant uppercase tracking-wider font-semibold mb-2">{stay.location}</p>
+            <p className="text-sm text-on-surface-variant italic leading-relaxed mb-3">"{stay.review}"</p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-on-surface-variant">{stay.checkIn} — {stay.checkOut}</span>
+              <button className="text-sm font-bold text-primary hover:text-primary-container transition-colors">
+                Review Stay
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Loyalty Card ───────────────────────────────────────────────────────
+    function LoyaltyCard() {
+      const progress = 92;
+      return (
+        <div className="bg-primary rounded-2xl p-5 text-white">
+          <p className="text-sm font-semibold text-white/70 mb-1">Loyalty Status</p>
+          <div className="flex items-baseline gap-2 mb-1">
+            <span className="font-headline font-extrabold text-4xl">{progress}%</span>
+            <span className="text-xs font-bold text-secondary-container uppercase tracking-wider">Platinum Goal</span>
+          </div>
+          <div className="w-full h-2 bg-white/20 rounded-full mb-3">
+            <div className="h-2 bg-secondary-container rounded-full transition-all" style={{ width: `${progress}%` }} />
+          </div>
+          <p className="text-sm text-white/80 leading-relaxed">
+            Only 2 more stays until you reach Platinum status and unlock private jet transfers.
+          </p>
+        </div>
+      );
+    }
+
+    // ── Quick Links ────────────────────────────────────────────────────────
+    function QuickLinks() {
+      const links = [
+        { icon: "payments",       label: "Payment Methods" },
+        { icon: "support_agent",  label: "Concierge Chat" },
+      ];
+      return (
+        <div className="bg-white rounded-2xl shadow-card p-5">
+          <p className="text-sm font-bold text-on-surface mb-3">Quick Links</p>
+          <div className="flex flex-col gap-2">
+            {links.map(l => (
+              <button key={l.label}
+                className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-surface-container-low transition-colors group">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center">
+                    <Icon name={l.icon} size={16} className="text-primary" />
+                  </div>
+                  <span className="text-sm font-semibold text-on-surface">{l.label}</span>
+                </div>
+                <Icon name="arrow_forward_ios" size={14} className="text-on-surface-variant group-hover:text-primary transition-colors" />
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Main App ───────────────────────────────────────────────────────────
+    function App() {
+      const [tab, setTab] = useState("all");
+      const [stays, setStays] = useState([]);
+      const user = storedUser;
+
+      useEffect(() => {
+        // Redirect to login if not authenticated
+        if (!user) {
+          window.location.href = "login-react.html";
+          return;
+        }
+        window.ACCOUNT_API.getStays().then(setStays);
+      }, []);
+
+      const filtered = stays.filter(s => {
+        if (tab === "upcoming")  return s.status === "upcoming";
+        if (tab === "completed") return s.status === "completed";
+        return true;
+      });
+
+      const upcoming  = stays.filter(s => s.status === "upcoming");
+      const completed = stays.filter(s => s.status === "completed");
+
+      const tabs = [
+        { id: "all",       label: "All Stays" },
+        { id: "upcoming",  label: "Upcoming" },
+        { id: "completed", label: "Completed" },
+      ];
+
+      if (!user) return null;
+
+      return (
+        <div className="flex min-h-screen bg-background">
+          <Sidebar user={user} active="mystay" />
+
+          <main className="flex-1 overflow-y-auto">
+            <div className="max-w-5xl mx-auto px-6 py-8">
+              <ProfileHeader user={user} />
+
+              <div className="flex flex-col lg:flex-row gap-6">
+                {/* Left: stays */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h1 className="font-headline font-extrabold text-2xl text-on-surface">My Stays</h1>
+                      <p className="text-sm text-on-surface-variant mt-0.5">Viewing your upcoming and previous luxury getaways.</p>
+                    </div>
+                  </div>
+
+                  {/* Tabs */}
+                  <div className="flex gap-1 bg-surface-container rounded-xl p-1 w-fit mb-5">
+                    {tabs.map(t => (
+                      <button key={t.id} onClick={() => setTab(t.id)}
+                        className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors
+                          ${tab === t.id ? "bg-white text-primary shadow-card" : "text-on-surface-variant hover:text-on-surface"}`}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Upcoming section */}
+                  {(tab === "all" || tab === "upcoming") && upcoming.length > 0 && (
+                    <div className="mb-6">
+                      {tab === "all" && <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-3">Upcoming</p>}
+                      <div className="flex flex-col gap-4">
+                        {upcoming.map(s => <UpcomingCard key={s.id} stay={s} />)}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Completed section */}
+                  {(tab === "all" || tab === "completed") && completed.length > 0 && (
+                    <div>
+                      {tab === "all" && <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-3">Completed</p>}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {completed.map(s => <CompletedCard key={s.id} stay={s} />)}
+                      </div>
+                    </div>
+                  )}
+
+                  {filtered.length === 0 && (
+                    <div className="text-center py-16 text-on-surface-variant">
+                      <Icon name="hotel" size={48} className="mb-3 opacity-30" />
+                      <p className="font-semibold">No stays found</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: sidebar widgets */}
+                <div className="w-full lg:w-64 flex-none flex flex-col gap-4">
+                  <LoyaltyCard />
+                  <QuickLinks />
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
