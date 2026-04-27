@@ -1,14 +1,4 @@
-<<<<<<< HEAD
-import { Routes, Route, createBrowserRouter } from "react-router-dom";
 
-
-export default function AppRouter() {
-  return (
-    <Routes>
-    </Routes>
-  );
-}
-=======
     import { createBrowserRouter } from 'react-router-dom';
     import HomePage from '../pages/HomePage';
     import MainLayout from '../layouts/MainLayout';
@@ -22,4 +12,4 @@ export default function AppRouter() {
         ]
     }
     ]);
->>>>>>> fe_phase_1_2
+
