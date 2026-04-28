@@ -179,6 +179,11 @@ class ProfileService {
    */
   async uploadAvatar(uid, file) {
     try {
+      // Check if Storage is available
+      if (!storage) {
+        throw new Error('Avatar upload is not available. Firebase Storage is not enabled.');
+      }
+
       // Validate file
       if (!file.type.startsWith('image/')) {
         throw new Error('Please select a valid image file.');

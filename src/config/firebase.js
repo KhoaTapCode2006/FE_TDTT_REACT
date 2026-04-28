@@ -24,15 +24,8 @@ if (!isFirebaseConfigured) {
     '1. Create a Firebase project at https://console.firebase.google.com\n' +
     '2. Enable Authentication (Email/Password, Google, Facebook)\n' +
     '3. Enable Firestore Database\n' +
-    '4. Enable Storage\n' +
-    '5. Copy your Firebase config to a .env file:\n\n' +
-    'VITE_FIREBASE_API_KEY=your_api_key\n' +
-    'VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com\n' +
-    'VITE_FIREBASE_PROJECT_ID=your_project_id\n' +
-    'VITE_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com\n' +
-    'VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id\n' +
-    'VITE_FIREBASE_APP_ID=your_app_id\n\n' +
-    '6. Restart the development server\n'
+    '4. Copy your Firebase config to a .env file\n' +
+    '5. Restart the development server\n'
   );
 }
 
@@ -42,7 +35,15 @@ const app = initializeApp(firebaseConfig);
 // Initialize services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
+
+// Storage is optional - only initialize if needed
+let storage = null;
+try {
+  storage = getStorage(app);
+} catch (error) {
+  console.warn('Firebase Storage not available. Avatar uploads will be disabled.');
+}
+export { storage };
 
 // Configure auth providers
 export const googleProvider = new GoogleAuthProvider();
