@@ -251,9 +251,15 @@ function CollectionPage() {
 
     setActionBusy(true);
     try {
-      // const updatedCollection = await collectionService.addPlacesToCollection(collection.id, [placeId]);
-      // setCollection(updatedCollection);
-      setCollection(prev => ({ ...prev, ...editValues }));
+      const newPlace = {
+        place_id: placeId,
+        added_at: new Date().toISOString(),
+        added_by: currentUser?.uid || "",
+      };
+      setCollection(prev => ({
+        ...prev,
+        places: [...(prev?.places || []), newPlace],
+      }));
       setPlaceInput("");
       showToast("Thành công", "Đã thêm địa điểm vào collection.", "success");
     } catch (error) {
@@ -303,9 +309,10 @@ function CollectionPage() {
 
     setActionBusy(true);
     try {
-      // const updatedCollection = await collectionService.addTagsToCollection(collection.id, [tag]);
-      // setCollection(updatedCollection);
-      setCollection(prev => ({ ...prev, ...editValues }));
+      setCollection(prev => ({
+        ...prev,
+        tags: [...(prev?.tags || []), tag],
+      }));
       setTagInput("");
       showToast("Thành công", "Đã thêm tag.", "success");
     } catch (error) {
@@ -348,9 +355,16 @@ function CollectionPage() {
 
     setActionBusy(true);
     try {
-      //const updatedCollection = await collectionService.addCollaboratorsToCollection(collection.id, [collaboratorValue]);
-      //setCollection(updatedCollection);
-      setCollection(prev => ({ ...prev, ...editValues }));
+      const newCollaborator = {
+        uid: collaboratorValue,
+        display_name: "Thành viên mới",
+        joined_at: new Date().toISOString(),
+        contributed_count: 0,
+      };
+      setCollection(prev => ({
+        ...prev,
+        collaborators: [...(prev?.collaborators || []), newCollaborator],
+      }));
       setCollaboratorInput("");
       showToast("Thành công", "Đã gửi lời mời cộng tác.", "success");
     } catch (error) {
