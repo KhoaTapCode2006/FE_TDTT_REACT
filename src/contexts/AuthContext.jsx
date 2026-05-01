@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../config/firebase.js';
-import { authService } from '../services/auth.service.js';
-import { profileService } from '../services/profile.service.js';
-import { sessionService } from '../services/session.service.js';
+import { authService } from '../services/authentication/auth.service.js';
+import { profileService } from '../services/profile/profile.service.js';
+import { sessionService } from '../services/profile/session.service.js';
 import { ErrorLogger } from '../utils/errorHandling.js';
 
 /**
@@ -382,10 +382,12 @@ export const AuthProvider = ({ children }) => {
    */
   const checkUsernameAvailability = useCallback(async (username) => {
     try {
-      return await profileService.isUsernameAvailable(username, user?.uid);
+      // Don't pass excludeUid during signup (when user is null)
+      return await profileService.isUsernameAvailable(username, user?.uid || null);
     } catch (error) {
       console.error('Username check error:', error);
-      return false;
+      // Return true on error to allow form submission (will be caught during registration)
+      return true;
     }
   }, [user?.uid]);
 

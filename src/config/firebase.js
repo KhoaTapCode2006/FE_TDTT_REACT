@@ -14,18 +14,27 @@ const firebaseConfig = {
 
 // Check if Firebase is properly configured
 const isFirebaseConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY" && 
-                              firebaseConfig.projectId !== "YOUR_PROJECT_ID";
+                              firebaseConfig.projectId !== "YOUR_PROJECT_ID" &&
+                              firebaseConfig.apiKey && 
+                              firebaseConfig.projectId;
 
 if (!isFirebaseConfigured) {
-  console.warn(
+  console.error(
     '%c⚠️ Firebase Not Configured',
-    'color: orange; font-size: 16px; font-weight: bold;',
+    'color: red; font-size: 16px; font-weight: bold;',
     '\n\nTo enable authentication, please:\n' +
     '1. Create a Firebase project at https://console.firebase.google.com\n' +
     '2. Enable Authentication (Email/Password, Google, Facebook)\n' +
     '3. Enable Firestore Database\n' +
-    '4. Copy your Firebase config to a .env file\n' +
-    '5. Restart the development server\n'
+    '4. Copy your Firebase config to .env file\n' +
+    '5. Restart the development server\n\n' +
+    'See FIREBASE_SETUP.md for detailed instructions.'
+  );
+} else {
+  console.log(
+    '%c✅ Firebase Configured',
+    'color: green; font-size: 14px; font-weight: bold;',
+    `\nProject: ${firebaseConfig.projectId}`
   );
 }
 

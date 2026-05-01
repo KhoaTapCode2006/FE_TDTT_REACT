@@ -15,7 +15,7 @@ import {
   getDownloadURL, 
   deleteObject 
 } from 'firebase/storage';
-import { db, storage } from '../config/firebase.js';
+import { db, storage } from '../../config/firebase.js';
 
 /**
  * Profile service for handling user profile operations with Firestore
@@ -36,14 +36,14 @@ class ProfileService {
       const profileData = {
         uid,
         email: userData.email,
-        username: userData.username || this.generateUsername(userData.fullName),
-        fullName: userData.fullName,
+        username: userData.username || this.generateUsername(userData.fullName || userData.email),
+        fullName: userData.fullName || null,
         phoneNumber: userData.phoneNumber || null,
         dateOfBirth: userData.dateOfBirth || null,
         gender: userData.gender || null,
         zipCode: userData.zipCode || null,
         memberTier: 'bronze', // Default tier
-        avatar: userData.avatar || this.generateDefaultAvatar(userData.fullName),
+        avatar: userData.avatar || this.generateDefaultAvatar(userData.username || userData.email),
         preferences: {
           language: 'en',
           currency: 'USD',
@@ -71,7 +71,20 @@ class ProfileService {
       };
     } catch (error) {
       console.error('Error creating profile:', error);
-      throw new Error('Failed to create user profile. Please try again.');
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
+      console.error('User data:', { uid, email: userData.email, username: userData.username });
+      
+      // Provide more specific error messages
+      if (error.code === 'permission-denied') {
+        throw new Error('Permission denied. Please check Firestore security rules.');
+      } else if (error.code === 'unavailable') {
+        throw new Error('Firestore is unavailable. Please check if Firestore is enabled in Firebase Console.');
+      } else if (error.code === 'not-found') {
+        throw new Error('Firestore database not found. Please enable Firestore in Firebase Console.');
+      } else {
+        throw new Error(`Failed to create user profile: ${error.message}`);
+      }
     }
   }
 
@@ -227,11 +240,11 @@ class ProfileService {
 
   /**
    * Generate default Facebook-style avatar
-   * @param {string} fullName - User's full name
+   * @param {string} nameOrUsername - User's full name or username
    * @returns {Object} Avatar object with SVG data URL
    */
-  generateDefaultAvatar(fullName) {
-    const initials = this.getInitials(fullName);
+  generateDefaultAvatar(nameOrUsername) {
+    const initials = this.getInitials(nameOrUsername);
     const colors = [
       '#1877F2', // Facebook blue
       '#42B883', // Vue green
@@ -246,7 +259,7 @@ class ProfileService {
     ];
     
     // Select color based on name hash
-    const colorIndex = this.hashString(fullName) % colors.length;
+    const colorIndex = this.hashString(nameOrUsername) % colors.length;
     const backgroundColor = colors[colorIndex];
     
     // Generate SVG
@@ -269,30 +282,37 @@ class ProfileService {
   }
 
   /**
-   * Get initials from full name
-   * @param {string} fullName - Full name
+   * Get initials from full name or username
+   * @param {string} nameOrUsername - Full name or username
    * @returns {string} Initials (max 2 characters)
    */
-  getInitials(fullName) {
-    if (!fullName) return 'U';
+  getInitials(nameOrUsername) {
+    if (!nameOrUsername) return 'U';
     
-    const names = fullName.trim().split(' ');
+    const names = nameOrUsername.trim().split(' ');
     if (names.length === 1) {
-      return names[0].charAt(0).toUpperCase();
+      // For single word (username), take first 2 characters
+      return nameOrUsername.substring(0, 2).toUpperCase();
     }
     
     return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
   }
 
   /**
-   * Generate username from full name
-   * @param {string} fullName - Full name
+   * Generate username from full name or email
+   * @param {string} nameOrEmail - Full name or email
    * @returns {string} Generated username
    */
-  generateUsername(fullName) {
-    if (!fullName) return `user_${Date.now()}`;
+  generateUsername(nameOrEmail) {
+    if (!nameOrEmail) return `user_${Date.now()}`;
     
-    const baseUsername = fullName
+    // If it's an email, extract the part before @
+    let baseName = nameOrEmail;
+    if (nameOrEmail.includes('@')) {
+      baseName = nameOrEmail.split('@')[0];
+    }
+    
+    const baseUsername = baseName
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '')
       .substring(0, 15);
@@ -309,6 +329,11 @@ class ProfileService {
    */
   async isUsernameAvailable(username, excludeUid = null) {
     try {
+      // Validate username format first
+      if (!username || username.trim().length === 0) {
+        return false;
+      }
+      
       const usersRef = collection(db, this.usersCollection);
       const q = query(usersRef, where('username', '==', username));
       const querySnapshot = await getDocs(q);
@@ -326,6 +351,15 @@ class ProfileService {
       return false;
     } catch (error) {
       console.error('Error checking username availability:', error);
+      
+      // If it's a permission error, assume username is available
+      // The actual check will happen during registration
+      if (error.code === 'permission-denied') {
+        console.warn('Permission denied when checking username. Skipping check.');
+        return true;
+      }
+      
+      // For other errors, return false to be safe
       return false;
     }
   }

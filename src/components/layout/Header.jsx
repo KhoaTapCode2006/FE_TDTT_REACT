@@ -77,7 +77,7 @@ function Header({ hideNavigation = false }) {
           to="/"
           className="text-2xl font-headline font-extrabold tracking-tighter text-primary whitespace-nowrap"
         >
-          Booking4LU
+          Booking4U
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
@@ -196,28 +196,28 @@ function Header({ hideNavigation = false }) {
                     {/* Menu Items */}
                     <div className="p-2 space-y-1">
                       <Link
+                        to="/account/mystay"
+                        onClick={() => setAccountOpen(false)}
+                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
+                      >
+                        <Icon name="luggage" size={20} className="text-on-surface-variant" />
+                        My Stays
+                      </Link>
+                      <Link
+                        to="/account/savedlist"
+                        onClick={() => setAccountOpen(false)}
+                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
+                      >
+                        <Icon name="favorite" size={20} className="text-on-surface-variant" />
+                        Saved Lists
+                      </Link>
+                      <Link
                         to="/profile"
                         onClick={() => setAccountOpen(false)}
                         className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
                       >
                         <Icon name="person" size={20} className="text-on-surface-variant" />
                         My Profile
-                      </Link>
-                      <Link
-                        to="/bookings"
-                        onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
-                      >
-                        <Icon name="luggage" size={20} className="text-on-surface-variant" />
-                        My Bookings
-                      </Link>
-                      <Link
-                        to="/favorites"
-                        onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
-                      >
-                        <Icon name="favorite" size={20} className="text-on-surface-variant" />
-                        Favorites
                       </Link>
                       <Link
                         to="/settings"

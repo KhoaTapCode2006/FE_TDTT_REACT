@@ -11,13 +11,8 @@ const Signup = () => {
   // Form state
   const [formData, setFormData] = useState({
     username: '',
-    fullName: '',
     email: '',
     password: '',
-    phoneNumber: '',
-    dateOfBirth: '',
-    gender: '',
-    zipCode: '',
     acceptTerms: false
   });
   
@@ -27,18 +22,7 @@ const Signup = () => {
   const [passwordStrength, setPasswordStrength] = useState({ strength: 0, checks: {} });
   const [usernameChecking, setUsernameChecking] = useState(false);
 
-  // Country codes for phone number
-  const COUNTRY_CODES = [
-    { code: "+84", flag: "🇻🇳", label: "VN" },
-    { code: "+1", flag: "🇺🇸", label: "US" },
-    { code: "+44", flag: "🇬🇧", label: "GB" },
-    { code: "+81", flag: "🇯🇵", label: "JP" },
-    { code: "+86", flag: "🇨🇳", label: "CN" },
-    { code: "+33", flag: "🇫🇷", label: "FR" },
-    { code: "+49", flag: "🇩🇪", label: "DE" },
-  ];
 
-  const [countryCode, setCountryCode] = useState("+84");
 
   /**
    * Handle input changes with real-time validation
@@ -79,7 +63,7 @@ const Signup = () => {
     switch (field) {
       case 'username':
         fieldError = validators.username(value);
-        if (!fieldError && value) {
+        if (!fieldError && value && value.trim().length > 0) {
           // Check username availability
           setUsernameChecking(true);
           try {
@@ -89,13 +73,11 @@ const Signup = () => {
             }
           } catch (error) {
             console.error('Username check failed:', error);
+            // Don't show error during check, will be validated during registration
           } finally {
             setUsernameChecking(false);
           }
         }
-        break;
-      case 'fullName':
-        fieldError = validators.fullName(value);
         break;
       case 'email':
         fieldError = validators.email(value);
@@ -103,15 +85,6 @@ const Signup = () => {
       case 'password':
         const passwordValidation = validators.password(value);
         fieldError = passwordValidation.error;
-        break;
-      case 'phoneNumber':
-        fieldError = validators.phone(value);
-        break;
-      case 'dateOfBirth':
-        fieldError = validators.dateOfBirth(value);
-        break;
-      case 'zipCode':
-        fieldError = validators.zipCode(value);
         break;
     }
     
@@ -126,12 +99,8 @@ const Signup = () => {
   const validateEntireForm = () => {
     const rules = {
       username: validators.username,
-      fullName: validators.fullName,
       email: validators.email,
       password: (value) => validators.password(value).error,
-      phoneNumber: validators.phone,
-      dateOfBirth: validators.dateOfBirth,
-      zipCode: validators.zipCode,
       acceptTerms: (value) => value ? null : 'You must accept the terms and conditions.'
     };
     
@@ -156,13 +125,8 @@ const Signup = () => {
       // Prepare registration data
       const registrationData = {
         username: formData.username,
-        fullName: formData.fullName,
         email: formData.email,
         password: formData.password,
-        phoneNumber: formData.phoneNumber ? `${countryCode}${formData.phoneNumber}` : undefined,
-        dateOfBirth: formData.dateOfBirth ? new Date(formData.dateOfBirth) : undefined,
-        gender: formData.gender || undefined,
-        zipCode: formData.zipCode || undefined,
         acceptTerms: formData.acceptTerms
       };
       
@@ -294,56 +258,36 @@ const Signup = () => {
             </div>
           )}
 
-          {/* Username & Full Name */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
-                Username *
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => handleInputChange('username', e.target.value)}
-                  placeholder="johndoe"
-                  required
-                  className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all bg-surface-container-low/40 ${
-                    formErrors.username 
-                      ? 'border-red-300 focus:border-red-500' 
-                      : 'border-outline-variant focus:border-primary'
-                  }`}
-                />
-                {usernameChecking && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
-                  </div>
-                )}
-              </div>
-              {formErrors.username && (
-                <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
-                Full Name *
-              </label>
+          {/* Username */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
+              Username *
+            </label>
+            <div className="relative">
               <input
                 type="text"
-                value={formData.fullName}
-                onChange={(e) => handleInputChange('fullName', e.target.value)}
-                placeholder="John Doe"
+                value={formData.username}
+                onChange={(e) => handleInputChange('username', e.target.value)}
+                placeholder="john doe"
                 required
                 className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all bg-surface-container-low/40 ${
-                  formErrors.fullName 
+                  formErrors.username 
                     ? 'border-red-300 focus:border-red-500' 
                     : 'border-outline-variant focus:border-primary'
                 }`}
               />
-              {formErrors.fullName && (
-                <p className="text-red-500 text-xs mt-1">{formErrors.fullName}</p>
+              {usernameChecking && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                </div>
               )}
             </div>
+            {formErrors.username && (
+              <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>
+            )}
+            <p className="text-xs text-on-surface-variant/70 mt-1">
+              Letters, numbers, underscores, and single spaces allowed
+            </p>
           </div>
 
           {/* Email */}
@@ -435,102 +379,7 @@ const Signup = () => {
             )}
           </div>
 
-          {/* Phone & Date of Birth */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
-                Phone Number
-              </label>
-              <div className="flex gap-2">
-                <select
-                  value={countryCode}
-                  onChange={(e) => setCountryCode(e.target.value)}
-                  className="border border-outline-variant rounded-xl px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-surface-container-low/40 w-20"
-                >
-                  {COUNTRY_CODES.map(c => (
-                    <option key={c.code} value={c.code}>{c.flag} {c.code}</option>
-                  ))}
-                </select>
-                <input
-                  type="tel"
-                  value={formData.phoneNumber}
-                  onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                  placeholder="123456789"
-                  className={`flex-1 border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all bg-surface-container-low/40 ${
-                    formErrors.phoneNumber 
-                      ? 'border-red-300 focus:border-red-500' 
-                      : 'border-outline-variant focus:border-primary'
-                  }`}
-                />
-              </div>
-              {formErrors.phoneNumber && (
-                <p className="text-red-500 text-xs mt-1">{formErrors.phoneNumber}</p>
-              )}
-            </div>
 
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
-                Date of Birth
-              </label>
-              <input
-                type="date"
-                value={formData.dateOfBirth}
-                onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
-                className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all bg-surface-container-low/40 ${
-                  formErrors.dateOfBirth 
-                    ? 'border-red-300 focus:border-red-500' 
-                    : 'border-outline-variant focus:border-primary'
-                }`}
-              />
-              {formErrors.dateOfBirth && (
-                <p className="text-red-500 text-xs mt-1">{formErrors.dateOfBirth}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Gender & Zip Code */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
-                Gender
-              </label>
-              <div className="flex gap-4 mt-2">
-                {["male", "female", "other"].map(g => (
-                  <label key={g} className="flex items-center gap-1.5 cursor-pointer text-sm text-on-surface-variant">
-                    <input
-                      type="radio"
-                      name="gender"
-                      value={g}
-                      checked={formData.gender === g}
-                      onChange={(e) => handleInputChange('gender', e.target.value)}
-                      className="text-primary focus:ring-primary/30"
-                    />
-                    {g.charAt(0).toUpperCase() + g.slice(1)}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1">
-                Zip Code
-              </label>
-              <input
-                type="text"
-                value={formData.zipCode}
-                onChange={(e) => handleInputChange('zipCode', e.target.value)}
-                placeholder="12345"
-                className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all bg-surface-container-low/40 ${
-                  formErrors.zipCode 
-                    ? 'border-red-300 focus:border-red-500' 
-                    : 'border-outline-variant focus:border-primary'
-                }`}
-              />
-              {formErrors.zipCode && (
-                <p className="text-red-500 text-xs mt-1">{formErrors.zipCode}</p>
-              )}
-            </div>
-          </div>
 
           {/* Terms and Conditions */}
           <div className="flex items-start gap-3 p-4 bg-surface-container-low/30 rounded-xl">

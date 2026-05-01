@@ -7,9 +7,9 @@ import {
   updateProfile,
   onAuthStateChanged
 } from 'firebase/auth';
-import { auth, googleProvider, facebookProvider } from '../config/firebase.js';
-import { profileService } from './profile.service.js';
-import { sessionService } from './session.service.js';
+import { auth, googleProvider, facebookProvider } from '../../config/firebase.js';
+import { profileService } from '../profile/profile.service.js';
+import { sessionService } from '../profile/session.service.js';
 
 /**
  * Authentication service for handling Firebase Auth operations
@@ -167,19 +167,28 @@ class AuthService {
    */
   async register(userData) {
     try {
-      const { email, password, ...profileData } = userData;
+      const { email, password, username, ...profileData } = userData;
+      
+      // Check if username is available before creating account
+      const isUsernameAvailable = await profileService.isUsernameAvailable(username);
+      if (!isUsernameAvailable) {
+        const error = new Error('Username is already taken. Please choose a different username.');
+        error.code = 'auth/username-already-exists';
+        throw error;
+      }
       
       // Create user account
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      // Update Firebase Auth profile
+      // Update Firebase Auth profile with username as displayName
       await updateProfile(user, {
-        displayName: profileData.fullName
+        displayName: username
       });
       
       // Create user profile in Firestore
       const userProfile = await profileService.createProfile(user.uid, {
+        username,
         ...profileData,
         email: user.email,
         authProviders: ['password']
@@ -278,6 +287,7 @@ class AuthService {
       'auth/user-not-found': 'No account found with this email address.',
       'auth/wrong-password': 'Incorrect password. Please try again.',
       'auth/email-already-in-use': 'An account with this email already exists.',
+      'auth/username-already-exists': 'Username is already taken. Please choose a different username.',
       'auth/weak-password': 'Password should be at least 6 characters long.',
       'auth/invalid-email': 'Please enter a valid email address.',
       'auth/too-many-requests': 'Too many failed attempts. Please try again later.',

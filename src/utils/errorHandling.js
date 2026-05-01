@@ -128,9 +128,28 @@ export const validators = {
    */
   username: (username) => {
     if (!username) return 'Username is required.';
-    if (username.length < 3) return 'Username must be at least 3 characters long.';
-    if (username.length > 20) return 'Username must be less than 20 characters.';
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) return 'Username can only contain letters, numbers, and underscores.';
+    
+    // Trim leading and trailing spaces
+    const trimmedUsername = username.trim();
+    
+    if (trimmedUsername.length < 3) return 'Username must be at least 3 characters long.';
+    if (trimmedUsername.length > 30) return 'Username must be less than 30 characters.';
+    
+    // Check for valid characters: letters, numbers, underscores, and single spaces
+    if (!/^[a-zA-Z0-9_ ]+$/.test(trimmedUsername)) {
+      return 'Username can only contain letters, numbers, underscores, and spaces.';
+    }
+    
+    // Check for multiple consecutive spaces
+    if (/\s{2,}/.test(trimmedUsername)) {
+      return 'Username cannot contain multiple consecutive spaces.';
+    }
+    
+    // Check if username starts or ends with space (after trim, this shouldn't happen, but double-check)
+    if (trimmedUsername !== username) {
+      return 'Username cannot start or end with spaces.';
+    }
+    
     return null;
   },
 

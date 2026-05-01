@@ -5,6 +5,8 @@
     import LoginPage from '../pages/auth/LoginPage';
     import SignupPage from '../pages/auth/SignupPage';
     import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
+    import MyStaysPage from '../pages/profile/MyStaysPage';
+    import SavedListsPage from '../pages/profile/SavedListsPage';
     import { RequireAuth } from '../components/auth/ProtectedRoute';
 
     export const router = createBrowserRouter([
@@ -13,15 +15,23 @@
         element: <MainLayout />,
         children: [
         { path: '/', element: <HomePage /> },
-        // Add protected routes here in the future
-        // {
-        //   path: '/profile',
-        //   element: (
-        //     <RequireAuth>
-        //       <ProfilePage />
-        //     </RequireAuth>
-        //   )
-        // }
+        // Protected profile routes
+        {
+          path: '/account/mystay',
+          element: (
+            <RequireAuth>
+              <MyStaysPage />
+            </RequireAuth>
+          )
+        },
+        {
+          path: '/account/savedlist',
+          element: (
+            <RequireAuth>
+              <SavedListsPage />
+            </RequireAuth>
+          )
+        }
         ]
     },
     {
