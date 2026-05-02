@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
-//import { collectionService } from "@/services/collectionService";
+import { collectionService } from "../services/backend/collection.service";
 
 const STATUS_TYPES = {
   success: "bg-emerald-600 text-white",
@@ -251,15 +251,8 @@ function CollectionPage() {
 
     setActionBusy(true);
     try {
-      const newPlace = {
-        place_id: placeId,
-        added_at: new Date().toISOString(),
-        added_by: currentUser?.uid || "",
-      };
-      setCollection(prev => ({
-        ...prev,
-        places: [...(prev?.places || []), newPlace],
-      }));
+      const updatedCollection = await collectionService.addPlaces(collection.id, placeId);
+      setCollection(updatedCollection);
       setPlaceInput("");
       showToast("Thành công", "Đã thêm địa điểm vào collection.", "success");
     } catch (error) {
@@ -309,10 +302,8 @@ function CollectionPage() {
 
     setActionBusy(true);
     try {
-      setCollection(prev => ({
-        ...prev,
-        tags: [...(prev?.tags || []), tag],
-      }));
+      const updatedCollection = await collectionService.addTags(collection.id, tag);
+      setCollection(updatedCollection);
       setTagInput("");
       showToast("Thành công", "Đã thêm tag.", "success");
     } catch (error) {
@@ -355,16 +346,8 @@ function CollectionPage() {
 
     setActionBusy(true);
     try {
-      const newCollaborator = {
-        uid: collaboratorValue,
-        display_name: "Thành viên mới",
-        joined_at: new Date().toISOString(),
-        contributed_count: 0,
-      };
-      setCollection(prev => ({
-        ...prev,
-        collaborators: [...(prev?.collaborators || []), newCollaborator],
-      }));
+      const updatedCollection = await collectionService.addCollaborators(collection.id, collaboratorValue);
+      setCollection(updatedCollection);
       setCollaboratorInput("");
       showToast("Thành công", "Đã gửi lời mời cộng tác.", "success");
     } catch (error) {
