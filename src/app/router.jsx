@@ -5,6 +5,7 @@
     import LoginPage from '../pages/auth/LoginPage';
     import SignupPage from '../pages/auth/SignupPage';
     import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
+    import ProfilePage from '../pages/profile/ProfilePage';
     import MyStaysPage from '../pages/profile/MyStaysPage';
     import SavedListsPage from '../pages/profile/SavedListsPage';
     import { RequireAuth } from '../components/auth/ProtectedRoute';
@@ -16,6 +17,14 @@
         children: [
         { path: '/', element: <HomePage /> },
         // Protected profile routes
+        {
+          path: '/account/profile',
+          element: (
+            <RequireAuth>
+              <ProfilePage />
+            </RequireAuth>
+          )
+        },
         {
           path: '/account/mystay',
           element: (

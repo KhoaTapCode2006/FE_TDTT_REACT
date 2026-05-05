@@ -8,15 +8,23 @@ import Icon from '@/components/ui/Icon';
  * @param {Object} props
  * @param {Object} props.user - User object (optional, defaults to AuthContext user)
  * @param {boolean} props.showActions - Show action buttons (default: true)
+ * @param {Function} props.onEdit - Callback function when edit button is clicked
  */
-const ProfileHeader = ({ user: propUser, showActions = true }) => {
+const ProfileHeader = ({ user: propUser, showActions = true, onEdit }) => {
   const { user: authUser } = useAuth();
   const user = propUser || authUser;
 
   const handleEditProfile = () => {
-    // Placeholder for edit profile functionality
-    console.log('Edit profile clicked');
-    // TODO: Navigate to profile edit page
+    console.log('🖱️ Edit Profile button clicked in ProfileHeader');
+    console.log('onEdit prop:', onEdit);
+    console.log('onEdit type:', typeof onEdit);
+    
+    if (onEdit) {
+      console.log('✅ Calling onEdit handler');
+      onEdit();
+    } else {
+      console.warn('⚠️ Edit profile clicked - no onEdit handler provided');
+    }
   };
 
   const handleShareProfile = () => {
