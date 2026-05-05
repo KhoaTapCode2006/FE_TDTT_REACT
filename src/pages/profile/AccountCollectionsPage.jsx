@@ -1,155 +1,74 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { collectionService } from '../../services/profile/collection.service';
+import Icon from '@/components/ui/Icon';
 import EmptyState from '@/components/profile/EmptyState';
 
 /**
  * AccountCollectionsPage Component
- * Display user's personal collections and community collections
+ * Display user's personal collections and community collections with Firebase integration
  */
 const AccountCollectionsPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   // State management
   const [myCollections, setMyCollections] = useState([]);
   const [communityCollections, setCommunityCollections] = useState([]);
   const [selectedTag, setSelectedTag] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  // Mock data constants
-  const mockMyCollections = [
-    {
-      id: 'my-col-1',
-      name: 'Weekend Getaways',
-      description: 'Perfect spots for quick weekend trips',
-      coverImage: '/assets/hero.png',
-      tags: ['weekend', 'relaxation', 'nature'],
-      collaborators: [
-        { id: 'user-2', name: 'Sarah Chen', avatar: 'https://placehold.co/40x40?text=SC' },
-        { id: 'user-3', name: 'Mike Johnson', avatar: 'https://placehold.co/40x40?text=MJ' }
-      ],
-      visibility: 'private',
-      itemCount: 12,
-      createdAt: '2024-01-15T10:00:00Z',
-      updatedAt: '2024-01-20T14:30:00Z',
-      ownerId: 'current-user'
-    },
-    {
-      id: 'my-col-2',
-      name: 'Business Travel',
-      description: 'Hotels for work trips and conferences',
-      coverImage: 'https://placehold.co/400x225?text=Business+Hotels',
-      tags: ['business', 'city-center', 'wifi'],
-      collaborators: [],
-      visibility: 'public',
-      itemCount: 8,
-      createdAt: '2024-01-10T09:00:00Z',
-      updatedAt: '2024-01-18T16:45:00Z',
-      ownerId: 'current-user'
-    },
-    {
-      id: 'my-col-3',
-      name: 'Family Vacations',
-      description: 'Kid-friendly resorts and family hotels',
-      coverImage: 'https://placehold.co/400x225?text=Family+Resorts',
-      tags: ['family', 'kids', 'pool', 'activities'],
-      collaborators: [
-        { id: 'user-4', name: 'Lisa Park', avatar: 'https://placehold.co/40x40?text=LP' }
-      ],
-      visibility: 'private',
-      itemCount: 15,
-      createdAt: '2024-01-05T11:30:00Z',
-      updatedAt: '2024-01-22T13:15:00Z',
-      ownerId: 'current-user'
-    }
-  ];
-
-  const mockCommunityCollections = [
-    {
-      id: 'comm-col-1',
-      name: 'Tokyo Hidden Gems',
-      description: 'Unique boutique hotels in Tokyo neighborhoods',
-      coverImage: 'https://placehold.co/400x225?text=Tokyo+Hotels',
-      tags: ['tokyo', 'boutique', 'unique', 'japan'],
-      collaborators: [
-        { id: 'user-5', name: 'Yuki Tanaka', avatar: 'https://placehold.co/40x40?text=YT' },
-        { id: 'user-6', name: 'Alex Kim', avatar: 'https://placehold.co/40x40?text=AK' }
-      ],
-      visibility: 'public',
-      itemCount: 20,
-      createdAt: '2024-01-12T08:00:00Z',
-      updatedAt: '2024-01-25T10:20:00Z',
-      ownerId: 'user-5'
-    },
-    {
-      id: 'comm-col-2',
-      name: 'European Castles & Palaces',
-      description: 'Historic luxury accommodations across Europe',
-      coverImage: 'https://placehold.co/400x225?text=Castle+Hotels',
-      tags: ['europe', 'luxury', 'historic', 'castle'],
-      collaborators: [
-        { id: 'user-7', name: 'Emma Wilson', avatar: 'https://placehold.co/40x40?text=EW' }
-      ],
-      visibility: 'public',
-      itemCount: 18,
-      createdAt: '2024-01-08T15:30:00Z',
-      updatedAt: '2024-01-23T12:45:00Z',
-      ownerId: 'user-7'
-    },
-    {
-      id: 'comm-col-3',
-      name: 'Beach Paradise',
-      description: 'Stunning beachfront resorts worldwide',
-      coverImage: 'https://placehold.co/400x225?text=Beach+Resorts',
-      tags: ['beach', 'resort', 'tropical', 'ocean'],
-      collaborators: [],
-      visibility: 'public',
-      itemCount: 25,
-      createdAt: '2024-01-03T12:00:00Z',
-      updatedAt: '2024-01-21T09:30:00Z',
-      ownerId: 'user-8'
-    },
-    {
-      id: 'comm-col-4',
-      name: 'Mountain Retreats',
-      description: 'Cozy lodges and cabins in mountain settings',
-      coverImage: 'https://placehold.co/400x225?text=Mountain+Lodges',
-      tags: ['mountain', 'nature', 'retreat', 'cozy'],
-      collaborators: [
-        { id: 'user-9', name: 'David Brown', avatar: 'https://placehold.co/40x40?text=DB' },
-        { id: 'user-10', name: 'Maria Garcia', avatar: 'https://placehold.co/40x40?text=MG' }
-      ],
-      visibility: 'public',
-      itemCount: 14,
-      createdAt: '2024-01-01T10:15:00Z',
-      updatedAt: '2024-01-24T14:00:00Z',
-      ownerId: 'user-9'
-    }
-  ];
+  const [error, setError] = useState(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const popularTags = [
     'beach', 'luxury', 'boutique', 'family', 'business', 
     'mountain', 'city-center', 'resort', 'historic', 'unique'
   ];
 
-  // Simulate data loading
-  useEffect(() => {
-    const loadCollections = () => {
-      try {
-        setLoading(true);
-        // Simulate API call delay
-        setTimeout(() => {
-          setMyCollections(mockMyCollections);
-          setCommunityCollections(mockCommunityCollections);
-          setLoading(false);
-        }, 500);
-      } catch (error) {
-        console.error('Error loading collections:', error);
-        setLoading(false);
-      }
-    };
+  // Load collections from Firebase
+  const loadCollections = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch both my collections and community collections in parallel
+      const [myCollectionsData, communityCollectionsData] = await Promise.all([
+        collectionService.fetchMyCollections(user.uid),
+        collectionService.fetchCommunityCollections()
+      ]);
+      
+      setMyCollections(myCollectionsData);
+      setCommunityCollections(communityCollectionsData);
+    } catch (err) {
+      console.error('Error loading collections:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Load collections on component mount and when user changes
+  useEffect(() => {
     loadCollections();
-  }, []); // Empty dependency array to run only once
+  }, [user]);
+
+  // Handle creating a new collection
+  const handleCreateCollection = async (collectionData) => {
+    if (!user) return;
+    
+    try {
+      await collectionService.createCollection(user.uid, collectionData);
+      setShowCreateModal(false);
+      // Reload collections to show the new one
+      await loadCollections();
+    } catch (err) {
+      console.error('Error creating collection:', err);
+      throw err; // Let the modal handle the error display
+    }
+  };
 
   // Filter community collections by selected tag
   const filteredCommunityCollections = selectedTag
@@ -178,14 +97,40 @@ const AccountCollectionsPage = () => {
         </div>
       )}
 
+      {/* Error State */}
+      {error && !loading && (
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md text-center">
+            <Icon name="error" className="text-red-500 mb-4" size={48} />
+            <h3 className="font-semibold text-red-800 mb-2">Error Loading Collections</h3>
+            <p className="text-red-600 text-sm mb-4">{error}</p>
+            <button
+              onClick={loadCollections}
+              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
-      {!loading && (
+      {!loading && !error && (
         <div className="space-y-12">
           {/* My Collections Section */}
           <section>
-            <h2 className="font-headline font-bold text-2xl text-on-surface mb-6">
-              My Collections
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="font-headline font-bold text-2xl text-on-surface">
+                My Collections
+              </h2>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                <Icon name="add" size={20} />
+                Create Collection
+              </button>
+            </div>
             
             {myCollections.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -203,7 +148,7 @@ const AccountCollectionsPage = () => {
                 title="No collections yet"
                 description="Create your first collection to start organizing your favorite hotels and destinations."
                 actionLabel="Create Collection"
-                onAction={() => console.log('Create collection')}
+                onAction={() => setShowCreateModal(true)}
               />
             )}
           </section>
@@ -241,6 +186,14 @@ const AccountCollectionsPage = () => {
           </section>
         </div>
       )}
+
+      {/* Create Collection Modal */}
+      {showCreateModal && (
+        <CreateCollectionModal
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={handleCreateCollection}
+        />
+      )}
     </div>
   );
 };
@@ -275,7 +228,7 @@ const CollectionCard = ({ collection, onClick }) => {
       {/* Cover Image */}
       <div className="relative aspect-video bg-surface-container-low">
         <img
-          src={collection.coverImage}
+          src={collection.coverImage || 'https://placehold.co/400x225?text=Collection'}
           alt={collection.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
@@ -297,7 +250,7 @@ const CollectionCard = ({ collection, onClick }) => {
         {/* Item Count Badge */}
         <div className="absolute bottom-3 left-3">
           <span className="bg-black/70 text-white px-2 py-1 rounded-full text-xs font-semibold">
-            {collection.itemCount} items
+            {collection.hotels?.length || 0} items
           </span>
         </div>
       </div>
@@ -401,6 +354,211 @@ const PopularTag = ({ tag, isSelected, onClick }) => {
     >
       {tag}
     </button>
+  );
+};
+
+/**
+ * CreateCollectionModal Component
+ * Modal for creating new collections
+ */
+const CreateCollectionModal = ({ onClose, onSubmit }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    tags: '',
+    visibility: 'private'
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.name.trim()) {
+      setError('Collection name is required');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Parse tags from comma-separated string
+      const tags = formData.tags
+        .split(',')
+        .map(tag => tag.trim().toLowerCase())
+        .filter(tag => tag.length > 0);
+
+      const collectionData = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        tags,
+        visibility: formData.visibility
+      };
+
+      await onSubmit(collectionData);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    // Clear error when user starts typing
+    if (error) setError(null);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-surface rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-outline-variant">
+          <h2 className="font-headline font-bold text-xl text-on-surface">
+            Create New Collection
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-surface-container rounded-full transition-colors"
+            disabled={loading}
+          >
+            <Icon name="close" size={24} className="text-on-surface-variant" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <Icon name="error" size={20} className="text-red-500" />
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Collection Name */}
+          <div>
+            <label htmlFor="name" className="block text-sm font-semibold text-on-surface mb-2">
+              Collection Name *
+            </label>
+            <input
+              type="text"
+              id="name"
+              value={formData.name}
+              onChange={(e) => handleInputChange('name', e.target.value)}
+              placeholder="Enter collection name"
+              className="w-full px-4 py-3 border border-outline-variant rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              disabled={loading}
+              maxLength={100}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label htmlFor="description" className="block text-sm font-semibold text-on-surface mb-2">
+              Description
+            </label>
+            <textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => handleInputChange('description', e.target.value)}
+              placeholder="Describe your collection (optional)"
+              rows={3}
+              className="w-full px-4 py-3 border border-outline-variant rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+              disabled={loading}
+              maxLength={500}
+            />
+          </div>
+
+          {/* Tags */}
+          <div>
+            <label htmlFor="tags" className="block text-sm font-semibold text-on-surface mb-2">
+              Tags
+            </label>
+            <input
+              type="text"
+              id="tags"
+              value={formData.tags}
+              onChange={(e) => handleInputChange('tags', e.target.value)}
+              placeholder="Enter tags separated by commas (e.g., luxury, beach, family)"
+              className="w-full px-4 py-3 border border-outline-variant rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              disabled={loading}
+            />
+            <p className="text-xs text-on-surface-variant mt-1">
+              Separate multiple tags with commas
+            </p>
+          </div>
+
+          {/* Visibility Toggle */}
+          <div>
+            <label className="block text-sm font-semibold text-on-surface mb-3">
+              Visibility
+            </label>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="private"
+                  checked={formData.visibility === 'private'}
+                  onChange={(e) => handleInputChange('visibility', e.target.value)}
+                  className="w-4 h-4 text-primary focus:ring-primary"
+                  disabled={loading}
+                />
+                <span className="text-sm text-on-surface">Private</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="public"
+                  checked={formData.visibility === 'public'}
+                  onChange={(e) => handleInputChange('visibility', e.target.value)}
+                  className="w-4 h-4 text-primary focus:ring-primary"
+                  disabled={loading}
+                />
+                <span className="text-sm text-on-surface">Public</span>
+              </label>
+            </div>
+            <p className="text-xs text-on-surface-variant mt-1">
+              Public collections can be discovered by other users
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-3 border border-outline-variant text-on-surface-variant rounded-lg hover:bg-surface-container transition-colors"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              disabled={loading || !formData.name.trim()}
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  Creating...
+                </>
+              ) : (
+                'Create Collection'
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 };
 
