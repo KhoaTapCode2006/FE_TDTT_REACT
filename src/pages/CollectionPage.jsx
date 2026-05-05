@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
-import { collectionService } from "../services/backend/collection.service";
+import { collectionService } from "../services/profile/collection.service";
+import { useAuth } from "../contexts/AuthContext";
 
 const STATUS_TYPES = {
   success: "bg-emerald-600 text-white",
@@ -91,6 +92,7 @@ function TagPill({ tag, onRemove, removable }) {
 
 function CollectionPage() {
   const { collectionId } = useParams();
+  const { user } = useAuth();
   const [collection, setCollection] = useState(null);
   const [editValues, setEditValues] = useState({ name: "", description: "", visibility: "public", thumbnail_url: "" });
   const [isEditing, setIsEditing] = useState(false);
@@ -103,17 +105,16 @@ function CollectionPage() {
   const [collaboratorInput, setCollaboratorInput] = useState("");
   const [toast, setToast] = useState(null);
 
-//   const currentUser = useMemo(() => getCurrentUser(), []);
-  const currentUser = { uid: "uid_huy_001", name: "Gia Huy" };    
+  const currentUser = user || { uid: "uid_huy_001", name: "Gia Huy" };    
   const isOwner = useMemo(() => {
-    return collection && currentUser?.uid && collection.owner_uid === currentUser.uid;
+    return collection && currentUser?.uid && collection.ownerId === currentUser.uid;
   }, [collection, currentUser]);
 
   const isCollaborator = useMemo(() => {
     return (
       collection &&
       currentUser?.uid &&
-      collection.collaborators?.some((collaborator) => collaborator.uid === currentUser.uid)
+      collection.collaborators?.includes(currentUser.uid)
     );
   }, [collection, currentUser]);
 
@@ -129,9 +130,13 @@ function CollectionPage() {
     setPageError(null);
 
     try {
-      // const result = await collectionService.getCollection(collectionId);
-      // setCollection(result);
-      setCollection(prev => ({ ...prev, ...editValues }));
+      const result = await collectionService.getCollection(collectionId);
+      if (!result) {
+        setPageError("Collection không tồn tại hoặc đã bị xóa.");
+        return;
+      }
+      
+      setCollection(result);
       setEditValues({
         name: result?.name || "",
         description: result?.description || "",
@@ -146,49 +151,11 @@ function CollectionPage() {
     }
   }, [collectionId]);
 
-//   useEffect(() => {
-//     loadCollection();
-//   }, [loadCollection]);
-
-//   const handleStartEdit = () => {
-//     setIsEditing(true);
-//   };
-    useEffect(() => {
-        // Hàm gọi mock data
-        const fetchMockData = async () => {
-        // 1. Dùng setPageBusy đã khai báo ở trên thay vì setLoading
-        setPageBusy(true); 
-
-        try {
-            // 2. Fetch file JSON từ thư mục public
-            const response = await fetch('/mockCollection.json');
-            const data = await response.json();
-            
-            // Giả lập trễ mạng
-            setTimeout(() => {
-            // 3. Cập nhật dữ liệu vào state đã có
-            setCollection(data);
-            
-            // 4. Mẹo nhỏ: Cập nhật luôn form Edit để mốt bấm nút Edit nó có sẵn chữ
-            setEditValues({
-                name: data?.name || "",
-                description: data?.description || "",
-                visibility: data?.visibility || "public",
-                thumbnail_url: data?.thumbnail_url || "",
-            });
-            
-            setPageBusy(false);
-            }, 500);
-
-        } catch (error) {
-            console.error("Lỗi tải mock data:", error);
-            setPageError("Không tìm thấy file mock data.");
-            setPageBusy(false);
-        }
-        };
-
-        fetchMockData();
-    }, [collectionId]);
+  useEffect(() => {
+    if (collectionId) {
+      loadCollection();
+    }
+  }, [loadCollection]);
   const handleCancelEdit = () => {
     if (collection) {
       setEditValues({
@@ -223,9 +190,9 @@ function CollectionPage() {
     setPageError(null);
 
     try {
-      //const updatedCollection = await collectionService.updateCollection(collection.id, payload);
-      // setCollection(updatedCollection);
-      setCollection(prev => ({ ...prev, ...editValues }));
+      await collectionService.updateCollection(collection.id, payload);
+      // Update local state with new values
+      setCollection(prev => ({ ...prev, ...payload }));
       setIsEditing(false);
       showToast("Thành công", "Cập nhật collection đã được lưu.", "success");
     } catch (error) {
@@ -244,15 +211,22 @@ function CollectionPage() {
     }
 
     const placeId = placeInput.trim();
-    if (collection.places.some((item) => item.place_id === placeId)) {
+    if (collection.hotels?.some((item) => item.place_id === placeId)) {
       showToast("Đã tồn tại", "Địa điểm này đã có trong collection.", "info");
       return;
     }
 
     setActionBusy(true);
     try {
-      const updatedCollection = await collectionService.addPlaces(collection.id, placeId);
-      setCollection(updatedCollection);
+      const hotelData = { place_id: placeId, added_by: currentUser.uid, added_at: new Date() };
+      await collectionService.addHotelToCollection(collection.id, hotelData);
+      
+      // Update local state
+      setCollection(prev => ({
+        ...prev,
+        hotels: [...(prev.hotels || []), hotelData]
+      }));
+      
       setPlaceInput("");
       showToast("Thành công", "Đã thêm địa điểm vào collection.", "success");
     } catch (error) {
@@ -268,13 +242,17 @@ function CollectionPage() {
     setActionBusy(true);
 
     try {
-      // const updatedCollection = await collectionService.removePlaceFromCollection(collection.id, placeId);
-      // setCollection(updatedCollection);
-      // Xóa thẳng trên giao diện giả
-      setCollection(prev => ({
-        ...prev,
-        places: prev.places.filter(p => p.place_id !== placeId)
-      }));
+      const hotelToRemove = collection.hotels?.find(h => h.place_id === placeId);
+      if (hotelToRemove) {
+        await collectionService.removeHotelFromCollection(collection.id, hotelToRemove);
+        
+        // Update local state
+        setCollection(prev => ({
+          ...prev,
+          hotels: prev.hotels?.filter(h => h.place_id !== placeId) || []
+        }));
+      }
+      
       showToast("Thành công", "Đã xóa địa điểm.", "success");
     } catch (error) {
       console.error("Remove place failed:", error);
@@ -295,15 +273,22 @@ function CollectionPage() {
       showToast("Lỗi", "Tag không hợp lệ.", "error");
       return;
     }
-    if (collection.tags.includes(tag)) {
+    if (collection.tags?.includes(tag)) {
       showToast("Đã tồn tại", "Tag này đã có.", "info");
       return;
     }
 
     setActionBusy(true);
     try {
-      const updatedCollection = await collectionService.addTags(collection.id, tag);
-      setCollection(updatedCollection);
+      const updatedTags = [...(collection.tags || []), tag];
+      await collectionService.updateCollection(collection.id, { tags: updatedTags });
+      
+      // Update local state
+      setCollection(prev => ({
+        ...prev,
+        tags: updatedTags
+      }));
+      
       setTagInput("");
       showToast("Thành công", "Đã thêm tag.", "success");
     } catch (error) {
@@ -319,10 +304,15 @@ function CollectionPage() {
     setActionBusy(true);
 
     try {
-      //const updatedCollection = await collectionService.removeTagFromCollection(collection.id, tag);
-      // setCollection(updatedCollection);
-
-      setCollection(prev => ({ ...prev, ...editValues }));
+      const updatedTags = collection.tags?.filter(t => t !== tag) || [];
+      await collectionService.updateCollection(collection.id, { tags: updatedTags });
+      
+      // Update local state
+      setCollection(prev => ({
+        ...prev,
+        tags: updatedTags
+      }));
+      
       showToast("Thành công", "Đã xóa tag.", "success");
     } catch (error) {
       console.error("Remove tag failed:", error);
@@ -339,17 +329,23 @@ function CollectionPage() {
     }
 
     const collaboratorValue = collaboratorInput.trim();
-    if (collection.collaborators.some((item) => item.uid === collaboratorValue || item.username === collaboratorValue)) {
+    if (collection.collaborators?.includes(collaboratorValue)) {
       showToast("Đã tồn tại", "Người này đã là cộng tác viên.", "info");
       return;
     }
 
     setActionBusy(true);
     try {
-      const updatedCollection = await collectionService.addCollaborators(collection.id, collaboratorValue);
-      setCollection(updatedCollection);
+      await collectionService.addCollaborator(collection.id, collaboratorValue);
+      
+      // Update local state
+      setCollection(prev => ({
+        ...prev,
+        collaborators: [...(prev.collaborators || []), collaboratorValue]
+      }));
+      
       setCollaboratorInput("");
-      showToast("Thành công", "Đã gửi lời mời cộng tác.", "success");
+      showToast("Thành công", "Đã thêm cộng tác viên.", "success");
     } catch (error) {
       console.error("Add collaborator failed:", error);
       showToast("Lỗi", "Không thể thêm cộng tác viên.", "error");
@@ -363,9 +359,14 @@ function CollectionPage() {
     setActionBusy(true);
 
     try {
-      // const updatedCollection = await collectionService.removeCollaboratorFromCollection(collection.id, uid);
-      // setCollection(updatedCollection);
-      setCollection(prev => ({ ...prev, ...editValues }));
+      await collectionService.removeCollaborator(collection.id, uid);
+      
+      // Update local state
+      setCollection(prev => ({
+        ...prev,
+        collaborators: prev.collaborators?.filter(c => c !== uid) || []
+      }));
+      
       showToast("Thành công", "Đã xóa cộng tác viên.", "success");
     } catch (error) {
       console.error("Remove collaborator failed:", error);
@@ -424,7 +425,7 @@ function CollectionPage() {
                   <Icon name="collections" size={16} /> Collection
                 </span>
                 <span className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
-                  {collection.liked_count ?? 0} lượt thích
+                  {collection.saveCount ?? 0} lượt thích
                 </span>
               </div>
 
@@ -480,7 +481,7 @@ function CollectionPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 justify-end">
-              <span className="text-sm text-on-surface-variant">Owner: {collection.owner_uid}</span>
+              <span className="text-sm text-on-surface-variant">Owner: {collection.ownerId}</span>
               {!isEditing && canEdit ? (
                 <button
                   type="button"
@@ -601,8 +602,8 @@ function CollectionPage() {
                     </div>
 
                     <div className="space-y-3">
-                      {collection.places?.length ? (
-                        collection.places.map((item) => (
+                      {collection.hotels?.length ? (
+                        collection.hotels.map((item) => (
                           <div key={item.place_id} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                               <p className="text-sm font-semibold text-on-surface">{item.place_id}</p>
@@ -706,15 +707,15 @@ function CollectionPage() {
                       </div>
                       <div className="space-y-3">
                         {collection.collaborators?.length ? (
-                          collection.collaborators.map((collaborator) => (
-                            <div key={collaborator.uid} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                          collection.collaborators.map((collaboratorUid) => (
+                            <div key={collaboratorUid} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                               <div>
-                                <p className="text-sm font-semibold text-on-surface">{collaborator.display_name || collaborator.username || collaborator.uid}</p>
-                                <p className="text-xs text-on-surface-variant">UID: {collaborator.uid}</p>
+                                <p className="text-sm font-semibold text-on-surface">{collaboratorUid}</p>
+                                <p className="text-xs text-on-surface-variant">UID: {collaboratorUid}</p>
                               </div>
                               <button
                                 type="button"
-                                onClick={() => handleRemoveCollaborator(collaborator.uid)}
+                                onClick={() => handleRemoveCollaborator(collaboratorUid)}
                                 disabled={actionBusy}
                                 className="inline-flex items-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                               >
@@ -737,10 +738,10 @@ function CollectionPage() {
                   >
                     <div className="grid gap-3">
                       {collection.collaborators?.length ? (
-                        collection.collaborators.map((collaborator) => (
-                          <div key={collaborator.uid} className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 text-sm text-on-surface">
-                            <p className="font-semibold">{collaborator.display_name || collaborator.username || collaborator.uid}</p>
-                            <p className="mt-1 text-xs text-on-surface-variant">UID: {collaborator.uid}</p>
+                        collection.collaborators.map((collaboratorUid) => (
+                          <div key={collaboratorUid} className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 text-sm text-on-surface">
+                            <p className="font-semibold">{collaboratorUid}</p>
+                            <p className="mt-1 text-xs text-on-surface-variant">UID: {collaboratorUid}</p>
                           </div>
                         ))
                       ) : (
@@ -759,8 +760,8 @@ function CollectionPage() {
                   description="Danh sách địa điểm đã lưu trong collection."
                 >
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {collection.places?.length ? (
-                      collection.places.map((item) => (
+                    {collection.hotels?.length ? (
+                      collection.hotels.map((item) => (
                         <div key={item.place_id} className="overflow-hidden rounded-3xl border border-outline-variant/50 bg-surface-container shadow-sm">
                           <div className="h-44 w-full bg-slate-200">
                             {item.image_url ? (
@@ -796,10 +797,10 @@ function CollectionPage() {
                 >
                   <div className="grid gap-3">
                     {collection.collaborators?.length ? (
-                      collection.collaborators.map((collaborator) => (
-                        <div key={collaborator.uid} className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                          <p className="font-semibold">{collaborator.display_name || collaborator.username || collaborator.uid}</p>
-                          <p className="mt-1 text-xs text-on-surface-variant">UID: {collaborator.uid}</p>
+                      collection.collaborators.map((collaboratorUid) => (
+                        <div key={collaboratorUid} className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
+                          <p className="font-semibold">{collaboratorUid}</p>
+                          <p className="mt-1 text-xs text-on-surface-variant">UID: {collaboratorUid}</p>
                         </div>
                       ))
                     ) : (
