@@ -35,6 +35,12 @@ const ProfileSidebar = ({ activeItem = 'mystays' }) => {
 
   const navigationItems = [
     {
+      id: 'profile',
+      label: 'Profile',
+      icon: 'person',
+      path: '/account/profile',
+    },
+    {
       id: 'mystays',
       label: 'My Stays',
       icon: 'hotel',

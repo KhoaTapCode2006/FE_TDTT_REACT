@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import SaveToListModal from "@/components/profile/SaveToListModal";
+import AddToFavoritesButton from "@/components/hotel/AddToFavoritesButton";
 
 function HotelCard({ hotel, onClick }) {
   const { setHoveredHotelId } = useApp();
@@ -50,37 +51,53 @@ function HotelCard({ hotel, onClick }) {
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
 
-          {/* Save Button */}
-          <button
-            onClick={handleSaveClick}
-            className="absolute top-3 left-3 glass p-2 rounded-full hover:bg-white/90 transition-all shadow-sm group/save"
-            title="Lưu vào danh sách"
-          >
-            <Icon 
-              name="bookmark_border" 
-              size={18} 
-              className="text-primary group-hover/save:scale-110 transition-transform" 
-            />
-          </button>
+          {/* Save to List Button - Top Left */}
+          <div className="absolute top-3 left-3">
+            <button
+              onClick={handleSaveClick}
+              className="glass p-2 rounded-full hover:bg-white/90 transition-all shadow-sm group/save"
+              title="Lưu vào danh sách"
+            >
+              <Icon 
+                name="bookmark_border" 
+                size={18} 
+                className="text-primary group-hover/save:scale-110 transition-transform" 
+              />
+            </button>
+          </div>
 
+          {/* Rating Badge - Top Right */}
           <div className="absolute top-3 right-3 glass px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
             <Icon name="star" filled size={14} className="text-amber-500" />
             <span className="text-sm font-bold text-primary">{hotel?.rating ?? "-"}</span>
           </div>
 
+          {/* AI Score Badge */}
           {hotel?.ai_score && (
             <div className="absolute top-12 right-3 bg-blue-600/90 text-white px-2.5 py-1 rounded-full">
               <span className="text-xs font-bold">AI: {Number(hotel.ai_score).toFixed(1)}</span>
             </div>
           )}
 
+          {/* Hotel Badge - Move to bottom right to avoid overlap */}
           {hotel?.badge && (
-            <div className="absolute bottom-3 left-3">
+            <div className="absolute bottom-3 right-3">
               <span className="bg-primary text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full">
                 {hotel.badge}
               </span>
             </div>
           )}
+
+          {/* Add to Favorites Button - Bottom Left */}
+          <div className="absolute bottom-3 left-3">
+            <div className="glass p-2 rounded-full hover:bg-white/90 transition-all shadow-sm">
+              <AddToFavoritesButton
+                hotelId={hotel?.id}
+                hotelData={hotel}
+                size={20}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="p-4">
