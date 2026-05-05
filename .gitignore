@@ -31,3 +31,7 @@ firebase.env
 *.sw?
 
 .kiro
+collection.py
+collection_schema.py
+repomix-output.xml
+public/mockCollection.json

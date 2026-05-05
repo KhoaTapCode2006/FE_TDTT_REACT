@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -14,6 +14,7 @@ const LANGS = [
 
 function Header({ hideNavigation = false }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isAuthenticated, logout, loading } = useAuth();
   
   const [langOpen, setLangOpen] = useState(false);
@@ -83,14 +84,45 @@ function Header({ hideNavigation = false }) {
         <div className="hidden md:flex items-center gap-8">
           {!hideNavigation && (
             <>
-              <Link to="/" className="text-sm font-semibold text-primary border-b-2 border-secondary pb-0.5">
+              <Link 
+                to="/" 
+                className={`text-sm font-semibold transition-colors pb-0.5 ${
+                  location.pathname === '/' 
+                    ? 'text-primary border-b-2 border-secondary' 
+                    : 'text-on-surface-variant hover:text-primary'
+                }`}
+              >
                 Hotels
               </Link>
-              <Link to="#" className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors">
+              <Link 
+                to="#" 
+                className={`text-sm font-semibold transition-colors pb-0.5 ${
+                  location.pathname === '/experiences' 
+                    ? 'text-primary border-b-2 border-secondary' 
+                    : 'text-on-surface-variant hover:text-primary'
+                }`}
+              >
                 Experiences
               </Link>
-              <Link to="#" className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors">
+              <Link 
+                to="#" 
+                className={`text-sm font-semibold transition-colors pb-0.5 ${
+                  location.pathname === '/social' 
+                    ? 'text-primary border-b-2 border-secondary' 
+                    : 'text-on-surface-variant hover:text-primary'
+                }`}
+              >
                 Social
+              </Link>
+              <Link 
+                to="/account/collections" 
+                className={`text-sm font-semibold transition-colors pb-0.5 ${
+                  location.pathname === '/account/collections' 
+                    ? 'text-primary border-b-2 border-secondary' 
+                    : 'text-on-surface-variant hover:text-primary'
+                }`}
+              >
+                Collections
               </Link>
             </>
           )}
