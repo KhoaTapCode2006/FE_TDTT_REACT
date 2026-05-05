@@ -8,6 +8,8 @@
     import ProfilePage from '../pages/profile/ProfilePage';
     import MyStaysPage from '../pages/profile/MyStaysPage';
     import SavedListsPage from '../pages/profile/SavedListsPage';
+    import AccountCollectionsPage from '../pages/profile/AccountCollectionsPage';
+    import CollectionPage from '../pages/CollectionPage';
     import { RequireAuth } from '../components/auth/ProtectedRoute';
 
     export const router = createBrowserRouter([
@@ -16,6 +18,9 @@
         element: <MainLayout />,
         children: [
         { path: '/', element: <HomePage /> },
+        // Collections routes
+        { path: '/collections', element: <AccountCollectionsPage /> },
+        { path: '/collections/:collectionId', element: <CollectionPage /> },
         // Protected profile routes
         {
           path: '/account/profile',

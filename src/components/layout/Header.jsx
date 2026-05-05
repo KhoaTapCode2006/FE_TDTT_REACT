@@ -115,9 +115,9 @@ function Header({ hideNavigation = false }) {
                 Social
               </Link>
               <Link 
-                to="/account/collections" 
+                to="/collections" 
                 className={`text-sm font-semibold transition-colors pb-0.5 ${
-                  location.pathname === '/account/collections' 
+                  location.pathname === '/collections' || location.pathname.startsWith('/collections/')
                     ? 'text-primary border-b-2 border-secondary' 
                     : 'text-on-surface-variant hover:text-primary'
                 }`}
