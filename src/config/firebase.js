@@ -1,10 +1,75 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { initializeApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, FacebookAuthProvider } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "YOUR_PROJECT.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "123456789",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:123456789:web:abcdef"
 };
 
+// Check if Firebase is properly configured
+const isFirebaseConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY" && 
+                              firebaseConfig.projectId !== "YOUR_PROJECT_ID" &&
+                              firebaseConfig.apiKey && 
+                              firebaseConfig.projectId;
+
+if (!isFirebaseConfigured) {
+  console.error(
+    '%c⚠️ Firebase Not Configured',
+    'color: red; font-size: 16px; font-weight: bold;',
+    '\n\nTo enable authentication, please:\n' +
+    '1. Create a Firebase project at https://console.firebase.google.com\n' +
+    '2. Enable Authentication (Email/Password, Google, Facebook)\n' +
+    '3. Enable Firestore Database\n' +
+    '4. Copy your Firebase config to .env file\n' +
+    '5. Restart the development server\n\n' +
+    'See FIREBASE_SETUP.md for detailed instructions.'
+  );
+} else {
+  console.log(
+    '%c✅ Firebase Configured',
+    'color: green; font-size: 14px; font-weight: bold;',
+    `\nProject: ${firebaseConfig.projectId}`
+  );
+}
+
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+
+// Initialize services
 export const auth = getAuth(app);
+export const db = getFirestore(app);
+
+// Storage is optional - only initialize if needed
+let storage = null;
+try {
+  storage = getStorage(app);
+} catch (error) {
+  console.warn('Firebase Storage not available. Avatar uploads will be disabled.');
+}
+export { storage };
+
+// Configure auth providers
+export const googleProvider = new GoogleAuthProvider();
+export const facebookProvider = new FacebookAuthProvider();
+
+// Configure provider settings
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
+
+facebookProvider.setCustomParameters({
+  display: 'popup'
+});
+
+// Request additional permissions for Facebook
+facebookProvider.addScope('email');
+facebookProvider.addScope('public_profile');
+
+export { isFirebaseConfigured };
+export default app;

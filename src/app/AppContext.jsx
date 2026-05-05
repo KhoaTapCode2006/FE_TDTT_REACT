@@ -1,12 +1,13 @@
 import React, { createContext, useState, useContext, useMemo, useEffect, useCallback } from 'react';
 import { MOCK_HOTELS, DEFAULT_FILTER_STATE } from '@/constants/enums';
+import { AuthProvider } from '../contexts/AuthContext.jsx';
 
 const AppContext = createContext();
 
 // localStorage key for filter persistence
 const FILTER_STORAGE_KEY = 'hotel-filter-state';
 
-export const AppProvider = ({ children }) => {
+const AppContextProvider = ({ children }) => {
   const [location, setLocation] = useState("Ho Chi Minh City, Vietnam");
   
   // Tọa độ mặc định (Chợ Bến Thành, TP.HCM) để bản đồ không bị trắng
@@ -162,6 +163,17 @@ export const AppProvider = ({ children }) => {
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+};
+
+// Enhanced AppProvider with Authentication
+export const AppProvider = ({ children }) => {
+  return (
+    <AuthProvider>
+      <AppContextProvider>
+        {children}
+      </AppContextProvider>
+    </AuthProvider>
+  );
 };
 
 export const useApp = () => useContext(AppContext);
