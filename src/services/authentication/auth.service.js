@@ -306,11 +306,6 @@ class AuthService {
     
     let message = errorMessages[error.code] || error.message || 'An unexpected error occurred. Please try again.';
     
-    // Check if it's a Firebase configuration issue
-    if (error.message && error.message.includes('Firebase')) {
-      message = 'Firebase is not properly configured. Please check your environment variables and Firebase project settings.';
-    }
-    
     const translatedError = new Error(message);
     translatedError.code = error.code;
     translatedError.originalError = error;

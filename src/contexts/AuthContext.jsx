@@ -59,8 +59,14 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       
       if (firebaseUser) {
-        // User is signed in
-        const userProfile = await profileService.getProfile(firebaseUser.uid);
+        // User is signed in - load profile but don't fail auth if profile fetch fails
+        let userProfile = null;
+        try {
+          userProfile = await profileService.getProfile(firebaseUser.uid);
+        } catch (profileError) {
+          console.warn('Could not load user profile from Firestore:', profileError.message);
+          // Continue with basic Firebase user data even if Firestore profile fails
+        }
         
         const userData = {
           uid: firebaseUser.uid,

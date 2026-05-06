@@ -1,4 +1,4 @@
-    import { createBrowserRouter } from 'react-router-dom';
+    import { createBrowserRouter, Navigate } from 'react-router-dom';
     import HomePage from '../pages/HomePage';
     import MainLayout from '../layouts/MainLayout';
     import AuthLayout from '../layouts/AuthLayout';
@@ -10,6 +10,8 @@
     import SavedListsPage from '../pages/profile/SavedListsPage';
     import AccountCollectionsPage from '../pages/profile/AccountCollectionsPage';
     import CollectionPage from '../pages/CollectionPage';
+    import TripPage from '../pages/TripPage';
+    import GroupChatPage from '../pages/GroupChatPage';
     import { RequireAuth } from '../components/auth/ProtectedRoute';
 
     export const router = createBrowserRouter([
@@ -21,6 +23,13 @@
         // Collections routes
         { path: '/collections', element: <AccountCollectionsPage /> },
         { path: '/collections/:collectionId', element: <CollectionPage /> },
+        // Trip & Chat routes
+        { path: '/trips', element: <TripPage /> },
+        { path: '/chat', element: <GroupChatPage /> },
+        // Redirect shortcuts
+        { path: '/profile', element: <Navigate to="/account/profile" replace /> },
+        { path: '/mystay', element: <Navigate to="/account/mystay" replace /> },
+        { path: '/savedlist', element: <Navigate to="/account/savedlist" replace /> },
         // Protected profile routes
         {
           path: '/account/profile',
