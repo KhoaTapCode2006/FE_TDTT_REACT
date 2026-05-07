@@ -10,6 +10,8 @@
     import SavedListsPage from '../pages/profile/SavedListsPage';
     import AccountCollectionsPage from '../pages/profile/AccountCollectionsPage';
     import CollectionPage from '../pages/CollectionPage';
+    import CollectionsDashboard from '../pages/CollectionsDashboard';
+    import CollectionTest from '../components/test/CollectionTest';
     import { RequireAuth } from '../components/auth/ProtectedRoute';
 
     export const router = createBrowserRouter([
@@ -19,8 +21,10 @@
         children: [
         { path: '/', element: <HomePage /> },
         // Collections routes
-        { path: '/collections', element: <AccountCollectionsPage /> },
+        { path: '/collections', element: <CollectionsDashboard /> },
         { path: '/collections/:collectionId', element: <CollectionPage /> },
+        // Test route for Collection Service
+        { path: '/test/collection', element: <CollectionTest /> },
         // Protected profile routes
         {
           path: '/account/profile',
