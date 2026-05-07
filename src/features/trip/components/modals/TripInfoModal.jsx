@@ -16,7 +16,8 @@ function TripInfoModal({ trip, onClose, onRemoveMember }) {
   const fmtDate = (iso) => {
     if (!iso) return "—";
     const d    = new Date(iso);
-    const date = iso.slice(0, 10);
+    if (isNaN(d.getTime())) return "—";
+    const date = d.toISOString().slice(0, 10);
     const hh   = String(d.getUTCHours()).padStart(2, "0");
     const mm   = String(d.getUTCMinutes()).padStart(2, "0");
     return `${date}  ${hh} : ${mm}`;
