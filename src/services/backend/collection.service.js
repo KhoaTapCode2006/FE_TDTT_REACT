@@ -481,39 +481,30 @@ export const collectionService = {
 
   /**
    * Get all public collections (global/community collections)
-   * Endpoint: GET /collections/global
+   * Uses Views API to get latest public collections
+   * Endpoint: GET /views/top
    * 
+   * @param {number} [limit=20] - Number of collections to return
    * @returns {Promise<CollectionData[]>} Array of public collections
    * @throws {Error} Network error
    */
-  async getGlobalCollections() {
-    const response = await collectionClient.get('/collections/global');
-    
-    // Backend returns: { status_code, message, data: { collections: [...] } }
-    const collections = response.data?.data?.collections;
-    
-    if (!Array.isArray(collections)) {
-      throw new Error('Invalid response format from server');
+  async getGlobalCollections(limit = 20) {
+    try {
+      // Import views service dynamically to avoid circular dependency
+      const { viewsService } = await import('./views.service');
+      
+      // Get latest collections using Views API
+      const response = await viewsService.getTopCollections('all_time', limit, 1);
+      
+      const collections = response.data?.items || [];
+      
+      // Transform each collection (dates already transformed by viewsService)
+      return collections;
+    } catch (error) {
+      console.error('Failed to get global collections:', error);
+      // Return empty array instead of throwing to allow graceful degradation
+      return [];
     }
-    
-    // Transform each collection
-    return collections.map(collection => ({
-      ...collection,
-      created_at: collection.created_at ? new Date(collection.created_at) : null,
-      updated_at: collection.updated_at ? new Date(collection.updated_at) : null,
-      places: (collection.places || []).map(place => ({
-        ...place,
-        added_at: place.added_at ? new Date(place.added_at) : null,
-      })),
-      collaborators: (collection.collaborators || []).map(collab => ({
-        ...collab,
-        joined_at: collab.joined_at ? new Date(collab.joined_at) : null,
-      })),
-      savers: (collection.savers || []).map(saver => ({
-        ...saver,
-        saved_at: saver.saved_at ? new Date(saver.saved_at) : null,
-      })),
-    }));
   },
 
   /**

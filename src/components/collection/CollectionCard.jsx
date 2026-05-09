@@ -145,15 +145,13 @@ function CollectionCard({
             <span>{collection.places?.length || 0} places</span>
           </div>
           <div className="flex items-center gap-1">
+            <Icon name="visibility" size={16} />
+            <span>{collection.views?.total_views || 0} views</span>
+          </div>
+          <div className="flex items-center gap-1">
             <Icon name="favorite" size={16} />
             <span>{collection.saved_count || 0} saves</span>
           </div>
-          {collection.collaborators && collection.collaborators.length > 0 && (
-            <div className="flex items-center gap-1">
-              <Icon name="group" size={16} />
-              <span>{collection.collaborators.length}</span>
-            </div>
-          )}
         </div>
 
         {/* Owner Info */}

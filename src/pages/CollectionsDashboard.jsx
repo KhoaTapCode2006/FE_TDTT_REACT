@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Icon from '@/components/ui/Icon';
 import CollectionCard from '@/components/collection/CollectionCard';
 import { collectionService } from '@/services/backend/collection.service';
+import { viewsService } from '@/services/backend/views.service';
 import { useAuth } from '@/contexts/AuthContext';
 
 /**
@@ -24,6 +25,12 @@ function CollectionsDashboard() {
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Global tab filters
+  const [topType, setTopType] = useState('all_time'); // 'weekly' or 'all_time'
+  const [globalPage, setGlobalPage] = useState(1);
+  const [hasMoreGlobal, setHasMoreGlobal] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   // Load My Collections
   const loadMyCollections = useCallback(async () => {
     try {
@@ -39,13 +46,57 @@ function CollectionsDashboard() {
     }
   }, []);
 
-  // Load Global Collections
-  const loadGlobalCollections = useCallback(async () => {
+  // Load Global Collections using Views API + fallback to latest public collections
+  const loadGlobalCollections = useCallback(async (page = 1, append = false) => {
     try {
-      setLoading(true);
+      if (!append) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
       setError(null);
-      const collections = await collectionService.getGlobalCollections();
-      setGlobalCollections(collections || []);
+      
+      const limit = 10;
+      
+      // Get top views collections
+      const response = await viewsService.getTopCollections(topType, limit, page);
+      
+      // API returns data directly as array, not nested in items
+      let collections = response.data || [];
+      
+      // If not enough collections from top views, fill with latest public collections
+      if (collections.length < limit && page === 1) {
+        try {
+          const needed = limit - collections.length;
+          
+          // Get more collections from Views API (all_time with higher limit)
+          const fallbackResponse = await viewsService.getTopCollections('all_time', 50, 1);
+          const latestCollections = fallbackResponse.data || [];
+          
+          // Filter out collections already in top views
+          const topViewIds = new Set(collections.map(c => c.id));
+          const additionalCollections = latestCollections
+            .filter(c => !topViewIds.has(c.id))
+            .slice(0, needed);
+          
+          collections = [...collections, ...additionalCollections];
+          
+          console.log(`Added ${additionalCollections.length} latest collections to fill gap`);
+        } catch (fallbackError) {
+          console.error('Failed to load fallback collections:', fallbackError);
+          // Continue with what we have from top views
+        }
+      }
+      
+      if (append) {
+        setGlobalCollections(prev => [...prev, ...collections]);
+      } else {
+        setGlobalCollections(collections);
+      }
+      
+      // Check if there are more pages (if we got full limit, assume there might be more)
+      setHasMoreGlobal(collections.length >= limit);
+      setGlobalPage(page);
       
       // Extract saved collection IDs
       const savedIds = new Set(
@@ -59,17 +110,25 @@ function CollectionsDashboard() {
       setError(err.message || 'Failed to load global collections');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [user]);
+  }, [topType, user]);
 
   // Initial load based on active tab
   useEffect(() => {
     if (activeTab === 'my') {
       loadMyCollections();
     } else {
-      loadGlobalCollections();
+      loadGlobalCollections(1, false);
     }
   }, [activeTab, loadMyCollections, loadGlobalCollections]);
+
+  // Reload global collections when topType changes
+  useEffect(() => {
+    if (activeTab === 'global') {
+      loadGlobalCollections(1, false);
+    }
+  }, [topType]); // Only depend on topType, not loadGlobalCollections
 
   // Handle tab change
   const handleTabChange = (tab) => {
@@ -126,6 +185,19 @@ function CollectionsDashboard() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  // Handle load more for global collections
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMoreGlobal) {
+      loadGlobalCollections(globalPage + 1, true);
+    }
+  };
+
+  // Handle top type filter change
+  const handleTopTypeChange = (newTopType) => {
+    setTopType(newTopType);
+    setGlobalPage(1);
   };
 
   // Handle create new collection
@@ -209,6 +281,36 @@ function CollectionsDashboard() {
           </button>
         </div>
 
+        {/* Global Tab Filters */}
+        {activeTab === 'global' && (
+          <div className="flex items-center gap-3 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/30">
+            <Icon name="filter_list" size={20} className="text-on-surface-variant" />
+            <span className="text-sm font-medium text-on-surface-variant">Hiển thị:</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleTopTypeChange('all_time')}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                  topType === 'all_time'
+                    ? 'bg-primary text-white shadow-lg'
+                    : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
+                }`}
+              >
+                Thịnh hành nhất
+              </button>
+              <button
+                onClick={() => handleTopTypeChange('weekly')}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
+                  topType === 'weekly'
+                    ? 'bg-primary text-white shadow-lg'
+                    : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
+                }`}
+              >
+                Xu hướng tuần
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Error Message */}
         {error && (
           <div className="rounded-3xl border border-red-400/20 bg-red-50 p-4">
@@ -267,6 +369,29 @@ function CollectionsDashboard() {
                 showActions={true}
               />
             ))}
+          </div>
+        )}
+
+        {/* Load More Button (Global Tab Only) */}
+        {activeTab === 'global' && !loading && currentCollections.length > 0 && hasMoreGlobal && (
+          <div className="flex justify-center mt-8">
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-primary/90 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loadingMore ? (
+                <>
+                  <Icon name="hourglass_top" size={20} className="animate-spin" />
+                  Đang tải...
+                </>
+              ) : (
+                <>
+                  <Icon name="expand_more" size={20} />
+                  Xem thêm
+                </>
+              )}
+            </button>
           </div>
         )}
 

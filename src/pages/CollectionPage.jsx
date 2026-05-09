@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
 import { collectionService } from "../services/backend/collection.service";
+import { viewsService } from "../services/backend/views.service";
 import { useAuth } from "../contexts/AuthContext";
 
 const STATUS_TYPES = {
@@ -99,24 +100,22 @@ function CollectionPage() {
   const [collaboratorInput, setCollaboratorInput] = useState("");
   const [toast, setToast] = useState(null);
 
-  // Get current user from auth context
-  const currentUser = user;
-  
   // Check if current user is the owner
   const isOwner = useMemo(() => {
     if (isCreateMode) return true; // User is owner when creating
-    const result = currentUser?.uid === collection?.owner_uid;
-    console.log("isOwner:", result, "currentUser.uid:", currentUser?.uid, "collection.owner_uid:", collection?.owner_uid);
+    if (!user || !collection) return false;
+    const result = user.uid === collection.owner_uid;
+    console.log("isOwner:", result, "user.uid:", user.uid, "collection.owner_uid:", collection.owner_uid);
     return result;
-  }, [currentUser, collection, isCreateMode]);
+  }, [user, collection, isCreateMode]);
 
   const isCollaborator = useMemo(() => {
     return (
       collection &&
-      currentUser?.uid &&
-      collection.collaborators?.some(c => c.uid === currentUser.uid)
+      user?.uid &&
+      collection.collaborators?.some(c => c.uid === user.uid)
     );
-  }, [collection, currentUser]);
+  }, [collection, user]);
 
   const showToast = useCallback((title, message, type = "info") => {
     setToast({ title, message, type });
@@ -141,7 +140,7 @@ function CollectionPage() {
       }
       
       console.log("Collection loaded:", result);
-      console.log("Current user:", currentUser);
+      console.log("Current user:", user);
       
       setCollection(result);
       setEditValues({
@@ -150,13 +149,34 @@ function CollectionPage() {
         visibility: result?.visibility || "public",
         thumbnail_url: result?.thumbnail_url || "",
       });
+
+      // Record view after successfully loading collection
+      // This will send auth token automatically via viewsService interceptor
+      // Backend will allow view tracking even for private collections if user is owner
+      try {
+        await viewsService.recordView(collectionId, 'collections');
+        console.log("View recorded for collection:", collectionId);
+        
+        // Optimistically increment view count in local state
+        setCollection(prev => ({
+          ...prev,
+          views: {
+            ...prev.views,
+            total_views: ((prev.views?.total_views || 0) + 1),
+            weekly_views: ((prev.views?.weekly_views || 0) + 1)
+          }
+        }));
+      } catch (viewError) {
+        // Don't throw - view tracking is not critical
+        console.warn("Failed to record view:", viewError);
+      }
     } catch (error) {
       console.error("Failed to load collection:", error);
       setPageError("Không thể tải collection. Vui lòng thử lại sau.");
     } finally {
       setPageBusy(false);
     }
-  }, [collectionId, currentUser, isCreateMode]);
+  }, [collectionId, user, isCreateMode]);
 
   useEffect(() => {
     if (collectionId && collectionId !== 'new') {
@@ -171,12 +191,16 @@ function CollectionPage() {
         tags: [],
         places: [],
         collaborators: [],
-        owner_uid: currentUser?.uid,
-        saved_count: 0
+        owner_uid: user?.uid,
+        saved_count: 0,
+        views: {
+          total_views: 0,
+          weekly_views: 0
+        }
       });
       setPageBusy(false);
     }
-  }, [collectionId, loadCollection, currentUser]);
+  }, [collectionId, loadCollection, user]);
   const handleCancelEdit = () => {
     if (collection) {
       setEditValues({
@@ -469,9 +493,23 @@ function CollectionPage() {
                 <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                   <Icon name="collections" size={16} /> Collection
                 </span>
-                <span className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
-                  {isCreateMode ? "Mới" : `${collection?.saveCount ?? 0} lượt thích`}
-                </span>
+                {!isCreateMode && (
+                  <>
+                    <span className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
+                      <Icon name="favorite" size={14} className="inline mr-1" />
+                      {collection?.saved_count ?? 0} lượt thích
+                    </span>
+                    <span className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
+                      <Icon name="visibility" size={14} className="inline mr-1" />
+                      {collection?.views?.total_views ?? 0} lượt xem
+                    </span>
+                  </>
+                )}
+                {isCreateMode && (
+                  <span className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
+                    Mới
+                  </span>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -736,7 +774,7 @@ function CollectionPage() {
                     )}
                     <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
                       <p className="font-semibold text-on-surface">Người dùng hiện tại</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">{currentUser?.uid || "Chưa đăng nhập"}</p>
+                      <p className="mt-1 text-sm text-on-surface-variant">{user?.uid || "Chưa đăng nhập"}</p>
                     </div>
                     {isCreateMode && (
                       <div className="rounded-3xl border border-primary/20 bg-primary/5 px-4 py-4 text-sm">
@@ -891,7 +929,7 @@ function CollectionPage() {
                     </div>
                     <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
                       <p className="font-semibold text-on-surface">Người dùng hiện tại</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">{currentUser?.uid || "Chưa đăng nhập"}</p>
+                      <p className="mt-1 text-sm text-on-surface-variant">{user?.uid || "Chưa đăng nhập"}</p>
                     </div>
                   </div>
                 </SectionCard>
