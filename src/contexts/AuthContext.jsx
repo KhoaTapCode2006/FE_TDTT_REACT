@@ -55,12 +55,13 @@ export const AuthProvider = ({ children }) => {
    * Handle authentication state changes
    */
   const handleAuthStateChange = useCallback(async (firebaseUser) => {
+    console.log("=== Firebase Auth State Changed ===");
+    console.log("firebaseUser:", firebaseUser);
+    
     try {
-      setLoading(true);
-      
       if (firebaseUser) {
-        // User is signed in
-        const userProfile = await profileService.getProfile(firebaseUser.uid);
+        // User is signed in - set user directly from Firebase
+        console.log("User is signed in, setting user data...");
         
         const userData = {
           uid: firebaseUser.uid,
@@ -68,18 +69,32 @@ export const AuthProvider = ({ children }) => {
           displayName: firebaseUser.displayName,
           photoURL: firebaseUser.photoURL,
           emailVerified: firebaseUser.emailVerified,
-          ...userProfile
         };
         
+        console.log("Setting user data:", userData);
         setUser(userData);
         setIsAuthenticated(true);
+        setLoading(false);
         
         // Update session activity
         sessionService.updateActivity();
+        
+        // Optionally fetch profile in background (non-blocking)
+        profileService.getProfile(firebaseUser.uid)
+          .then(userProfile => {
+            console.log("Profile fetched in background:", userProfile);
+            setUser(prev => ({ ...prev, ...userProfile }));
+          })
+          .catch(err => {
+            console.warn("Failed to fetch profile (non-critical):", err);
+          });
+          
       } else {
         // User is signed out
+        console.log("User is signed out");
         setUser(null);
         setIsAuthenticated(false);
+        setLoading(false);
         
         // Clean up session
         sessionService.clearSession();
@@ -88,7 +103,6 @@ export const AuthProvider = ({ children }) => {
       console.error('Error handling auth state change:', error);
       ErrorLogger.logAuthError(error, { action: 'auth_state_change' });
       setError('Failed to load user data. Please try refreshing the page.');
-    } finally {
       setLoading(false);
     }
   }, []);

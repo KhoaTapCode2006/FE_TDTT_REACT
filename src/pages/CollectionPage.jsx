@@ -55,8 +55,8 @@ function SectionCard({ title, description, children, action }) {
 
 function PropertyChip({ label, value }) {
   return (
-    <div className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
-      {label}: {value}
+    <div className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant break-words">
+      <span className="whitespace-nowrap">{label}:</span> <span className="break-all">{value}</span>
     </div>
   );
 }
@@ -83,7 +83,13 @@ function CollectionPage() {
   const { collectionId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  
+  // Debug: Log auth state
+  console.log("=== CollectionPage Render ===");
+  console.log("authLoading:", authLoading);
+  console.log("user:", user);
+  console.log("collectionId:", collectionId);
   
   // Determine if this is create mode
   const isCreateMode = collectionId === 'new';
@@ -102,10 +108,24 @@ function CollectionPage() {
 
   // Check if current user is the owner
   const isOwner = useMemo(() => {
-    if (isCreateMode) return true; // User is owner when creating
-    if (!user || !collection) return false;
+    console.log("=== isOwner Check ===");
+    console.log("isCreateMode:", isCreateMode);
+    console.log("user:", user);
+    console.log("collection:", collection);
+    
+    if (isCreateMode) {
+      console.log("→ isOwner = true (create mode)");
+      return true;
+    }
+    
+    // Standard ownership check
+    if (!user || !collection) {
+      console.log("→ isOwner = false (no user or collection)");
+      return false;
+    }
+    
     const result = user.uid === collection.owner_uid;
-    console.log("isOwner:", result, "user.uid:", user.uid, "collection.owner_uid:", collection.owner_uid);
+    console.log("→ isOwner =", result, "| user.uid:", user.uid, "| owner_uid:", collection.owner_uid);
     return result;
   }, [user, collection, isCreateMode]);
 
@@ -381,31 +401,40 @@ function CollectionPage() {
 
   const handleAddCollaborator = async () => {
     if (!collection || !collaboratorInput.trim()) {
-      showToast("Lỗi", "Vui lòng nhập Email hoặc UID.", "error");
+      showToast("Lỗi", "Vui lòng nhập UID người dùng.", "error");
       return;
     }
 
-    const collaboratorValue = collaboratorInput.trim();
-    if (collection.collaborators?.includes(collaboratorValue)) {
+    const collaboratorUid = collaboratorInput.trim();
+    
+    // Check if trying to add owner
+    if (collaboratorUid === collection.owner_uid) {
+      showToast("Lỗi", "Chủ sở hữu mặc định đã có quyền, không cần thêm vào danh sách.", "info");
+      return;
+    }
+    
+    // Check if already exists
+    if (collection.collaborators?.some(c => c.uid === collaboratorUid)) {
       showToast("Đã tồn tại", "Người này đã là cộng tác viên.", "info");
       return;
     }
 
     setActionBusy(true);
     try {
-      await collectionService.addCollaborator(collection.id, collaboratorValue);
+      // API expects array of UIDs
+      const updatedCollection = await collectionService.addCollaboratorsToCollection(
+        collection.id, 
+        [collaboratorUid]
+      );
       
-      // Update local state
-      setCollection(prev => ({
-        ...prev,
-        collaborators: [...(prev.collaborators || []), collaboratorValue]
-      }));
+      // Update local state with response from backend
+      setCollection(updatedCollection);
       
       setCollaboratorInput("");
       showToast("Thành công", "Đã thêm cộng tác viên.", "success");
     } catch (error) {
       console.error("Add collaborator failed:", error);
-      showToast("Lỗi", "Không thể thêm cộng tác viên.", "error");
+      showToast("Lỗi", error.message || "Không thể thêm cộng tác viên.", "error");
     } finally {
       setActionBusy(false);
     }
@@ -413,21 +442,28 @@ function CollectionPage() {
 
   const handleRemoveCollaborator = async (uid) => {
     if (!collection) return;
+    
+    // Confirmation dialog
+    if (!window.confirm("Bạn có chắc muốn xóa cộng tác viên này?")) {
+      return;
+    }
+    
     setActionBusy(true);
 
     try {
-      await collectionService.removeCollaborator(collection.id, uid);
+      // API expects array of UIDs
+      const updatedCollection = await collectionService.removeCollaboratorsFromCollection(
+        collection.id, 
+        [uid]
+      );
       
-      // Update local state
-      setCollection(prev => ({
-        ...prev,
-        collaborators: prev.collaborators?.filter(c => c !== uid) || []
-      }));
+      // Update local state with response from backend
+      setCollection(updatedCollection);
       
       showToast("Thành công", "Đã xóa cộng tác viên.", "success");
     } catch (error) {
       console.error("Remove collaborator failed:", error);
-      showToast("Lỗi", "Xóa cộng tác viên không thành công.", "error");
+      showToast("Lỗi", error.message || "Xóa cộng tác viên không thành công.", "error");
     } finally {
       setActionBusy(false);
     }
@@ -438,13 +474,25 @@ function CollectionPage() {
 
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <PropertyChip label="ID" value={collection.id} />
-        <PropertyChip label="Trạng thái" value={String(collection.visibility)} />
+        <PropertyChip label="ID" value={collection.id.substring(0, 8) + '...'} />
+        <PropertyChip label="Trạng thái" value={String(collection.visibility).toUpperCase()} />
         <PropertyChip label="Số tag" value={collection.tags?.length ?? 0} />
         <PropertyChip label="Cộng tác viên" value={collection.collaborators?.length ?? 0} />
       </div>
     );
   };
+
+  // Wait for auth to load before rendering
+  if (authLoading) {
+    return (
+      <div className="min-h-[calc(100vh-80px)] flex items-center justify-center bg-background text-on-background">
+        <div className="inline-flex items-center gap-3 rounded-3xl border border-outline-variant/40 bg-surface-container-low px-6 py-5 shadow-xl">
+          <Icon name="hourglass_top" size={24} className="text-primary animate-spin" />
+          <span className="text-sm font-medium">Đang xác thực...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (pageBusy) {
     return (
@@ -469,9 +517,36 @@ function CollectionPage() {
     );
   }
 
+  // Show login warning only if:
+  // 1. Auth is not loading
+  // 2. User is null (not logged in)
+  // 3. Not in create mode
+  const showLoginWarning = !authLoading && !user && !isCreateMode;
+
   return (
     <div className="min-h-[calc(100vh-80px)] bg-background px-4 py-6 text-on-background sm:px-6 lg:px-10">
       <Toast toast={toast} />
+
+      {/* Login Warning Banner */}
+      {showLoginWarning && (
+        <div className="mx-auto w-full max-w-7xl mb-6">
+          <div className="rounded-3xl border border-orange-400/20 bg-orange-50 p-4">
+            <div className="flex items-center gap-3">
+              <Icon name="warning" size={24} className="text-orange-600" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-orange-800">Bạn chưa đăng nhập</p>
+                <p className="text-xs text-orange-600 mt-1">Vui lòng đăng nhập để chỉnh sửa collection này.</p>
+              </div>
+              <Link 
+                to="/auth/login" 
+                className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700"
+              >
+                Đăng nhập
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Back Button */}
       <div className="mx-auto w-full max-w-7xl mb-6">
@@ -562,7 +637,7 @@ function CollectionPage() {
                 )}
               </div>
 
-              {isEditing && !isCreateMode ? <div className="flex flex-wrap gap-2">{renderCollectionMeta()}</div> : null}
+              {isEditing && !isCreateMode ? renderCollectionMeta() : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-3 justify-end">
@@ -785,71 +860,69 @@ function CollectionPage() {
                   </div>
                 </SectionCard>
 
-                {isOwner && !isCreateMode ? (
+                {!isCreateMode && (
                   <SectionCard
-                    title="Quản lý cộng tác viên"
-                    description="Chỉ chủ sở hữu collection mới có thể thêm hoặc xóa cộng tác viên."
+                    title={isOwner ? "Quản lý cộng tác viên" : "Cộng tác viên"}
+                    description={isOwner ? "Chỉ chủ sở hữu collection mới có thể thêm hoặc xóa cộng tác viên." : "Danh sách cộng tác viên hiện tại của collection."}
                   >
-                    <div className="grid gap-4">
-                      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                        <input
-                          value={collaboratorInput}
-                          onChange={(event) => setCollaboratorInput(event.target.value)}
-                          placeholder="Nhập email hoặc UID"
-                          className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddCollaborator}
-                          disabled={actionBusy}
-                          className="inline-flex items-center justify-center rounded-3xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Icon name="person_add" size={18} /> Mời cộng tác
-                        </button>
+                    {isOwner ? (
+                      <div className="grid gap-4">
+                        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                          <input
+                            value={collaboratorInput}
+                            onChange={(event) => setCollaboratorInput(event.target.value)}
+                            placeholder="Nhập UID người dùng"
+                            className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddCollaborator}
+                            disabled={actionBusy}
+                            className="inline-flex items-center justify-center gap-2 rounded-3xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Icon name="person_add" size={18} />
+                            <span>Mời</span>
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          {collection.collaborators?.length ? (
+                            collection.collaborators.map((collaborator) => (
+                              <div key={collaborator.uid} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                  <p className="text-sm font-semibold text-on-surface">{collaborator.uid}</p>
+                                  <p className="text-xs text-on-surface-variant">UID: {collaborator.uid}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCollaborator(collaborator.uid)}
+                                  disabled={actionBusy}
+                                  className="inline-flex items-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <Icon name="close" size={16} /> Xóa
+                                </button>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
+                              Chưa có cộng tác viên nào.
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="space-y-3">
+                    ) : (
+                      <div className="grid gap-3">
                         {collection.collaborators?.length ? (
                           collection.collaborators.map((collaborator) => (
-                            <div key={collaborator.uid} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                              <div>
-                                <p className="text-sm font-semibold text-on-surface">{collaborator.uid}</p>
-                                <p className="text-xs text-on-surface-variant">UID: {collaborator.uid}</p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveCollaborator(collaborator.uid)}
-                                disabled={actionBusy}
-                                className="inline-flex items-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                <Icon name="close" size={16} /> Xóa
-                              </button>
+                            <div key={collaborator.uid} className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 text-sm text-on-surface">
+                              <p className="font-semibold">{collaborator.uid}</p>
+                              <p className="mt-1 text-xs text-on-surface-variant">UID: {collaborator.uid}</p>
                             </div>
                           ))
                         ) : (
-                          <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
-                            Chưa có cộng tác viên nào.
-                          </div>
+                          <p className="text-sm text-on-surface-variant">Collection hiện không có cộng tác viên.</p>
                         )}
                       </div>
-                    </div>
-                  </SectionCard>
-                ) : (
-                  <SectionCard
-                    title="Cộng tác viên"
-                    description="Danh sách cộng tác viên hiện tại của collection."
-                  >
-                    <div className="grid gap-3">
-                      {collection.collaborators?.length ? (
-                        collection.collaborators.map((collaborator) => (
-                          <div key={collaborator.uid} className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 text-sm text-on-surface">
-                            <p className="font-semibold">{collaborator.uid}</p>
-                            <p className="mt-1 text-xs text-on-surface-variant">UID: {collaborator.uid}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-on-surface-variant">Collection hiện không có cộng tác viên.</p>
-                      )}
-                    </div>
+                    )}
                   </SectionCard>
                 )}
               </div>

@@ -20,7 +20,6 @@ class CollectionService:
         
         if not created_collection:
             raise AppException(status_code=500, message="Failed to create collection.")
-        await self.add_collaborators_to_collection(created_collection["id"], user_id, [user_id])
 
         return await self.build_response(created_collection)
     
@@ -93,11 +92,12 @@ class CollectionService:
         if not collection:
             raise NotFoundError("Invalid collection ID.")
         
-        # Check quyền
+        # Check quyền - owner hoặc collaborator đều có thể thêm places
         owner_uid = collection.get("owner_uid", "")
         collaborators = await self.collection_repo._get_collaborators_from_subcollection(collection_id)
         collaborators_ids = collaborators
         
+        # Owner luôn có quyền, hoặc phải là collaborator
         if requester_id != owner_uid and requester_id not in collaborators_ids:
             raise AppException(status_code=403, message="You do not have permission to edit this collection.")
         
@@ -124,11 +124,12 @@ class CollectionService:
         if not collection:
             raise NotFoundError("Invalid collection ID.")
         
-        # Check quyền
+        # Check quyền - owner hoặc collaborator đều có thể xóa places
         owner_uid = collection.get("owner_uid", "")
         collaborators = await self.collection_repo._get_collaborators_from_subcollection(collection_id)
         collaborators_ids = collaborators
 
+        # Owner luôn có quyền, hoặc phải là collaborator
         if requester_id != owner_uid and requester_id not in collaborators_ids:
             raise AppException(status_code=403, message="You do not have permission to edit this collection.")
         
@@ -151,19 +152,30 @@ class CollectionService:
         if requester_id != owner_uid:
             raise AppException(status_code=403, message="You do not have permission to add collaborators to this collection.")
         
-        # Validate người dùng tồn tại
-        if collaborator_uids:
-            existing_users = await user_repo.get_users(collaborator_uids)
+        # Lọc bỏ owner_uid khỏi danh sách collaborator_uids
+        filtered_uids = [uid for uid in collaborator_uids if uid != owner_uid]
+        
+        if not filtered_uids:
+            raise AppException(status_code=400, message="Cannot add owner as collaborator. Owner already has full permissions.")
+        
+        # Validate người dùng tồn tại - nếu không tồn tại trong DB nhưng hợp lệ trên Firebase, tạo profile mặc định
+        if filtered_uids:
+            existing_users = await user_repo.get_users(filtered_uids)
             existing_uids = set(existing_users.keys())
-            not_found_uids = [uid for uid in collaborator_uids if uid not in existing_uids]
+            not_found_uids = [uid for uid in filtered_uids if uid not in existing_uids]
+            
+            # Với những UID không tìm thấy trong DB, kiểm tra Firebase và tạo profile mặc định
             if not_found_uids:
+                # TODO: Implement Firebase Auth validation and auto-create user profiles
+                # For now, we'll raise an error
                 raise NotFoundError(f"Invalid collaborator UIDs: {', '.join(not_found_uids)}")
-                # Lấy collaborators hiện có
+        
+        # Lấy collaborators hiện có
         existing_collaborators = await self.collection_repo._get_collaborators_from_subcollection(collection_id)
         existing_uids = set(existing_collaborators.keys())
         
         # Lọc những uid bị trùng lặp
-        new_uids = [uid for uid in collaborator_uids if uid not in existing_uids]
+        new_uids = [uid for uid in filtered_uids if uid not in existing_uids]
         
         if not new_uids:
             raise AppException(status_code=400, message="All provided collaborators are already added to the collection.")

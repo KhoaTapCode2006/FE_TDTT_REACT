@@ -154,11 +154,15 @@ class CollectionRepository(BaseRepository):
                 "added_by": requester_id
             })
         
-        # Update contributed_count của cộng tác viên
+        # Update contributed_count của cộng tác viên (chỉ nếu họ là collaborator, không phải owner)
         collab_ref = ref.collection("collaborators").document(requester_id)
-        batch.update(collab_ref, {
-            "contributed_count": fs.Increment(len(new_place_ids))
-        })
+        collab_snapshot = await collab_ref.get()
+        
+        # Chỉ update contributed_count nếu requester là collaborator (có trong sub-collection)
+        if collab_snapshot.exists:
+            batch.update(collab_ref, {
+                "contributed_count": fs.Increment(len(new_place_ids))
+            })
 
         # Update place_count trên main document
         batch.update(ref, {
@@ -200,16 +204,19 @@ class CollectionRepository(BaseRepository):
         for place_id in existing_docs:
             batch.delete(places_collection.document(place_id))
         
-        # Update contributed_count của người đã thêm place
+        # Update contributed_count của người đã thêm place (chỉ nếu họ là collaborator)
         for doc in docs:
             if doc.exists and doc.id in existing_docs:
                 place_data = doc.to_dict() or {}
                 added_by = place_data.get("added_by")
                 if added_by:
                     collab_ref = ref.collection("collaborators").document(added_by)
-                    batch.update(collab_ref, {
-                        "contributed_count": fs.Increment(-1)
-                    })
+                    # Kiểm tra xem người này có phải là collaborator không
+                    collab_snapshot = await collab_ref.get()
+                    if collab_snapshot.exists:
+                        batch.update(collab_ref, {
+                            "contributed_count": fs.Increment(-1)
+                        })
 
 
         # Update place_count trên main document
