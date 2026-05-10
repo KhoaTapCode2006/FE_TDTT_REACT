@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import Icon from '@/components/ui/Icon';
 import CollectionCard from '@/components/collection/CollectionCard';
 import { collectionService } from '@/services/backend/collection.service';
@@ -15,8 +15,12 @@ import { useAuth } from '@/contexts/AuthContext';
 function CollectionsDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   
-  const [activeTab, setActiveTab] = useState('my'); // 'my' or 'global'
+  // Get initial tab from URL or default to 'my'
+  const initialTab = searchParams.get('tab') || 'my';
+  const [activeTab, setActiveTab] = useState(initialTab); // 'my' or 'global'
   const [myCollections, setMyCollections] = useState([]);
   const [globalCollections, setGlobalCollections] = useState([]);
   const [savedCollectionIds, setSavedCollectionIds] = useState(new Set());
@@ -30,6 +34,9 @@ function CollectionsDashboard() {
   const [globalPage, setGlobalPage] = useState(1);
   const [hasMoreGlobal, setHasMoreGlobal] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  
+  // Track last load time to force refresh
+  const [lastLoadTime, setLastLoadTime] = useState(Date.now());
 
   // Load My Collections
   const loadMyCollections = useCallback(async () => {
@@ -123,6 +130,24 @@ function CollectionsDashboard() {
     }
   }, [activeTab, loadMyCollections, loadGlobalCollections]);
 
+  // Force reload when navigating back to this page
+  useEffect(() => {
+    // Check if we're coming back from another page (location state will be set)
+    const shouldReload = location.state?.fromCollection || location.key;
+    
+    if (shouldReload) {
+      console.log('Detected navigation back - force reloading collections');
+      setLastLoadTime(Date.now());
+      
+      // Reload based on active tab
+      if (activeTab === 'my') {
+        loadMyCollections();
+      } else {
+        loadGlobalCollections(1, false);
+      }
+    }
+  }, [location.key]); // Trigger on location change
+
   // Reload global collections when topType changes
   useEffect(() => {
     if (activeTab === 'global') {
@@ -134,6 +159,8 @@ function CollectionsDashboard() {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setError(null);
+    // Update URL with tab parameter
+    setSearchParams({ tab });
   };
 
   // Handle delete collection
@@ -367,6 +394,8 @@ function CollectionsDashboard() {
                 onSave={handleSaveCollection}
                 isSaved={savedCollectionIds.has(collection.id)}
                 showActions={true}
+                returnTab={activeTab}
+                currentUserId={user?.uid}
               />
             ))}
           </div>

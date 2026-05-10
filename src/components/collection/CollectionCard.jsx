@@ -13,6 +13,8 @@ import Icon from '@/components/ui/Icon';
  * @param {Function} props.onSave - Callback when save button is clicked
  * @param {boolean} props.isSaved - Whether collection is saved by current user
  * @param {boolean} props.showActions - Whether to show action buttons
+ * @param {string} props.returnTab - Tab to return to when navigating back from collection page
+ * @param {string} props.currentUserId - Current user's UID for displaying "You"
  */
 function CollectionCard({ 
   collection, 
@@ -20,18 +22,20 @@ function CollectionCard({
   onDelete, 
   onSave,
   isSaved = false,
-  showActions = true 
+  showActions = true,
+  returnTab = 'my',
+  currentUserId = null
 }) {
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleEdit = () => {
-    navigate(`/collections/${collection.id}`, { state: { autoEdit: true } });
+    navigate(`/collections/${collection.id}`, { state: { autoEdit: true, returnTab } });
   };
 
   const handleView = () => {
-    navigate(`/collections/${collection.id}`);
+    navigate(`/collections/${collection.id}`, { state: { returnTab } });
   };
 
   const handleDelete = async () => {
@@ -59,6 +63,49 @@ function CollectionCard({
       setIsSaving(false);
     }
   };
+
+  // Build contributors list: owner + collaborators, with "You" first
+  const getContributorsList = () => {
+    const contributors = [];
+    
+    // Check if current user is owner
+    if (currentUserId && collection.owner_uid === currentUserId) {
+      contributors.push({ uid: currentUserId, label: 'You', isOwner: true });
+    } else if (collection.owner_uid) {
+      contributors.push({ 
+        uid: collection.owner_uid, 
+        label: `${collection.owner_uid.substring(0, 8)}...`,
+        isOwner: true 
+      });
+    }
+    
+    // Add collaborators (excluding current user if they're already added as owner)
+    if (collection.collaborators && collection.collaborators.length > 0) {
+      collection.collaborators.forEach(collab => {
+        // Skip if this collaborator is the current user and already added as owner
+        if (collab.uid === currentUserId && contributors.some(c => c.uid === currentUserId)) {
+          return;
+        }
+        
+        contributors.push({
+          uid: collab.uid,
+          label: collab.uid === currentUserId ? 'You' : `${collab.uid.substring(0, 8)}...`,
+          isOwner: false
+        });
+      });
+    }
+    
+    // Sort: "You" first, then others
+    contributors.sort((a, b) => {
+      if (a.label === 'You') return -1;
+      if (b.label === 'You') return 1;
+      return 0;
+    });
+    
+    return contributors;
+  };
+
+  const contributors = getContributorsList();
 
   const placeholderImage = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&h=300&fit=crop';
 
@@ -154,14 +201,28 @@ function CollectionCard({
           </div>
         </div>
 
-        {/* Owner Info */}
+        {/* Owner/Contributors Info */}
         <div className="flex items-center gap-2 pb-3 border-t border-outline-variant/30 pt-3">
-          <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+          <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
             <Icon name="person" size={14} className="text-primary" />
           </div>
-          <span className="text-xs text-on-surface-variant">
-            {isOwner ? 'You' : `By ${collection.owner_uid?.substring(0, 8)}...`}
-          </span>
+          <div className="flex-1 min-w-0">
+            {contributors.length > 0 ? (
+              <div className="text-xs text-on-surface-variant">
+                {contributors.slice(0, 2).map((contributor, index) => (
+                  <span key={contributor.uid}>
+                    {contributor.label}
+                    {index < Math.min(contributors.length, 2) - 1 && ', '}
+                  </span>
+                ))}
+                {contributors.length > 2 && (
+                  <span className="text-on-surface-variant/70"> +{contributors.length - 2}</span>
+                )}
+              </div>
+            ) : (
+              <span className="text-xs text-on-surface-variant">No contributors</span>
+            )}
+          </div>
         </div>
 
         {/* Spacer to push actions to bottom */}

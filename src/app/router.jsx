@@ -9,8 +9,8 @@
     import MyStaysPage from '../pages/profile/MyStaysPage';
     import SavedListsPage from '../pages/profile/SavedListsPage';
     import AccountCollectionsPage from '../pages/profile/AccountCollectionsPage';
-    import CollectionPage from '../pages/CollectionPage';
-    import CollectionsDashboard from '../pages/CollectionsDashboard';
+    import CollectionPage from '../pages/collection/CollectionPage';
+    import CollectionsDashboard from '../pages/collection/CollectionsDashboard';
     import CollectionTest from '../components/test/CollectionTest';
     import { RequireAuth } from '../components/auth/ProtectedRoute';
 

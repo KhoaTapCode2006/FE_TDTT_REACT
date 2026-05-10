@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
-import { collectionService } from "../services/backend/collection.service";
-import { viewsService } from "../services/backend/views.service";
-import { useAuth } from "../contexts/AuthContext";
+import { collectionService } from "../../services/backend/collection.service";
+import { viewsService } from "../../services/backend/views.service";
+import { useAuth } from "../../contexts/AuthContext";
 
 const STATUS_TYPES = {
   success: "bg-emerald-600 text-white",
@@ -474,8 +474,8 @@ function CollectionPage() {
 
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <PropertyChip label="ID" value={collection.id.substring(0, 8) + '...'} />
-        <PropertyChip label="Trạng thái" value={String(collection.visibility).toUpperCase()} />
+        <PropertyChip label="ID" value={collection.id ? (collection.id.substring(0, 8) + '...') : 'N/A'} />
+        <PropertyChip label="Trạng thái" value={String(collection.visibility || 'public').toUpperCase()} />
         <PropertyChip label="Số tag" value={collection.tags?.length ?? 0} />
         <PropertyChip label="Cộng tác viên" value={collection.collaborators?.length ?? 0} />
       </div>
@@ -552,7 +552,15 @@ function CollectionPage() {
       <div className="mx-auto w-full max-w-7xl mb-6">
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={() => {
+            // If we have returnTab in location state, navigate to dashboard with that tab
+            const returnTab = location.state?.returnTab;
+            if (returnTab) {
+              navigate(`/collections?tab=${returnTab}`);
+            } else {
+              navigate(-1);
+            }
+          }}
           className="inline-flex items-center gap-2 text-sm font-medium text-on-surface-variant transition-colors hover:text-on-surface"
         >
           <Icon name="arrow_back" size={20} />
@@ -570,13 +578,13 @@ function CollectionPage() {
                 </span>
                 {!isCreateMode && (
                   <>
-                    <span className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
-                      <Icon name="favorite" size={14} className="inline mr-1" />
-                      {collection?.saved_count ?? 0} lượt thích
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
+                      <Icon name="favorite" size={14} />
+                      <span>{collection?.saved_count ?? 0} lượt thích</span>
                     </span>
-                    <span className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
-                      <Icon name="visibility" size={14} className="inline mr-1" />
-                      {collection?.views?.total_views ?? 0} lượt xem
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
+                      <Icon name="visibility" size={14} />
+                      <span>{collection?.views?.total_views ?? 0} lượt xem</span>
                     </span>
                   </>
                 )}
@@ -592,32 +600,7 @@ function CollectionPage() {
                   {isCreateMode ? "Tạo Collection Mới" : collection.name}
                 </h1>
 
-                {isEditing ? (
-                  <div className="grid gap-4">
-                    <label className="grid gap-2 text-sm font-medium text-on-surface">
-                      Tên collection
-                      <input
-                        value={editValues.name}
-                        onChange={(event) => setEditValues((prev) => ({ ...prev, name: event.target.value }))}
-                        disabled={!isEditing}
-                        className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80 disabled:cursor-not-allowed disabled:bg-surface-container-low"
-                        placeholder="Nhập tên collection"
-                      />
-                    </label>
-
-                    <label className="grid gap-2 text-sm font-medium text-on-surface">
-                      Mô tả
-                      <textarea
-                        value={editValues.description}
-                        onChange={(event) => setEditValues((prev) => ({ ...prev, description: event.target.value }))}
-                        disabled={!isEditing}
-                        rows={4}
-                        className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80 disabled:cursor-not-allowed disabled:bg-surface-container-low"
-                        placeholder="Thêm mô tả về collection"
-                      />
-                    </label>
-                  </div>
-                ) : (
+                {!isEditing && (
                   <>
                     <div className="flex flex-wrap items-center gap-2">
                       {collection?.tags?.length ? (
@@ -886,22 +869,32 @@ function CollectionPage() {
                         </div>
                         <div className="space-y-3">
                           {collection.collaborators?.length ? (
-                            collection.collaborators.map((collaborator) => (
-                              <div key={collaborator.uid} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                  <p className="text-sm font-semibold text-on-surface">{collaborator.uid}</p>
-                                  <p className="text-xs text-on-surface-variant">UID: {collaborator.uid}</p>
+                            collection.collaborators.map((collaborator) => {
+                              const isCollaboratorOwner = collaborator.uid === collection.owner_uid;
+                              
+                              return (
+                                <div key={collaborator.uid} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="flex-1">
+                                    <p className="text-sm font-semibold text-on-surface">{collaborator.uid}</p>
+                                    <p className="text-xs text-on-surface-variant">UID: {collaborator.uid}</p>
+                                  </div>
+                                  {isCollaboratorOwner ? (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">
+                                      Owner
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveCollaborator(collaborator.uid)}
+                                      disabled={actionBusy}
+                                      className="inline-flex items-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      <Icon name="close" size={16} /> Xóa
+                                    </button>
+                                  )}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveCollaborator(collaborator.uid)}
-                                  disabled={actionBusy}
-                                  className="inline-flex items-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  <Icon name="close" size={16} /> Xóa
-                                </button>
-                              </div>
-                            ))
+                              );
+                            })
                           ) : (
                             <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
                               Chưa có cộng tác viên nào.
