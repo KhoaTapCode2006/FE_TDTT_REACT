@@ -1,186 +1,170 @@
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
-  serverTimestamp,
-  collection,
-  query,
-  where,
-  getDocs
-} from 'firebase/firestore';
-import { 
-  ref, 
-  uploadBytes, 
-  getDownloadURL, 
-  deleteObject 
-} from 'firebase/storage';
-import { db, storage } from '../../config/firebase.js';
+import { apiClient } from '../api/apiClient.js';
+import { tokenManager } from '../../utils/tokenManager.js';
 
 /**
- * Profile service for handling user profile operations with Firestore
+ * Profile service for handling user profile operations via backend REST API
+ * Replaces Firestore-based profile management with API calls
  */
 class ProfileService {
   constructor() {
-    this.usersCollection = 'users';
+    // No initialization needed - using API client
   }
 
   /**
-   * Create a new user profile
-   * @param {string} uid - User ID
-   * @param {Object} userData - User profile data
-   * @returns {Promise<Object>} Created profile
+   * Ensure we have a valid token before making API calls
+   * @returns {Promise<void>}
    */
-  async createProfile(uid, userData) {
+  async ensureValidToken() {
     try {
-      const profileData = {
-        uid,
-        email: userData.email,
-        username: userData.username || this.generateUsername(userData.fullName || userData.email),
-        fullName: userData.fullName || null,
-        phoneNumber: userData.phoneNumber || null,
-        dateOfBirth: userData.dateOfBirth || null,
-        gender: userData.gender || null,
-        zipCode: userData.zipCode || null,
-        memberTier: 'bronze', // Default tier
-        avatar: userData.avatar || this.generateDefaultAvatar(userData.username || userData.email),
-        preferences: {
-          language: 'en',
-          currency: 'USD',
-          notifications: {
-            email: true,
-            push: true,
-            sms: false
-          }
-        },
-        authProviders: userData.authProviders || ['password'],
-        bookingHistory: [],
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        lastLoginAt: serverTimestamp()
-      };
-
-      const userDocRef = doc(db, this.usersCollection, uid);
-      await setDoc(userDocRef, profileData);
-      
-      return {
-        ...profileData,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        lastLoginAt: new Date()
-      };
+      const token = await tokenManager.getToken();
+      apiClient.setAuthToken(token);
     } catch (error) {
-      console.error('Error creating profile:', error);
-      console.error('Error code:', error.code);
-      console.error('Error message:', error.message);
-      console.error('User data:', { uid, email: userData.email, username: userData.username });
-      
-      // Provide more specific error messages
-      if (error.code === 'permission-denied') {
-        throw new Error('Permission denied. Please check Firestore security rules.');
-      } else if (error.code === 'unavailable') {
-        throw new Error('Firestore is unavailable. Please check if Firestore is enabled in Firebase Console.');
-      } else if (error.code === 'not-found') {
-        throw new Error('Firestore database not found. Please enable Firestore in Firebase Console.');
-      } else {
-        throw new Error(`Failed to create user profile: ${error.message}`);
-      }
+      console.error('Failed to get valid token:', error);
+      throw new Error('Authentication required. Please log in again.');
     }
   }
 
   /**
-   * Get user profile by UID
-   * @param {string} uid - User ID
-   * @returns {Promise<Object|null>} User profile or null if not found
+   * Get user profile by UID (current user)
+   * @param {string} uid - User ID (not used, kept for backward compatibility)
+   * @returns {Promise<Object>} User profile
    */
   async getProfile(uid) {
     try {
-      const userDocRef = doc(db, this.usersCollection, uid);
-      const userDoc = await getDoc(userDocRef);
+      await this.ensureValidToken();
       
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        return {
-          ...data,
-          // Convert Firestore timestamps to Date objects
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
-          lastLoginAt: data.lastLoginAt?.toDate() || new Date(),
-          dateOfBirth: data.dateOfBirth?.toDate() || null
-        };
-      }
+      // Get current user's profile from backend
+      const profile = await apiClient.get('/me');
       
-      return null;
+      return this.transformBackendProfile(profile);
     } catch (error) {
       console.error('Error getting profile:', error);
-      throw new Error('Failed to retrieve user profile. Please try again.');
+      
+      if (error.status === 401) {
+        throw new Error('Session expired. Please log in again.');
+      }
+      
+      throw new Error(error.message || 'Failed to retrieve user profile. Please try again.');
+    }
+  }
+
+  /**
+   * Get public user profile by username
+   * @param {string} username - Username
+   * @returns {Promise<Object>} Public user profile
+   */
+  async getPublicProfile(username) {
+    try {
+      // Public profiles may not require authentication, but include token if available
+      try {
+        await this.ensureValidToken();
+      } catch (error) {
+        // Continue without token for public profiles
+        console.warn('No authentication token available for public profile request');
+      }
+      
+      // Get public profile from backend
+      const profile = await apiClient.get(`/users/${username}`);
+      
+      return this.transformBackendProfile(profile);
+    } catch (error) {
+      console.error('Error getting public profile:', error);
+      
+      if (error.status === 404) {
+        throw new Error('User not found.');
+      }
+      
+      throw new Error(error.message || 'Failed to retrieve user profile. Please try again.');
     }
   }
 
   /**
    * Update user profile
-   * @param {string} uid - User ID
+   * @param {string} uid - User ID (not used, kept for backward compatibility)
    * @param {Object} profileData - Profile data to update
    * @returns {Promise<Object>} Updated profile
    */
   async updateProfile(uid, profileData) {
     try {
-      const updateData = {
-        ...profileData,
-        updatedAt: serverTimestamp()
-      };
-
-      // Convert Date objects to Firestore timestamps for dateOfBirth
-      if (profileData.dateOfBirth instanceof Date) {
-        updateData.dateOfBirth = profileData.dateOfBirth;
-      }
-
-      const userDocRef = doc(db, this.usersCollection, uid);
-      await updateDoc(userDocRef, updateData);
+      await this.ensureValidToken();
       
-      // Return updated profile
-      return await this.getProfile(uid);
+      // Transform frontend field names to backend schema
+      const updateData = this.transformToBackendUpdate(profileData);
+      
+      // Update profile via backend API
+      const updatedProfile = await apiClient.patch('/me', updateData);
+      
+      return this.transformBackendProfile(updatedProfile);
     } catch (error) {
       console.error('Error updating profile:', error);
-      throw new Error('Failed to update user profile. Please try again.');
+      
+      if (error.status === 400) {
+        throw new Error(error.message || 'Invalid profile data. Please check your input.');
+      }
+      
+      if (error.status === 409) {
+        throw new Error('Username is already taken. Please choose a different username.');
+      }
+      
+      throw new Error(error.message || 'Failed to update user profile. Please try again.');
     }
   }
 
   /**
-   * Create or update profile (for social login)
-   * @param {string} uid - User ID
-   * @param {Object} userData - User data from social provider
-   * @returns {Promise<Object>} Profile data
+   * Add collection to liked collections
+   * @param {string} placeId - Place/collection ID
+   * @returns {Promise<Object>} Updated profile
    */
-  async createOrUpdateProfile(uid, userData) {
+  async addLikedCollection(placeId) {
     try {
-      const existingProfile = await this.getProfile(uid);
+      await this.ensureValidToken();
       
-      if (existingProfile) {
-        // Update existing profile with new provider info
-        const updatedProviders = [...new Set([
-          ...existingProfile.authProviders,
-          ...userData.authProviders
-        ])];
-        
-        const updateData = {
-          authProviders: updatedProviders,
-          lastLoginAt: new Date()
-        };
-
-        // Update avatar if it's from a social provider and user doesn't have one
-        if (userData.avatar && (!existingProfile.avatar || !existingProfile.avatar.url)) {
-          updateData.avatar = userData.avatar;
-        }
-
-        return await this.updateProfile(uid, updateData);
-      } else {
-        // Create new profile
-        return await this.createProfile(uid, userData);
-      }
+      // Add liked collection via backend API
+      const updatedProfile = await apiClient.post(`/me/liked-collection?place_id=${placeId}`);
+      
+      return this.transformBackendProfile(updatedProfile);
     } catch (error) {
-      console.error('Error creating/updating profile:', error);
-      throw new Error('Failed to manage user profile. Please try again.');
+      console.error('Error adding liked collection:', error);
+      throw new Error(error.message || 'Failed to add collection to favorites. Please try again.');
+    }
+  }
+
+  /**
+   * Remove collection from liked collections
+   * @param {string} placeId - Place/collection ID
+   * @returns {Promise<Object>} Updated profile
+   */
+  async removeLikedCollection(placeId) {
+    try {
+      await this.ensureValidToken();
+      
+      // Remove liked collection via backend API
+      const updatedProfile = await apiClient.delete(`/me/liked-collection?place_id=${placeId}`);
+      
+      return this.transformBackendProfile(updatedProfile);
+    } catch (error) {
+      console.error('Error removing liked collection:', error);
+      throw new Error(error.message || 'Failed to remove collection from favorites. Please try again.');
+    }
+  }
+
+  /**
+   * Delete user profile
+   * @param {string} uid - User ID (not used, kept for backward compatibility)
+   * @returns {Promise<void>}
+   */
+  async deleteProfile(uid) {
+    try {
+      await this.ensureValidToken();
+      
+      // Delete profile via backend API
+      await apiClient.delete('/me');
+      
+      // Profile deletion successful
+      // Logout will be triggered by the calling code
+    } catch (error) {
+      console.error('Error deleting profile:', error);
+      throw new Error(error.message || 'Failed to delete user profile. Please try again.');
     }
   }
 
@@ -192,46 +176,46 @@ class ProfileService {
    */
   async uploadAvatar(uid, file) {
     try {
-      // Check if Storage is available
-      if (!storage) {
-        throw new Error('Avatar upload is not available. Firebase Storage is not enabled.');
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        throw new Error('Please select a valid image file (JPEG, PNG, GIF, or WebP).');
       }
 
-      // Validate file
-      if (!file.type.startsWith('image/')) {
-        throw new Error('Please select a valid image file.');
-      }
-
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      // Validate file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
         throw new Error('Image file size must be less than 5MB.');
       }
 
-      // Delete existing avatar if it exists
-      const profile = await this.getProfile(uid);
-      if (profile?.avatar?.url && profile.avatar.provider === 'upload') {
-        try {
-          const oldAvatarRef = ref(storage, `avatars/${uid}/avatar`);
-          await deleteObject(oldAvatarRef);
-        } catch (deleteError) {
-          // Ignore delete errors for non-existent files
-          console.warn('Could not delete old avatar:', deleteError);
+      // TODO: Upload to cloud storage service (Cloudinary, AWS S3, etc.)
+      // For now, we'll use a placeholder implementation
+      // In production, you would upload to your cloud storage service here
+      
+      // Example Cloudinary upload (commented out - needs configuration):
+      /*
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET);
+      
+      const uploadResponse = await fetch(
+        `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`,
+        {
+          method: 'POST',
+          body: formData
         }
-      }
-
-      // Upload new avatar
-      const avatarRef = ref(storage, `avatars/${uid}/avatar`);
-      const snapshot = await uploadBytes(avatarRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-
-      // Update profile with new avatar
-      await this.updateProfile(uid, {
-        avatar: {
-          url: downloadURL,
-          provider: 'upload'
-        }
-      });
-
-      return downloadURL;
+      );
+      
+      const uploadData = await uploadResponse.json();
+      const avatarUrl = uploadData.secure_url;
+      */
+      
+      // Placeholder: Create a data URL for the image
+      const avatarUrl = await this.createImageDataUrl(file);
+      
+      // Update profile with new avatar URL
+      await this.updateProfile(uid, { avatar_url: avatarUrl });
+      
+      return avatarUrl;
     } catch (error) {
       console.error('Error uploading avatar:', error);
       throw error;
@@ -239,192 +223,101 @@ class ProfileService {
   }
 
   /**
-   * Generate default Facebook-style avatar
-   * @param {string} nameOrUsername - User's full name or username
-   * @returns {Object} Avatar object with SVG data URL
+   * Create data URL from file (placeholder for cloud upload)
+   * @param {File} file - Image file
+   * @returns {Promise<string>} Data URL
    */
-  generateDefaultAvatar(nameOrUsername) {
-    const initials = this.getInitials(nameOrUsername);
-    const colors = [
-      '#1877F2', // Facebook blue
-      '#42B883', // Vue green
-      '#E44D26', // HTML orange
-      '#F7DF1E', // JavaScript yellow
-      '#61DAFB', // React cyan
-      '#764ABC', // Redux purple
-      '#FF6B6B', // Coral red
-      '#4ECDC4', // Turquoise
-      '#45B7D1', // Sky blue
-      '#96CEB4'  // Mint green
-    ];
-    
-    // Select color based on name hash
-    const colorIndex = this.hashString(nameOrUsername) % colors.length;
-    const backgroundColor = colors[colorIndex];
-    
-    // Generate SVG
-    const svg = `
-      <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="50" cy="50" r="50" fill="${backgroundColor}"/>
-        <text x="50" y="50" font-family="Arial, sans-serif" font-size="36" font-weight="bold" 
-              fill="white" text-anchor="middle" dominant-baseline="central">
-          ${initials}
-        </text>
-      </svg>
-    `;
-    
-    const dataUrl = `data:image/svg+xml;base64,${btoa(svg)}`;
-    
+  createImageDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        resolve(e.target.result);
+      };
+      
+      reader.onerror = (error) => {
+        reject(new Error('Failed to read image file'));
+      };
+      
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /**
+   * Transform backend profile data to frontend format
+   * @param {Object} backendProfile - Profile data from backend
+   * @returns {Object} Transformed profile
+   */
+  transformBackendProfile(backendProfile) {
     return {
-      url: dataUrl,
-      provider: 'default'
+      uid: backendProfile.uid,
+      username: backendProfile.username,
+      displayName: backendProfile.display_name,
+      email: backendProfile.email,
+      phoneNumber: backendProfile.phone_number,
+      avatar: {
+        url: backendProfile.avatar_url,
+        provider: 'backend'
+      },
+      bio: backendProfile.bio,
+      createdAt: backendProfile.created_at ? new Date(backendProfile.created_at) : null,
+      lastLoginAt: backendProfile.last_login ? new Date(backendProfile.last_login) : null,
+      lastUpdated: backendProfile.last_updated ? new Date(backendProfile.last_updated) : null,
+      likedCollection: backendProfile.liked_collection,
+      travelProfile: backendProfile.travel_profile,
+      collections: backendProfile.collections || [],
+      publicCollections: backendProfile.public_collections || [],
+      userBehaviorHistory: backendProfile.user_behavior_history || [],
+      scoringWeights: backendProfile.scoring_weights
     };
   }
 
   /**
-   * Get initials from full name or username
-   * @param {string} nameOrUsername - Full name or username
-   * @returns {string} Initials (max 2 characters)
+   * Transform frontend update data to backend schema
+   * @param {Object} profileData - Frontend profile data
+   * @returns {Object} Backend-compatible update data
    */
-  getInitials(nameOrUsername) {
-    if (!nameOrUsername) return 'U';
+  transformToBackendUpdate(profileData) {
+    const updateData = {};
     
-    const names = nameOrUsername.trim().split(' ');
-    if (names.length === 1) {
-      // For single word (username), take first 2 characters
-      return nameOrUsername.substring(0, 2).toUpperCase();
+    // Map frontend field names to backend field names
+    if (profileData.username !== undefined) updateData.username = profileData.username;
+    if (profileData.displayName !== undefined) updateData.display_name = profileData.displayName;
+    if (profileData.email !== undefined) updateData.email = profileData.email;
+    if (profileData.phoneNumber !== undefined) updateData.phone_number = profileData.phoneNumber;
+    if (profileData.avatar_url !== undefined) updateData.avatar_url = profileData.avatar_url;
+    if (profileData.bio !== undefined) updateData.bio = profileData.bio;
+    if (profileData.currentTrip !== undefined) updateData.current_trip = profileData.currentTrip;
+    
+    // Handle nested avatar object
+    if (profileData.avatar?.url !== undefined) {
+      updateData.avatar_url = profileData.avatar.url;
     }
     
-    return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
+    return updateData;
   }
 
   /**
-   * Generate username from full name or email
-   * @param {string} nameOrEmail - Full name or email
-   * @returns {string} Generated username
-   */
-  generateUsername(nameOrEmail) {
-    if (!nameOrEmail) return `user_${Date.now()}`;
-    
-    // If it's an email, extract the part before @
-    let baseName = nameOrEmail;
-    if (nameOrEmail.includes('@')) {
-      baseName = nameOrEmail.split('@')[0];
-    }
-    
-    const baseUsername = baseName
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '')
-      .substring(0, 15);
-    
-    const randomSuffix = Math.floor(Math.random() * 1000);
-    return `${baseUsername}${randomSuffix}`;
-  }
-
-  /**
-   * Check if username is available
-   * @param {string} username - Username to check
-   * @param {string} excludeUid - UID to exclude from check (for updates)
-   * @returns {Promise<boolean>} True if available
-   */
-  async isUsernameAvailable(username, excludeUid = null) {
-    try {
-      // Validate username format first
-      if (!username || username.trim().length === 0) {
-        return false;
-      }
-      
-      const usersRef = collection(db, this.usersCollection);
-      const q = query(usersRef, where('username', '==', username));
-      const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
-        return true;
-      }
-      
-      // If excluding a specific UID (for updates), check if it's the only match
-      if (excludeUid) {
-        const docs = querySnapshot.docs;
-        return docs.length === 1 && docs[0].id === excludeUid;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('Error checking username availability:', error);
-      
-      // If it's a permission error, assume username is available
-      // The actual check will happen during registration
-      if (error.code === 'permission-denied') {
-        console.warn('Permission denied when checking username. Skipping check.');
-        return true;
-      }
-      
-      // For other errors, return false to be safe
-      return false;
-    }
-  }
-
-  /**
-   * Hash string to number for consistent color selection
-   * @param {string} str - String to hash
-   * @returns {number} Hash value
-   */
-  hashString(str) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash);
-  }
-
-  /**
-   * Add booking to user's history
-   * @param {string} uid - User ID
-   * @param {string} bookingId - Booking ID
-   * @returns {Promise<void>}
-   */
-  async addBookingToHistory(uid, bookingId) {
-    try {
-      const profile = await this.getProfile(uid);
-      if (profile) {
-        const updatedHistory = [...profile.bookingHistory, bookingId];
-        await this.updateProfile(uid, {
-          bookingHistory: updatedHistory
-        });
-      }
-    } catch (error) {
-      console.error('Error adding booking to history:', error);
-      throw new Error('Failed to update booking history.');
-    }
-  }
-
-  /**
-   * Update user preferences
+   * Update user preferences (kept for backward compatibility)
    * @param {string} uid - User ID
    * @param {Object} preferences - Preferences to update
    * @returns {Promise<Object>} Updated profile
    */
   async updatePreferences(uid, preferences) {
-    try {
-      const profile = await this.getProfile(uid);
-      if (profile) {
-        const updatedPreferences = {
-          ...profile.preferences,
-          ...preferences
-        };
-        
-        return await this.updateProfile(uid, {
-          preferences: updatedPreferences
-        });
-      }
-      
-      throw new Error('Profile not found');
-    } catch (error) {
-      console.error('Error updating preferences:', error);
-      throw new Error('Failed to update preferences.');
-    }
+    // Preferences are part of the profile, so we update the profile
+    return await this.updateProfile(uid, { preferences });
+  }
+
+  /**
+   * Add booking to user's history (kept for backward compatibility)
+   * @param {string} uid - User ID
+   * @param {string} bookingId - Booking ID
+   * @returns {Promise<void>}
+   */
+  async addBookingToHistory(uid, bookingId) {
+    // This functionality would need to be implemented in the backend
+    // For now, we'll just log it
+    console.warn('addBookingToHistory is not yet implemented with backend API');
   }
 }
 

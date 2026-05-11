@@ -8,11 +8,13 @@ import {
   onAuthStateChanged
 } from 'firebase/auth';
 import { auth, googleProvider, facebookProvider } from '../../config/firebase.js';
-import { profileService } from '../profile/profile.service.js';
+import { apiClient } from '../api/apiClient.js';
+import { tokenManager } from '../../utils/tokenManager.js';
 import { sessionService } from '../profile/session.service.js';
 
 /**
  * Authentication service for handling Firebase Auth operations
+ * and backend API authentication synchronization
  */
 class AuthService {
   constructor() {
@@ -50,6 +52,40 @@ class AuthService {
   }
 
   /**
+   * Authenticate with backend API using Firebase ID token
+   * @param {string} idToken - Firebase ID token
+   * @returns {Promise<Object>} Backend user data
+   */
+  async authenticateWithBackend(idToken) {
+    try {
+      // Set token in API client
+      apiClient.setAuthToken(idToken);
+      
+      // Send token to backend /auth endpoint
+      const response = await apiClient.post('/auth', { token: idToken });
+      
+      return response;
+    } catch (error) {
+      console.error('Backend authentication failed:', error);
+      throw new Error(error.message || 'Failed to authenticate with backend. Please try again.');
+    }
+  }
+
+  /**
+   * Get Firebase ID token
+   * @param {boolean} forceRefresh - Force token refresh
+   * @returns {Promise<string>} Firebase ID token
+   */
+  async getIdToken(forceRefresh = false) {
+    try {
+      return await tokenManager.getToken(forceRefresh);
+    } catch (error) {
+      console.error('Failed to get ID token:', error);
+      throw new Error('Failed to get authentication token');
+    }
+  }
+
+  /**
    * Sign in with email and password
    * @param {string} email - User email
    * @param {string} password - User password
@@ -58,18 +94,24 @@ class AuthService {
    */
   async loginWithEmail(email, password, rememberMe = false) {
     try {
+      // Authenticate with Firebase
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      // Get user profile from Firestore
-      const userProfile = await profileService.getProfile(user.uid);
+      // Get Firebase ID token
+      const idToken = await user.getIdToken();
       
-      // Set session with remember me preference
-      await sessionService.setSession(user, rememberMe);
+      // Authenticate with backend
+      const backendUser = await this.authenticateWithBackend(idToken);
       
-      // Update last login timestamp
-      await profileService.updateProfile(user.uid, {
-        lastLoginAt: new Date()
+      // Store session data
+      sessionService.setSession({
+        uid: user.uid,
+        email: user.email,
+        username: backendUser.username,
+        display_name: backendUser.display_name,
+        tokenExpiration: tokenManager.getTokenExpiration(),
+        rememberMe
       });
       
       return {
@@ -77,7 +119,9 @@ class AuthService {
         email: user.email,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        ...userProfile
+        emailVerified: user.emailVerified,
+        username: backendUser.username,
+        display_name: backendUser.display_name
       };
     } catch (error) {
       throw this.translateFirebaseError(error);
@@ -90,32 +134,34 @@ class AuthService {
    */
   async loginWithGoogle() {
     try {
+      // Authenticate with Firebase
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
-      // Extract profile information from Google
-      const profileData = {
-        fullName: user.displayName,
+      // Get Firebase ID token
+      const idToken = await user.getIdToken();
+      
+      // Authenticate with backend (backend creates/updates profile)
+      const backendUser = await this.authenticateWithBackend(idToken);
+      
+      // Store session data
+      sessionService.setSession({
+        uid: user.uid,
         email: user.email,
-        avatar: {
-          url: user.photoURL,
-          provider: 'google'
-        },
-        authProviders: ['google.com']
-      };
-      
-      // Create or update profile
-      const userProfile = await profileService.createOrUpdateProfile(user.uid, profileData);
-      
-      // Set session
-      await sessionService.setSession(user, false);
+        username: backendUser.username,
+        display_name: backendUser.display_name,
+        tokenExpiration: tokenManager.getTokenExpiration(),
+        rememberMe: false
+      });
       
       return {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        ...userProfile
+        emailVerified: user.emailVerified,
+        username: backendUser.username,
+        display_name: backendUser.display_name
       };
     } catch (error) {
       throw this.translateFirebaseError(error);
@@ -128,32 +174,34 @@ class AuthService {
    */
   async loginWithFacebook() {
     try {
+      // Authenticate with Firebase
       const result = await signInWithPopup(auth, facebookProvider);
       const user = result.user;
       
-      // Extract profile information from Facebook
-      const profileData = {
-        fullName: user.displayName,
+      // Get Firebase ID token
+      const idToken = await user.getIdToken();
+      
+      // Authenticate with backend (backend creates/updates profile)
+      const backendUser = await this.authenticateWithBackend(idToken);
+      
+      // Store session data
+      sessionService.setSession({
+        uid: user.uid,
         email: user.email,
-        avatar: {
-          url: user.photoURL,
-          provider: 'facebook'
-        },
-        authProviders: ['facebook.com']
-      };
-      
-      // Create or update profile
-      const userProfile = await profileService.createOrUpdateProfile(user.uid, profileData);
-      
-      // Set session
-      await sessionService.setSession(user, false);
+        username: backendUser.username,
+        display_name: backendUser.display_name,
+        tokenExpiration: tokenManager.getTokenExpiration(),
+        rememberMe: false
+      });
       
       return {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        ...userProfile
+        emailVerified: user.emailVerified,
+        username: backendUser.username,
+        display_name: backendUser.display_name
       };
     } catch (error) {
       throw this.translateFirebaseError(error);
@@ -169,15 +217,7 @@ class AuthService {
     try {
       const { email, password, username, ...profileData } = userData;
       
-      // Check if username is available before creating account
-      const isUsernameAvailable = await profileService.isUsernameAvailable(username);
-      if (!isUsernameAvailable) {
-        const error = new Error('Username is already taken. Please choose a different username.');
-        error.code = 'auth/username-already-exists';
-        throw error;
-      }
-      
-      // Create user account
+      // Create user account in Firebase
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
@@ -186,23 +226,30 @@ class AuthService {
         displayName: username
       });
       
-      // Create user profile in Firestore
-      const userProfile = await profileService.createProfile(user.uid, {
-        username,
-        ...profileData,
-        email: user.email,
-        authProviders: ['password']
-      });
+      // Get Firebase ID token
+      const idToken = await user.getIdToken();
       
-      // Set session
-      await sessionService.setSession(user, false);
+      // Authenticate with backend (backend creates profile)
+      const backendUser = await this.authenticateWithBackend(idToken);
+      
+      // Store session data
+      sessionService.setSession({
+        uid: user.uid,
+        email: user.email,
+        username: backendUser.username,
+        display_name: backendUser.display_name,
+        tokenExpiration: tokenManager.getTokenExpiration(),
+        rememberMe: false
+      });
       
       return {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        ...userProfile
+        emailVerified: user.emailVerified,
+        username: backendUser.username,
+        display_name: backendUser.display_name
       };
     } catch (error) {
       console.error('Registration error details:', error);
@@ -217,7 +264,13 @@ class AuthService {
   async logout() {
     try {
       // Clear session data
-      await sessionService.clearSession();
+      sessionService.clearSession();
+      
+      // Clear token manager
+      tokenManager.clearToken();
+      
+      // Clear API client token
+      apiClient.clearAuthToken();
       
       // Sign out from Firebase
       await signOut(auth);
@@ -249,10 +302,19 @@ class AuthService {
     try {
       if (this.currentUser) {
         // Get fresh token
-        const token = await this.currentUser.getIdToken(true);
+        const token = await this.getIdToken(true);
         
-        // Update session
-        await sessionService.refreshToken(token);
+        // Update API client token
+        apiClient.setAuthToken(token);
+        
+        // Update session with new token expiration
+        const session = sessionService.getSession();
+        if (session) {
+          sessionService.setSession({
+            ...session,
+            tokenExpiration: tokenManager.getTokenExpiration()
+          });
+        }
       }
     } catch (error) {
       throw this.translateFirebaseError(error);

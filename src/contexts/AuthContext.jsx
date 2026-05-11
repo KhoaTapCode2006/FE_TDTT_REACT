@@ -60,22 +60,43 @@ export const AuthProvider = ({ children }) => {
       
       if (firebaseUser) {
         // User is signed in
-        const userProfile = await profileService.getProfile(firebaseUser.uid);
-        
-        const userData = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email,
-          displayName: firebaseUser.displayName,
-          photoURL: firebaseUser.photoURL,
-          emailVerified: firebaseUser.emailVerified,
-          ...userProfile
-        };
-        
-        setUser(userData);
-        setIsAuthenticated(true);
-        
-        // Update session activity
-        sessionService.updateActivity();
+        try {
+          const userProfile = await profileService.getProfile(firebaseUser.uid);
+          
+          const userData = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName,
+            photoURL: firebaseUser.photoURL,
+            emailVerified: firebaseUser.emailVerified,
+            ...userProfile
+          };
+          
+          setUser(userData);
+          setIsAuthenticated(true);
+          
+          // Update session activity
+          sessionService.updateActivity();
+        } catch (profileError) {
+          console.error('Error loading profile:', profileError);
+          
+          // Handle API errors
+          if (profileError.message?.includes('Unable to connect')) {
+            setError('Unable to connect to the server. Please check your internet connection.');
+          } else if (profileError.message?.includes('Session expired')) {
+            setError('Session expired. Please log in again.');
+            // Trigger logout
+            await authService.logout();
+          } else if (profileError.message?.includes('Server error')) {
+            setError('Server error. Please try again later.');
+          } else {
+            setError('Failed to load user data. Please try refreshing the page.');
+          }
+          
+          // Set user to null on profile load error
+          setUser(null);
+          setIsAuthenticated(false);
+        }
       } else {
         // User is signed out
         setUser(null);
@@ -86,8 +107,10 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Error handling auth state change:', error);
-      ErrorLogger.logAuthError(error, { action: 'auth_state_change' });
-      setError('Failed to load user data. Please try refreshing the page.');
+      if (ErrorLogger?.logAuthError) {
+        ErrorLogger.logAuthError(error, { action: 'auth_state_change' });
+      }
+      setError('Failed to initialize authentication. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -118,7 +141,9 @@ export const AuthProvider = ({ children }) => {
         
       } catch (error) {
         console.error('Error initializing auth:', error);
-        ErrorLogger.logAuthError(error, { action: 'auth_initialization' });
+        if (ErrorLogger?.logAuthError) {
+          ErrorLogger.logAuthError(error, { action: 'auth_initialization' });
+        }
         setError('Failed to initialize authentication. Please refresh the page.');
         setLoading(false);
       }
@@ -160,10 +185,12 @@ export const AuthProvider = ({ children }) => {
       return userData;
     } catch (error) {
       console.error('Login error:', error);
-      ErrorLogger.logAuthError(error, { 
-        action: 'email_login',
-        additionalData: { email, rememberMe }
-      });
+      if (ErrorLogger?.logAuthError) {
+        ErrorLogger.logAuthError(error, { 
+          action: 'email_login',
+          additionalData: { email, rememberMe }
+        });
+      }
       setError(error.message);
       throw error;
     } finally {
@@ -185,7 +212,9 @@ export const AuthProvider = ({ children }) => {
       return userData;
     } catch (error) {
       console.error('Google login error:', error);
-      ErrorLogger.logAuthError(error, { action: 'google_login' });
+      if (ErrorLogger?.logAuthError) {
+        ErrorLogger.logAuthError(error, { action: 'google_login' });
+      }
       setError(error.message);
       throw error;
     } finally {
@@ -207,7 +236,9 @@ export const AuthProvider = ({ children }) => {
       return userData;
     } catch (error) {
       console.error('Facebook login error:', error);
-      ErrorLogger.logAuthError(error, { action: 'facebook_login' });
+      if (ErrorLogger?.logAuthError) {
+        ErrorLogger.logAuthError(error, { action: 'facebook_login' });
+      }
       setError(error.message);
       throw error;
     } finally {
@@ -229,10 +260,12 @@ export const AuthProvider = ({ children }) => {
       return newUser;
     } catch (error) {
       console.error('Registration error:', error);
-      ErrorLogger.logAuthError(error, { 
-        action: 'user_registration',
-        additionalData: { email: userData.email, username: userData.username }
-      });
+      if (ErrorLogger?.logAuthError) {
+        ErrorLogger.logAuthError(error, { 
+          action: 'user_registration',
+          additionalData: { email: userData.email, username: userData.username }
+        });
+      }
       setError(error.message);
       throw error;
     } finally {
@@ -253,10 +286,12 @@ export const AuthProvider = ({ children }) => {
       // User state will be updated by the auth state listener
     } catch (error) {
       console.error('Logout error:', error);
-      ErrorLogger.logAuthError(error, { 
-        action: 'user_logout',
-        userId: user?.uid
-      });
+      if (ErrorLogger?.logAuthError) {
+        ErrorLogger.logAuthError(error, { 
+          action: 'user_logout',
+          userId: user?.uid
+        });
+      }
       setError(error.message);
       throw error;
     } finally {
@@ -276,10 +311,12 @@ export const AuthProvider = ({ children }) => {
       return { message: `Password reset email sent to ${email}` };
     } catch (error) {
       console.error('Password reset error:', error);
-      ErrorLogger.logAuthError(error, { 
-        action: 'password_reset',
-        additionalData: { email }
-      });
+      if (ErrorLogger?.logAuthError) {
+        ErrorLogger.logAuthError(error, { 
+          action: 'password_reset',
+          additionalData: { email }
+        });
+      }
       setError(error.message);
       throw error;
     }
@@ -307,10 +344,12 @@ export const AuthProvider = ({ children }) => {
       return updatedProfile;
     } catch (error) {
       console.error('Profile update error:', error);
-      ErrorLogger.logAuthError(error, { 
-        action: 'profile_update',
-        userId: user?.uid
-      });
+      if (ErrorLogger?.logAuthError) {
+        ErrorLogger.logAuthError(error, { 
+          action: 'profile_update',
+          userId: user?.uid
+        });
+      }
       setError(error.message);
       throw error;
     }
@@ -341,10 +380,12 @@ export const AuthProvider = ({ children }) => {
       return avatarUrl;
     } catch (error) {
       console.error('Avatar upload error:', error);
-      ErrorLogger.logAuthError(error, { 
-        action: 'avatar_upload',
-        userId: user?.uid
-      });
+      if (ErrorLogger?.logAuthError) {
+        ErrorLogger.logAuthError(error, { 
+          action: 'avatar_upload',
+          userId: user?.uid
+        });
+      }
       setError(error.message);
       throw error;
     }
@@ -362,14 +403,16 @@ export const AuthProvider = ({ children }) => {
       await authService.refreshSession();
       
       // Extend session if remember me is enabled
-      await sessionService.extendSession();
+      sessionService.extendSession();
       
     } catch (error) {
       console.error('Session refresh error:', error);
-      ErrorLogger.logAuthError(error, { 
-        action: 'session_refresh',
-        userId: user?.uid
-      });
+      if (ErrorLogger?.logAuthError) {
+        ErrorLogger.logAuthError(error, { 
+          action: 'session_refresh',
+          userId: user?.uid
+        });
+      }
       
       // If refresh fails, logout user
       await logout();
@@ -378,18 +421,13 @@ export const AuthProvider = ({ children }) => {
   }, [user?.uid, logout]);
 
   /**
-   * Check if username is available
+   * Check if username is available (removed - backend validates)
    */
   const checkUsernameAvailability = useCallback(async (username) => {
-    try {
-      // Don't pass excludeUid during signup (when user is null)
-      return await profileService.isUsernameAvailable(username, user?.uid || null);
-    } catch (error) {
-      console.error('Username check error:', error);
-      // Return true on error to allow form submission (will be caught during registration)
-      return true;
-    }
-  }, [user?.uid]);
+    // Username validation is now handled by the backend during registration
+    // Return true to allow form submission
+    return true;
+  }, []);
 
   /**
    * Update user preferences
@@ -411,10 +449,12 @@ export const AuthProvider = ({ children }) => {
       return updatedProfile;
     } catch (error) {
       console.error('Preferences update error:', error);
-      ErrorLogger.logAuthError(error, { 
-        action: 'preferences_update',
-        userId: user?.uid
-      });
+      if (ErrorLogger?.logAuthError) {
+        ErrorLogger.logAuthError(error, { 
+          action: 'preferences_update',
+          userId: user?.uid
+        });
+      }
       setError(error.message);
       throw error;
     }

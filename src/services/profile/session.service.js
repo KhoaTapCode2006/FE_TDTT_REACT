@@ -1,81 +1,43 @@
-import Cookies from 'js-cookie';
-
 /**
- * Session service for handling cookie-based session persistence
+ * Session service for handling localStorage-based session persistence
+ * Manages user session data and token expiration for backend API integration
  */
 class SessionService {
   constructor() {
-    this.cookieNames = {
-      accessToken: 'b4lu_access_token',
-      refreshToken: 'b4lu_refresh_token',
-      userId: 'b4lu_user_id',
-      rememberMe: 'b4lu_remember_me',
-      sessionData: 'b4lu_session'
-    };
-    
-    this.cookieOptions = {
-      secure: import.meta.env.PROD, // Only secure in production
-      sameSite: 'strict',
-      path: '/'
-    };
+    this.storageKey = 'b4lu_session';
     
     // Listen for storage events for cross-tab synchronization
     this.setupStorageListener();
   }
 
   /**
-   * Set user session with cookies
-   * @param {Object} user - Firebase user object
-   * @param {boolean} rememberMe - Whether to remember the user
-   * @returns {Promise<void>}
+   * Set user session in localStorage
+   * @param {Object} sessionData - Session data to store
+   * @param {string} sessionData.uid - User ID
+   * @param {string} sessionData.email - User email
+   * @param {string} sessionData.username - Username
+   * @param {string} sessionData.display_name - Display name
+   * @param {number} sessionData.tokenExpiration - Token expiration timestamp
+   * @param {boolean} sessionData.rememberMe - Remember me preference
+   * @returns {void}
    */
-  async setSession(user, rememberMe = false) {
+  setSession(sessionData) {
     try {
-      // Get ID token from Firebase user
-      const idToken = await user.getIdToken();
-      const refreshToken = user.refreshToken;
-      
-      // Calculate expiration times
-      const accessTokenExpiry = rememberMe ? 30 : 1; // 30 days or 1 day
-      const refreshTokenExpiry = rememberMe ? 30 : 7; // 30 days or 7 days
-      
-      // Session data for localStorage (non-sensitive)
-      const sessionData = {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        emailVerified: user.emailVerified,
-        rememberMe,
-        lastActivity: Date.now()
+      const session = {
+        uid: sessionData.uid,
+        email: sessionData.email,
+        username: sessionData.username,
+        display_name: sessionData.display_name,
+        tokenExpiration: sessionData.tokenExpiration,
+        rememberMe: sessionData.rememberMe || false,
+        lastActivity: Date.now(),
+        createdAt: Date.now()
       };
       
-      // Set cookies with appropriate expiration
-      Cookies.set(this.cookieNames.accessToken, idToken, {
-        ...this.cookieOptions,
-        expires: accessTokenExpiry
-      });
-      
-      Cookies.set(this.cookieNames.refreshToken, refreshToken, {
-        ...this.cookieOptions,
-        expires: refreshTokenExpiry
-      });
-      
-      Cookies.set(this.cookieNames.userId, user.uid, {
-        ...this.cookieOptions,
-        expires: accessTokenExpiry
-      });
-      
-      Cookies.set(this.cookieNames.rememberMe, rememberMe.toString(), {
-        ...this.cookieOptions,
-        expires: accessTokenExpiry
-      });
-      
-      // Store session data in localStorage for cross-tab sync
-      localStorage.setItem(this.cookieNames.sessionData, JSON.stringify(sessionData));
+      localStorage.setItem(this.storageKey, JSON.stringify(session));
       
       // Dispatch custom event for cross-tab synchronization
-      this.dispatchSessionEvent('session_set', sessionData);
+      this.dispatchSessionEvent('session_set', session);
       
     } catch (error) {
       console.error('Error setting session:', error);
@@ -89,24 +51,13 @@ class SessionService {
    */
   getSession() {
     try {
-      const accessToken = Cookies.get(this.cookieNames.accessToken);
-      const userId = Cookies.get(this.cookieNames.userId);
-      const rememberMe = Cookies.get(this.cookieNames.rememberMe) === 'true';
+      const sessionStr = localStorage.getItem(this.storageKey);
       
-      if (!accessToken || !userId) {
+      if (!sessionStr) {
         return null;
       }
       
-      // Get session data from localStorage
-      const sessionDataStr = localStorage.getItem(this.cookieNames.sessionData);
-      const sessionData = sessionDataStr ? JSON.parse(sessionDataStr) : {};
-      
-      return {
-        accessToken,
-        userId,
-        rememberMe,
-        ...sessionData
-      };
+      return JSON.parse(sessionStr);
     } catch (error) {
       console.error('Error getting session:', error);
       return null;
@@ -115,11 +66,16 @@ class SessionService {
 
   /**
    * Check if user has a valid session
-   * @returns {boolean} True if session exists and is valid
+   * @returns {boolean} True if session exists and is not expired
    */
   hasValidSession() {
     const session = this.getSession();
     if (!session) return false;
+    
+    // Check if token is expired
+    if (this.isTokenExpired()) {
+      return false;
+    }
     
     // Check if session is expired based on last activity
     const lastActivity = session.lastActivity || 0;
@@ -129,16 +85,29 @@ class SessionService {
   }
 
   /**
+   * Check if token is expired
+   * @returns {boolean} True if token is expired
+   */
+  isTokenExpired() {
+    const session = this.getSession();
+    if (!session || !session.tokenExpiration) {
+      return true;
+    }
+    
+    // Token is expired if current time is past expiration
+    return Date.now() >= session.tokenExpiration;
+  }
+
+  /**
    * Update session activity timestamp
    * @returns {void}
    */
   updateActivity() {
     try {
-      const sessionDataStr = localStorage.getItem(this.cookieNames.sessionData);
-      if (sessionDataStr) {
-        const sessionData = JSON.parse(sessionDataStr);
-        sessionData.lastActivity = Date.now();
-        localStorage.setItem(this.cookieNames.sessionData, JSON.stringify(sessionData));
+      const session = this.getSession();
+      if (session) {
+        session.lastActivity = Date.now();
+        localStorage.setItem(this.storageKey, JSON.stringify(session));
       }
     } catch (error) {
       console.error('Error updating activity:', error);
@@ -146,26 +115,22 @@ class SessionService {
   }
 
   /**
-   * Refresh access token
-   * @param {string} newToken - New access token
-   * @returns {Promise<void>}
+   * Refresh token expiration
+   * @param {string} newToken - New access token (not stored, just for reference)
+   * @returns {void}
    */
-  async refreshToken(newToken) {
+  refreshToken(newToken) {
     try {
       const session = this.getSession();
       if (!session) {
         throw new Error('No active session to refresh');
       }
       
-      // Update access token cookie
-      const expiry = session.rememberMe ? 30 : 1;
-      Cookies.set(this.cookieNames.accessToken, newToken, {
-        ...this.cookieOptions,
-        expires: expiry
-      });
+      // Update token expiration (1 hour from now)
+      session.tokenExpiration = Date.now() + (60 * 60 * 1000);
+      session.lastActivity = Date.now();
       
-      // Update activity timestamp
-      this.updateActivity();
+      localStorage.setItem(this.storageKey, JSON.stringify(session));
       
     } catch (error) {
       console.error('Error refreshing token:', error);
@@ -179,13 +144,8 @@ class SessionService {
    */
   clearSession() {
     try {
-      // Remove all cookies
-      Object.values(this.cookieNames).forEach(cookieName => {
-        Cookies.remove(cookieName, { path: '/' });
-      });
-      
-      // Clear localStorage
-      localStorage.removeItem(this.cookieNames.sessionData);
+      // Remove session from localStorage
+      localStorage.removeItem(this.storageKey);
       
       // Dispatch logout event for cross-tab synchronization
       this.dispatchSessionEvent('session_cleared', null);
@@ -201,7 +161,7 @@ class SessionService {
    */
   setupStorageListener() {
     window.addEventListener('storage', (event) => {
-      if (event.key === this.cookieNames.sessionData) {
+      if (event.key === this.storageKey) {
         // Session data changed in another tab
         const newSessionData = event.newValue ? JSON.parse(event.newValue) : null;
         
@@ -236,9 +196,7 @@ class SessionService {
    */
   handleCrossTabLogout() {
     // Clear local session without dispatching events (to avoid loops)
-    Object.values(this.cookieNames).forEach(cookieName => {
-      Cookies.remove(cookieName, { path: '/' });
-    });
+    localStorage.removeItem(this.storageKey);
     
     // Notify auth service about logout
     window.dispatchEvent(new CustomEvent('auth_state_changed', {
@@ -282,49 +240,33 @@ class SessionService {
     if (!session) return null;
     
     const lastActivity = session.lastActivity || 0;
+    const tokenExpiration = session.tokenExpiration || 0;
     const maxInactivity = session.rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-    const expiresAt = lastActivity + maxInactivity;
+    const sessionExpiresAt = lastActivity + maxInactivity;
     
     return {
       lastActivity: new Date(lastActivity),
-      expiresAt: new Date(expiresAt),
-      isExpired: Date.now() > expiresAt,
-      timeUntilExpiry: Math.max(0, expiresAt - Date.now())
+      tokenExpiresAt: new Date(tokenExpiration),
+      sessionExpiresAt: new Date(sessionExpiresAt),
+      isTokenExpired: Date.now() >= tokenExpiration,
+      isSessionExpired: Date.now() >= sessionExpiresAt,
+      timeUntilTokenExpiry: Math.max(0, tokenExpiration - Date.now()),
+      timeUntilSessionExpiry: Math.max(0, sessionExpiresAt - Date.now())
     };
   }
 
   /**
    * Extend session if remember me is enabled
-   * @returns {Promise<void>}
+   * @returns {void}
    */
-  async extendSession() {
+  extendSession() {
     try {
       const session = this.getSession();
       if (!session || !session.rememberMe) return;
       
-      // Update activity and extend cookie expiration
+      // Update activity timestamp
       this.updateActivity();
       
-      // Re-set cookies with extended expiration
-      const accessToken = Cookies.get(this.cookieNames.accessToken);
-      const refreshToken = Cookies.get(this.cookieNames.refreshToken);
-      
-      if (accessToken && refreshToken) {
-        Cookies.set(this.cookieNames.accessToken, accessToken, {
-          ...this.cookieOptions,
-          expires: 30 // 30 days
-        });
-        
-        Cookies.set(this.cookieNames.refreshToken, refreshToken, {
-          ...this.cookieOptions,
-          expires: 30 // 30 days
-        });
-        
-        Cookies.set(this.cookieNames.userId, session.userId, {
-          ...this.cookieOptions,
-          expires: 30 // 30 days
-        });
-      }
     } catch (error) {
       console.error('Error extending session:', error);
     }
