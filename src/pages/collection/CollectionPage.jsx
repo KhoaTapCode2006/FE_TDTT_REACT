@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
-import { collectionService } from "../services/profile/collection.service";
-import { useAuth } from "../contexts/AuthContext";
+import { collectionService } from "../../services/backend/collection.service";
+import { viewsService } from "../../services/backend/views.service";
+import { useAuth } from "../../contexts/AuthContext";
 
 const STATUS_TYPES = {
   success: "bg-emerald-600 text-white",
@@ -21,18 +22,6 @@ const formatDate = (value) => {
     });
   } catch {
     return "-";
-  }
-};
-
-const getCurrentUser = () => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  try {
-    return JSON.parse(window.localStorage.getItem("currentUser") || "null");
-  } catch {
-    return null;
   }
 };
 
@@ -66,8 +55,8 @@ function SectionCard({ title, description, children, action }) {
 
 function PropertyChip({ label, value }) {
   return (
-    <div className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
-      {label}: {value}
+    <div className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-on-surface-variant break-words">
+      <span className="whitespace-nowrap">{label}:</span> <span className="break-all">{value}</span>
     </div>
   );
 }
@@ -92,11 +81,23 @@ function TagPill({ tag, onRemove, removable }) {
 
 function CollectionPage() {
   const { collectionId } = useParams();
-  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  
+  // Debug: Log auth state
+  console.log("=== CollectionPage Render ===");
+  console.log("authLoading:", authLoading);
+  console.log("user:", user);
+  console.log("collectionId:", collectionId);
+  
+  // Determine if this is create mode
+  const isCreateMode = collectionId === 'new';
+  
   const [collection, setCollection] = useState(null);
   const [editValues, setEditValues] = useState({ name: "", description: "", visibility: "public", thumbnail_url: "" });
-  const [isEditing, setIsEditing] = useState(false);
-  const [pageBusy, setPageBusy] = useState(true);
+  const [isEditing, setIsEditing] = useState(isCreateMode || location.state?.autoEdit || false);
+  const [pageBusy, setPageBusy] = useState(!isCreateMode);
   const [saving, setSaving] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [pageError, setPageError] = useState(null);
@@ -105,20 +106,36 @@ function CollectionPage() {
   const [collaboratorInput, setCollaboratorInput] = useState("");
   const [toast, setToast] = useState(null);
 
-  const currentUser = user || { uid: "uid_huy_001", name: "Gia Huy" };    
+  // Check if current user is the owner
   const isOwner = useMemo(() => {
-    return collection && currentUser?.uid && collection.ownerId === currentUser.uid;
-  }, [collection, currentUser]);
+    console.log("=== isOwner Check ===");
+    console.log("isCreateMode:", isCreateMode);
+    console.log("user:", user);
+    console.log("collection:", collection);
+    
+    if (isCreateMode) {
+      console.log("→ isOwner = true (create mode)");
+      return true;
+    }
+    
+    // Standard ownership check
+    if (!user || !collection) {
+      console.log("→ isOwner = false (no user or collection)");
+      return false;
+    }
+    
+    const result = user.uid === collection.owner_uid;
+    console.log("→ isOwner =", result, "| user.uid:", user.uid, "| owner_uid:", collection.owner_uid);
+    return result;
+  }, [user, collection, isCreateMode]);
 
   const isCollaborator = useMemo(() => {
     return (
       collection &&
-      currentUser?.uid &&
-      collection.collaborators?.includes(currentUser.uid)
+      user?.uid &&
+      collection.collaborators?.some(c => c.uid === user.uid)
     );
-  }, [collection, currentUser]);
-
-  const canEdit = isOwner || isCollaborator;
+  }, [collection, user]);
 
   const showToast = useCallback((title, message, type = "info") => {
     setToast({ title, message, type });
@@ -126,6 +143,12 @@ function CollectionPage() {
   }, []);
 
   const loadCollection = useCallback(async () => {
+    // Skip loading if in create mode
+    if (isCreateMode) {
+      setPageBusy(false);
+      return;
+    }
+    
     setPageBusy(true);
     setPageError(null);
 
@@ -136,6 +159,9 @@ function CollectionPage() {
         return;
       }
       
+      console.log("Collection loaded:", result);
+      console.log("Current user:", user);
+      
       setCollection(result);
       setEditValues({
         name: result?.name || "",
@@ -143,19 +169,58 @@ function CollectionPage() {
         visibility: result?.visibility || "public",
         thumbnail_url: result?.thumbnail_url || "",
       });
+
+      // Record view after successfully loading collection
+      // This will send auth token automatically via viewsService interceptor
+      // Backend will allow view tracking even for private collections if user is owner
+      try {
+        await viewsService.recordView(collectionId, 'collections');
+        console.log("View recorded for collection:", collectionId);
+        
+        // Optimistically increment view count in local state
+        setCollection(prev => ({
+          ...prev,
+          views: {
+            ...prev.views,
+            total_views: ((prev.views?.total_views || 0) + 1),
+            weekly_views: ((prev.views?.weekly_views || 0) + 1)
+          }
+        }));
+      } catch (viewError) {
+        // Don't throw - view tracking is not critical
+        console.warn("Failed to record view:", viewError);
+      }
     } catch (error) {
       console.error("Failed to load collection:", error);
       setPageError("Không thể tải collection. Vui lòng thử lại sau.");
     } finally {
       setPageBusy(false);
     }
-  }, [collectionId]);
+  }, [collectionId, user, isCreateMode]);
 
   useEffect(() => {
-    if (collectionId) {
+    if (collectionId && collectionId !== 'new') {
       loadCollection();
+    } else if (collectionId === 'new') {
+      // Initialize empty collection for create mode
+      setCollection({
+        name: '',
+        description: '',
+        visibility: 'public',
+        thumbnail_url: '',
+        tags: [],
+        places: [],
+        collaborators: [],
+        owner_uid: user?.uid,
+        saved_count: 0,
+        views: {
+          total_views: 0,
+          weekly_views: 0
+        }
+      });
+      setPageBusy(false);
     }
-  }, [loadCollection]);
+  }, [collectionId, loadCollection, user]);
   const handleCancelEdit = () => {
     if (collection) {
       setEditValues({
@@ -173,16 +238,9 @@ function CollectionPage() {
   };
 
   const handleSaveCollection = async () => {
-    if (!collection) return;
-    const payload = {};
-    if (editValues.name !== collection.name) payload.name = editValues.name;
-    if (editValues.description !== collection.description) payload.description = editValues.description;
-    if (editValues.visibility !== collection.visibility) payload.visibility = editValues.visibility;
-    if (editValues.thumbnail_url !== collection.thumbnail_url) payload.thumbnail_url = editValues.thumbnail_url;
-
-    if (Object.keys(payload).length === 0) {
-      setIsEditing(false);
-      showToast("Đã lưu", "Không có thay đổi mới.", "info");
+    // Validation
+    if (!editValues.name || editValues.name.trim().length < 3) {
+      showToast("Lỗi", "Tên collection phải có ít nhất 3 ký tự.", "error");
       return;
     }
 
@@ -190,15 +248,47 @@ function CollectionPage() {
     setPageError(null);
 
     try {
-      await collectionService.updateCollection(collection.id, payload);
-      // Update local state with new values
-      setCollection(prev => ({ ...prev, ...payload }));
-      setIsEditing(false);
-      showToast("Thành công", "Cập nhật collection đã được lưu.", "success");
+      if (isCreateMode) {
+        // CREATE MODE: Create new collection
+        const newCollection = await collectionService.createCollection({
+          name: editValues.name.trim(),
+          description: editValues.description?.trim() || "",
+          visibility: editValues.visibility,
+          thumbnail_url: editValues.thumbnail_url?.trim() || "",
+          tags: [],
+        });
+        
+        showToast("Thành công", "Collection đã được tạo!", "success");
+        
+        // Navigate to the newly created collection's edit page
+        navigate(`/collections/${newCollection.id}`, { replace: true });
+      } else {
+        // EDIT MODE: Update existing collection
+        if (!collection) return;
+        
+        const payload = {};
+        if (editValues.name !== collection.name) payload.name = editValues.name;
+        if (editValues.description !== collection.description) payload.description = editValues.description;
+        if (editValues.visibility !== collection.visibility) payload.visibility = editValues.visibility;
+        if (editValues.thumbnail_url !== collection.thumbnail_url) payload.thumbnail_url = editValues.thumbnail_url;
+
+        if (Object.keys(payload).length === 0) {
+          setIsEditing(false);
+          showToast("Đã lưu", "Không có thay đổi mới.", "info");
+          return;
+        }
+
+        await collectionService.updateCollection(collection.id, payload);
+        
+        // Update local state with new values
+        setCollection(prev => ({ ...prev, ...payload }));
+        setIsEditing(false);
+        showToast("Thành công", "Cập nhật collection đã được lưu.", "success");
+      }
     } catch (error) {
-      console.error("Error updating collection:", error);
-      setPageError("Lưu collection thất bại. Vui lòng thử lại.");
-      showToast("Lỗi", "Không thể lưu collection.", "error");
+      console.error("Error saving collection:", error);
+      setPageError(isCreateMode ? "Tạo collection thất bại. Vui lòng thử lại." : "Lưu collection thất bại. Vui lòng thử lại.");
+      showToast("Lỗi", isCreateMode ? "Không thể tạo collection." : "Không thể lưu collection.", "error");
     } finally {
       setSaving(false);
     }
@@ -211,21 +301,19 @@ function CollectionPage() {
     }
 
     const placeId = placeInput.trim();
-    if (collection.hotels?.some((item) => item.place_id === placeId)) {
+    if (collection.places?.some((item) => item.place_id === placeId)) {
       showToast("Đã tồn tại", "Địa điểm này đã có trong collection.", "info");
       return;
     }
 
     setActionBusy(true);
     try {
-      const hotelData = { place_id: placeId, added_by: currentUser.uid, added_at: new Date() };
-      await collectionService.addHotelToCollection(collection.id, hotelData);
+      // Backend expects array of place IDs
+      // Backend will automatically add added_by and added_at from auth token
+      const updatedCollection = await collectionService.addPlacesToCollection(collection.id, [placeId]);
       
-      // Update local state
-      setCollection(prev => ({
-        ...prev,
-        hotels: [...(prev.hotels || []), hotelData]
-      }));
+      // Update local state with response from backend
+      setCollection(updatedCollection);
       
       setPlaceInput("");
       showToast("Thành công", "Đã thêm địa điểm vào collection.", "success");
@@ -242,16 +330,11 @@ function CollectionPage() {
     setActionBusy(true);
 
     try {
-      const hotelToRemove = collection.hotels?.find(h => h.place_id === placeId);
-      if (hotelToRemove) {
-        await collectionService.removeHotelFromCollection(collection.id, hotelToRemove);
-        
-        // Update local state
-        setCollection(prev => ({
-          ...prev,
-          hotels: prev.hotels?.filter(h => h.place_id !== placeId) || []
-        }));
-      }
+      // Backend expects array of place IDs
+      const updatedCollection = await collectionService.removePlacesFromCollection(collection.id, [placeId]);
+      
+      // Update local state with response from backend
+      setCollection(updatedCollection);
       
       showToast("Thành công", "Đã xóa địa điểm.", "success");
     } catch (error) {
@@ -280,14 +363,11 @@ function CollectionPage() {
 
     setActionBusy(true);
     try {
-      const updatedTags = [...(collection.tags || []), tag];
-      await collectionService.updateCollection(collection.id, { tags: updatedTags });
+      // Backend expects array of tags
+      const updatedCollection = await collectionService.addTagsToCollection(collection.id, [tag]);
       
-      // Update local state
-      setCollection(prev => ({
-        ...prev,
-        tags: updatedTags
-      }));
+      // Update local state with response from backend
+      setCollection(updatedCollection);
       
       setTagInput("");
       showToast("Thành công", "Đã thêm tag.", "success");
@@ -304,14 +384,11 @@ function CollectionPage() {
     setActionBusy(true);
 
     try {
-      const updatedTags = collection.tags?.filter(t => t !== tag) || [];
-      await collectionService.updateCollection(collection.id, { tags: updatedTags });
+      // Backend expects array of tags
+      const updatedCollection = await collectionService.removeTagsFromCollection(collection.id, [tag]);
       
-      // Update local state
-      setCollection(prev => ({
-        ...prev,
-        tags: updatedTags
-      }));
+      // Update local state with response from backend
+      setCollection(updatedCollection);
       
       showToast("Thành công", "Đã xóa tag.", "success");
     } catch (error) {
@@ -324,31 +401,40 @@ function CollectionPage() {
 
   const handleAddCollaborator = async () => {
     if (!collection || !collaboratorInput.trim()) {
-      showToast("Lỗi", "Vui lòng nhập Email hoặc UID.", "error");
+      showToast("Lỗi", "Vui lòng nhập UID người dùng.", "error");
       return;
     }
 
-    const collaboratorValue = collaboratorInput.trim();
-    if (collection.collaborators?.includes(collaboratorValue)) {
+    const collaboratorUid = collaboratorInput.trim();
+    
+    // Check if trying to add owner
+    if (collaboratorUid === collection.owner_uid) {
+      showToast("Lỗi", "Chủ sở hữu mặc định đã có quyền, không cần thêm vào danh sách.", "info");
+      return;
+    }
+    
+    // Check if already exists
+    if (collection.collaborators?.some(c => c.uid === collaboratorUid)) {
       showToast("Đã tồn tại", "Người này đã là cộng tác viên.", "info");
       return;
     }
 
     setActionBusy(true);
     try {
-      await collectionService.addCollaborator(collection.id, collaboratorValue);
+      // API expects array of UIDs
+      const updatedCollection = await collectionService.addCollaboratorsToCollection(
+        collection.id, 
+        [collaboratorUid]
+      );
       
-      // Update local state
-      setCollection(prev => ({
-        ...prev,
-        collaborators: [...(prev.collaborators || []), collaboratorValue]
-      }));
+      // Update local state with response from backend
+      setCollection(updatedCollection);
       
       setCollaboratorInput("");
       showToast("Thành công", "Đã thêm cộng tác viên.", "success");
     } catch (error) {
       console.error("Add collaborator failed:", error);
-      showToast("Lỗi", "Không thể thêm cộng tác viên.", "error");
+      showToast("Lỗi", error.message || "Không thể thêm cộng tác viên.", "error");
     } finally {
       setActionBusy(false);
     }
@@ -356,21 +442,28 @@ function CollectionPage() {
 
   const handleRemoveCollaborator = async (uid) => {
     if (!collection) return;
+    
+    // Confirmation dialog
+    if (!window.confirm("Bạn có chắc muốn xóa cộng tác viên này?")) {
+      return;
+    }
+    
     setActionBusy(true);
 
     try {
-      await collectionService.removeCollaborator(collection.id, uid);
+      // API expects array of UIDs
+      const updatedCollection = await collectionService.removeCollaboratorsFromCollection(
+        collection.id, 
+        [uid]
+      );
       
-      // Update local state
-      setCollection(prev => ({
-        ...prev,
-        collaborators: prev.collaborators?.filter(c => c !== uid) || []
-      }));
+      // Update local state with response from backend
+      setCollection(updatedCollection);
       
       showToast("Thành công", "Đã xóa cộng tác viên.", "success");
     } catch (error) {
       console.error("Remove collaborator failed:", error);
-      showToast("Lỗi", "Xóa cộng tác viên không thành công.", "error");
+      showToast("Lỗi", error.message || "Xóa cộng tác viên không thành công.", "error");
     } finally {
       setActionBusy(false);
     }
@@ -381,13 +474,25 @@ function CollectionPage() {
 
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <PropertyChip label="ID" value={collection.id} />
-        <PropertyChip label="Trạng thái" value={String(collection.visibility)} />
+        <PropertyChip label="ID" value={collection.id ? (collection.id.substring(0, 8) + '...') : 'N/A'} />
+        <PropertyChip label="Trạng thái" value={String(collection.visibility || 'public').toUpperCase()} />
         <PropertyChip label="Số tag" value={collection.tags?.length ?? 0} />
         <PropertyChip label="Cộng tác viên" value={collection.collaborators?.length ?? 0} />
       </div>
     );
   };
+
+  // Wait for auth to load before rendering
+  if (authLoading) {
+    return (
+      <div className="min-h-[calc(100vh-80px)] flex items-center justify-center bg-background text-on-background">
+        <div className="inline-flex items-center gap-3 rounded-3xl border border-outline-variant/40 bg-surface-container-low px-6 py-5 shadow-xl">
+          <Icon name="hourglass_top" size={24} className="text-primary animate-spin" />
+          <span className="text-sm font-medium">Đang xác thực...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (pageBusy) {
     return (
@@ -412,9 +517,56 @@ function CollectionPage() {
     );
   }
 
+  // Show login warning only if:
+  // 1. Auth is not loading
+  // 2. User is null (not logged in)
+  // 3. Not in create mode
+  const showLoginWarning = !authLoading && !user && !isCreateMode;
+
   return (
     <div className="min-h-[calc(100vh-80px)] bg-background px-4 py-6 text-on-background sm:px-6 lg:px-10">
       <Toast toast={toast} />
+
+      {/* Login Warning Banner */}
+      {showLoginWarning && (
+        <div className="mx-auto w-full max-w-7xl mb-6">
+          <div className="rounded-3xl border border-orange-400/20 bg-orange-50 p-4">
+            <div className="flex items-center gap-3">
+              <Icon name="warning" size={24} className="text-orange-600" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-orange-800">Bạn chưa đăng nhập</p>
+                <p className="text-xs text-orange-600 mt-1">Vui lòng đăng nhập để chỉnh sửa collection này.</p>
+              </div>
+              <Link 
+                to="/auth/login" 
+                className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700"
+              >
+                Đăng nhập
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Back Button */}
+      <div className="mx-auto w-full max-w-7xl mb-6">
+        <button
+          type="button"
+          onClick={() => {
+            // If we have returnTab in location state, navigate to dashboard with that tab
+            const returnTab = location.state?.returnTab;
+            if (returnTab) {
+              navigate(`/collections?tab=${returnTab}`);
+            } else {
+              navigate(-1);
+            }
+          }}
+          className="inline-flex items-center gap-2 text-sm font-medium text-on-surface-variant transition-colors hover:text-on-surface"
+        >
+          <Icon name="arrow_back" size={20} />
+          <span>Quay lại</span>
+        </button>
+      </div>
 
       <div className="mx-auto grid w-full max-w-7xl gap-6">
         <div className="flex flex-col gap-6 rounded-4xl border border-outline-variant/40 bg-surface-container-low p-6 shadow-lg">
@@ -424,43 +576,34 @@ function CollectionPage() {
                 <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                   <Icon name="collections" size={16} /> Collection
                 </span>
-                <span className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
-                  {collection.saveCount ?? 0} lượt thích
-                </span>
+                {!isCreateMode && (
+                  <>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
+                      <Icon name="favorite" size={14} />
+                      <span>{collection?.saved_count ?? 0} lượt thích</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
+                      <Icon name="visibility" size={14} />
+                      <span>{collection?.views?.total_views ?? 0} lượt xem</span>
+                    </span>
+                  </>
+                )}
+                {isCreateMode && (
+                  <span className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
+                    Mới
+                  </span>
+                )}
               </div>
 
               <div className="space-y-3">
-                <h1 className="text-3xl font-semibold text-on-surface">{collection.name}</h1>
+                <h1 className="text-3xl font-semibold text-on-surface">
+                  {isCreateMode ? "Tạo Collection Mới" : collection.name}
+                </h1>
 
-                {isEditing ? (
-                  <div className="grid gap-4">
-                    <label className="grid gap-2 text-sm font-medium text-on-surface">
-                      Tên collection
-                      <input
-                        value={editValues.name}
-                        onChange={(event) => setEditValues((prev) => ({ ...prev, name: event.target.value }))}
-                        disabled={!isEditing}
-                        className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80 disabled:cursor-not-allowed disabled:bg-surface-container-low"
-                        placeholder="Nhập tên collection"
-                      />
-                    </label>
-
-                    <label className="grid gap-2 text-sm font-medium text-on-surface">
-                      Mô tả
-                      <textarea
-                        value={editValues.description}
-                        onChange={(event) => setEditValues((prev) => ({ ...prev, description: event.target.value }))}
-                        disabled={!isEditing}
-                        rows={4}
-                        className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80 disabled:cursor-not-allowed disabled:bg-surface-container-low"
-                        placeholder="Thêm mô tả về collection"
-                      />
-                    </label>
-                  </div>
-                ) : (
+                {!isEditing && (
                   <>
                     <div className="flex flex-wrap items-center gap-2">
-                      {collection.tags?.length ? (
+                      {collection?.tags?.length ? (
                         collection.tags.map((tag) => (
                           <span key={tag} className="rounded-full bg-surface-container px-3 py-1 text-xs font-medium text-on-surface">
                             #{tag}
@@ -472,17 +615,19 @@ function CollectionPage() {
                         </span>
                       )}
                     </div>
-                    <p className="max-w-3xl text-sm leading-7 text-on-surface-variant">{collection.description || "Collection chưa có mô tả."}</p>
+                    <p className="max-w-3xl text-sm leading-7 text-on-surface-variant">{collection?.description || "Collection chưa có mô tả."}</p>
                   </>
                 )}
               </div>
 
-              {isEditing ? <div className="flex flex-wrap gap-2">{renderCollectionMeta()}</div> : null}
+              {isEditing && !isCreateMode ? renderCollectionMeta() : null}
             </div>
 
             <div className="flex flex-wrap items-center gap-3 justify-end">
-              <span className="text-sm text-on-surface-variant">Owner: {collection.ownerId}</span>
-              {!isEditing && canEdit ? (
+              {!isCreateMode && <span className="text-sm text-on-surface-variant">Owner: {collection.owner_uid}</span>}
+              
+              {/* Edit button - only show for owner when not editing and not in create mode */}
+              {!isEditing && isOwner && !isCreateMode && (
                 <button
                   type="button"
                   onClick={handleStartEdit}
@@ -490,9 +635,10 @@ function CollectionPage() {
                 >
                   <Icon name="edit" size={18} /> Chỉnh sửa
                 </button>
-              ) : null}
+              )}
 
-              {isEditing ? (
+              {/* Save and Cancel buttons - only show when editing */}
+              {isEditing && (
                 <>
                   <button
                     type="button"
@@ -507,10 +653,10 @@ function CollectionPage() {
                     disabled={saving}
                     className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <Icon name="save" size={18} /> Lưu
+                    <Icon name="save" size={18} /> {saving ? 'Đang lưu...' : (isCreateMode ? 'Tạo bộ sưu tập' : 'Lưu')}
                   </button>
                 </>
-              ) : null}
+              )}
             </div>
           </div>
 
@@ -525,7 +671,7 @@ function CollectionPage() {
               <div className="grid gap-6">
                 <SectionCard
                   title="Thông tin collection"
-                  description="Chỉnh sửa thông tin cơ bản của bộ sưu tập."
+                  description={isCreateMode ? "Điền thông tin cơ bản cho collection mới." : "Chỉnh sửa thông tin cơ bản của bộ sưu tập."}
                 >
                   <div className="grid gap-4">
                     <label className="grid gap-2 text-sm font-medium text-on-surface">
@@ -579,10 +725,12 @@ function CollectionPage() {
                   </div>
                 </SectionCard>
 
-                <SectionCard
-                  title="Quản lý địa điểm"
-                  description="Thêm hoặc xóa địa điểm trong collection."
-                >
+                {!isCreateMode && (
+                  <>
+                    <SectionCard
+                      title="Quản lý địa điểm"
+                      description="Thêm hoặc xóa địa điểm trong collection."
+                    >
                   <div className="grid gap-4">
                     <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
                       <input
@@ -594,7 +742,7 @@ function CollectionPage() {
                       <button
                         type="button"
                         onClick={handleAddPlace}
-                        disabled={!canEdit || actionBusy}
+                        disabled={actionBusy}
                         className="inline-flex items-center justify-center rounded-3xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <Icon name="add" size={18} /> Thêm
@@ -602,8 +750,8 @@ function CollectionPage() {
                     </div>
 
                     <div className="space-y-3">
-                      {collection.hotels?.length ? (
-                        collection.hotels.map((item) => (
+                      {collection.places?.length ? (
+                        collection.places.map((item) => (
                           <div key={item.place_id} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                               <p className="text-sm font-semibold text-on-surface">{item.place_id}</p>
@@ -612,7 +760,7 @@ function CollectionPage() {
                             <button
                               type="button"
                               onClick={() => handleRemovePlace(item.place_id)}
-                              disabled={!canEdit || actionBusy}
+                              disabled={actionBusy}
                               className="inline-flex items-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               <Icon name="delete" size={16} /> Xóa
@@ -628,38 +776,40 @@ function CollectionPage() {
                   </div>
                 </SectionCard>
 
-                <SectionCard
-                  title="Thẻ tags"
-                  description="Thêm tag mới để lọc collection."
-                >
-                  <div className="grid gap-4">
-                    <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                      <input
-                        value={tagInput}
-                        onChange={(event) => setTagInput(event.target.value)}
-                        placeholder="Nhập tag mới"
-                        className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddTag}
-                        disabled={!canEdit || actionBusy}
-                        className="inline-flex items-center justify-center rounded-3xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Icon name="tag" size={18} /> Thêm tag
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {collection.tags?.length ? (
-                        collection.tags.map((tag) => (
-                          <TagPill key={tag} tag={tag} removable={Boolean(canEdit)} onRemove={handleRemoveTag} />
-                        ))
-                      ) : (
-                        <p className="text-sm text-on-surface-variant">Collection chưa có tag.</p>
-                      )}
-                    </div>
-                  </div>
-                </SectionCard>
+                    <SectionCard
+                      title="Thẻ tags"
+                      description="Thêm tag mới để lọc collection."
+                    >
+                      <div className="grid gap-4">
+                        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                          <input
+                            value={tagInput}
+                            onChange={(event) => setTagInput(event.target.value)}
+                            placeholder="Nhập tag mới"
+                            className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddTag}
+                            disabled={actionBusy}
+                            className="inline-flex items-center justify-center rounded-3xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Icon name="tag" size={18} /> Thêm tag
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {collection.tags?.length ? (
+                            collection.tags.map((tag) => (
+                              <TagPill key={tag} tag={tag} removable={true} onRemove={handleRemoveTag} />
+                            ))
+                          ) : (
+                            <p className="text-sm text-on-surface-variant">Collection chưa có tag.</p>
+                          )}
+                        </div>
+                      </div>
+                    </SectionCard>
+                  </>
+                )}
               </div>
 
               <div className="grid gap-6">
@@ -668,86 +818,104 @@ function CollectionPage() {
                   description="Thông tin nhanh của collection."
                 >
                   <div className="grid gap-3">
-                    <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                      <p className="font-semibold text-on-surface">Ngày tạo</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.created_at)}</p>
-                    </div>
-                    <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                      <p className="font-semibold text-on-surface">Cập nhật</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.updated_at)}</p>
-                    </div>
+                    {!isCreateMode && (
+                      <>
+                        <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
+                          <p className="font-semibold text-on-surface">Ngày tạo</p>
+                          <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.created_at)}</p>
+                        </div>
+                        <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
+                          <p className="font-semibold text-on-surface">Cập nhật</p>
+                          <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.updated_at)}</p>
+                        </div>
+                      </>
+                    )}
                     <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
                       <p className="font-semibold text-on-surface">Người dùng hiện tại</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">{currentUser?.uid || "Chưa đăng nhập"}</p>
+                      <p className="mt-1 text-sm text-on-surface-variant">{user?.uid || "Chưa đăng nhập"}</p>
                     </div>
+                    {isCreateMode && (
+                      <div className="rounded-3xl border border-primary/20 bg-primary/5 px-4 py-4 text-sm">
+                        <p className="font-semibold text-primary">Chế độ tạo mới</p>
+                        <p className="mt-1 text-xs text-on-surface-variant">Điền thông tin cơ bản và bấm "Tạo bộ sưu tập"</p>
+                      </div>
+                    )}
                   </div>
                 </SectionCard>
 
-                {isOwner ? (
+                {!isCreateMode && (
                   <SectionCard
-                    title="Quản lý cộng tác viên"
-                    description="Chỉ chủ sở hữu collection mới có thể thêm hoặc xóa cộng tác viên."
+                    title={isOwner ? "Quản lý cộng tác viên" : "Cộng tác viên"}
+                    description={isOwner ? "Chỉ chủ sở hữu collection mới có thể thêm hoặc xóa cộng tác viên." : "Danh sách cộng tác viên hiện tại của collection."}
                   >
-                    <div className="grid gap-4">
-                      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                        <input
-                          value={collaboratorInput}
-                          onChange={(event) => setCollaboratorInput(event.target.value)}
-                          placeholder="Nhập email hoặc UID"
-                          className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleAddCollaborator}
-                          disabled={actionBusy}
-                          className="inline-flex items-center justify-center rounded-3xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Icon name="person_add" size={18} /> Mời cộng tác
-                        </button>
+                    {isOwner ? (
+                      <div className="grid gap-4">
+                        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                          <input
+                            value={collaboratorInput}
+                            onChange={(event) => setCollaboratorInput(event.target.value)}
+                            placeholder="Nhập UID người dùng"
+                            className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddCollaborator}
+                            disabled={actionBusy}
+                            className="inline-flex items-center justify-center gap-2 rounded-3xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Icon name="person_add" size={18} />
+                            <span>Mời</span>
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          {collection.collaborators?.length ? (
+                            collection.collaborators.map((collaborator) => {
+                              const isCollaboratorOwner = collaborator.uid === collection.owner_uid;
+                              
+                              return (
+                                <div key={collaborator.uid} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="flex-1">
+                                    <p className="text-sm font-semibold text-on-surface">{collaborator.uid}</p>
+                                    <p className="text-xs text-on-surface-variant">UID: {collaborator.uid}</p>
+                                  </div>
+                                  {isCollaboratorOwner ? (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">
+                                      Owner
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveCollaborator(collaborator.uid)}
+                                      disabled={actionBusy}
+                                      className="inline-flex items-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      <Icon name="close" size={16} /> Xóa
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
+                              Chưa có cộng tác viên nào.
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="space-y-3">
+                    ) : (
+                      <div className="grid gap-3">
                         {collection.collaborators?.length ? (
-                          collection.collaborators.map((collaboratorUid) => (
-                            <div key={collaboratorUid} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                              <div>
-                                <p className="text-sm font-semibold text-on-surface">{collaboratorUid}</p>
-                                <p className="text-xs text-on-surface-variant">UID: {collaboratorUid}</p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveCollaborator(collaboratorUid)}
-                                disabled={actionBusy}
-                                className="inline-flex items-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                <Icon name="close" size={16} /> Xóa
-                              </button>
+                          collection.collaborators.map((collaborator) => (
+                            <div key={collaborator.uid} className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 text-sm text-on-surface">
+                              <p className="font-semibold">{collaborator.uid}</p>
+                              <p className="mt-1 text-xs text-on-surface-variant">UID: {collaborator.uid}</p>
                             </div>
                           ))
                         ) : (
-                          <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
-                            Chưa có cộng tác viên nào.
-                          </div>
+                          <p className="text-sm text-on-surface-variant">Collection hiện không có cộng tác viên.</p>
                         )}
                       </div>
-                    </div>
-                  </SectionCard>
-                ) : (
-                  <SectionCard
-                    title="Cộng tác viên"
-                    description="Danh sách cộng tác viên hiện tại của collection."
-                  >
-                    <div className="grid gap-3">
-                      {collection.collaborators?.length ? (
-                        collection.collaborators.map((collaboratorUid) => (
-                          <div key={collaboratorUid} className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 text-sm text-on-surface">
-                            <p className="font-semibold">{collaboratorUid}</p>
-                            <p className="mt-1 text-xs text-on-surface-variant">UID: {collaboratorUid}</p>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-on-surface-variant">Collection hiện không có cộng tác viên.</p>
-                      )}
-                    </div>
+                    )}
                   </SectionCard>
                 )}
               </div>
@@ -760,8 +928,8 @@ function CollectionPage() {
                   description="Danh sách địa điểm đã lưu trong collection."
                 >
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {collection.hotels?.length ? (
-                      collection.hotels.map((item) => (
+                    {collection.places?.length ? (
+                      collection.places.map((item) => (
                         <div key={item.place_id} className="overflow-hidden rounded-3xl border border-outline-variant/50 bg-surface-container shadow-sm">
                           <div className="h-44 w-full bg-slate-200">
                             {item.image_url ? (
@@ -797,10 +965,10 @@ function CollectionPage() {
                 >
                   <div className="grid gap-3">
                     {collection.collaborators?.length ? (
-                      collection.collaborators.map((collaboratorUid) => (
-                        <div key={collaboratorUid} className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                          <p className="font-semibold">{collaboratorUid}</p>
-                          <p className="mt-1 text-xs text-on-surface-variant">UID: {collaboratorUid}</p>
+                      collection.collaborators.map((collaborator) => (
+                        <div key={collaborator.uid} className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
+                          <p className="font-semibold">{collaborator.uid}</p>
+                          <p className="mt-1 text-xs text-on-surface-variant">UID: {collaborator.uid}</p>
                         </div>
                       ))
                     ) : (
@@ -827,7 +995,7 @@ function CollectionPage() {
                     </div>
                     <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
                       <p className="font-semibold text-on-surface">Người dùng hiện tại</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">{currentUser?.uid || "Chưa đăng nhập"}</p>
+                      <p className="mt-1 text-sm text-on-surface-variant">{user?.uid || "Chưa đăng nhập"}</p>
                     </div>
                   </div>
                 </SectionCard>

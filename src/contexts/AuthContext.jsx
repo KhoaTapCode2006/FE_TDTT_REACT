@@ -55,9 +55,10 @@ export const AuthProvider = ({ children }) => {
    * Handle authentication state changes
    */
   const handleAuthStateChange = useCallback(async (firebaseUser) => {
+    console.log("=== Firebase Auth State Changed ===");
+    console.log("firebaseUser:", firebaseUser);
+    
     try {
-      setLoading(true);
-      
       if (firebaseUser) {
         // User is signed in
         try {
@@ -110,8 +111,10 @@ export const AuthProvider = ({ children }) => {
         }
       } else {
         // User is signed out
+        console.log("User is signed out");
         setUser(null);
         setIsAuthenticated(false);
+        setLoading(false);
         
         // Clean up session
         sessionService.clearSession();
