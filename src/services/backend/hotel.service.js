@@ -1,8 +1,8 @@
-﻿import axios from "axios";
-import { normalizeHotelResult } from "@/utils/format";
+﻿import { apiClient } from '../api/apiClient.js';
+import { tokenManager } from '../../utils/tokenManager.js';
+import { transformDiscoverHotel, transformDiscoverRequest } from '../../utils/schemaTransformers.js';
+import { normalizeHotelResult } from '../../utils/format.js';
 
-// const DISCOVER_ENDPOINT = "http://localhost:8010/proxy/api/v1/discover";
-const DISCOVER_ENDPOINT = "/sample_output_2.json";
 // Result caching
 const resultCache = new Map();
 const CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
@@ -55,44 +55,6 @@ function setCachedResult(cacheKey, data) {
 }
 
 /**
- * Transform frontend filter state to backend API parameters
- */
-function transformFiltersToAPI(filters) {
-  const apiParams = {};
-
-  // Star rating filter - map to API parameter if supported
-  if (filters.starRating !== null && filters.starRating !== undefined) {
-    apiParams.star_rating = filters.starRating;
-  }
-
-  // Property types filter - may need to be handled client-side
-  if (filters.types && filters.types.length > 0) {
-    apiParams.property_types = filters.types;
-  }
-
-  // Amenities filter - map to API parameter if supported
-  if (filters.amenities && filters.amenities.length > 0) {
-    apiParams.amenities = filters.amenities;
-  }
-
-  // Available rooms only filter
-  if (filters.availableOnly) {
-    apiParams.available_only = true;
-  }
-
-  // Price range is already handled in the main function via priceRange parameter
-  // but we can override if filters specify different values
-  if (filters.priceMin !== null && filters.priceMin !== undefined) {
-    apiParams.min_price = Math.round(filters.priceMin);
-  }
-  if (filters.priceMax !== null && filters.priceMax !== undefined) {
-    apiParams.max_price = Math.round(filters.priceMax);
-  }
-
-  return apiParams;
-}
-
-/**
  * Get keywords for property type matching
  */
 function getPropertyTypeKeywords(type) {
@@ -106,32 +68,6 @@ function getPropertyTypeKeywords(type) {
     "Chung cư": ["apartment", "chung cư", "căn hộ"]
   };
   return typeMap[type] || [type.toLowerCase()];
-}
-
-/**
- * Check if an item amenity matches a filter amenity
- */
-function matchesAmenity(filterAmenity, itemAmenity) {
-  const amenityMap = {
-    "wifi": ["wifi", "wi-fi", "internet", "free wi-fi"],
-    "pool": ["pool", "hồ bơi", "bể bơi", "swimming pool"],
-    "fitness_center": ["gym", "fitness", "thể dục", "fitness center"],
-    "spa": ["spa"],
-    "restaurant": ["restaurant", "nhà hàng"],
-    "bar": ["bar", "quầy bar"],
-    "breakfast": ["breakfast", "bữa sáng", "ăn sáng"],
-    "parking": ["parking", "đỗ xe", "bãi đỗ", "đỗ xe miễn phí", "free parking"],
-    "ac": ["air conditioning", "điều hòa", "ac"],
-    "pet_friendly": ["pet", "thú cưng", "pet friendly"],
-    "laundry": ["laundry", "giặt ủi"],
-    "shuttle": ["shuttle", "đưa đón", "airport shuttle"],
-    "kitchen": ["kitchen", "bếp"]
-  };
-
-  const keywords = amenityMap[filterAmenity] || [filterAmenity];
-  const itemAmenityLower = itemAmenity.toLowerCase();
-  
-  return keywords.some(keyword => itemAmenityLower.includes(keyword.toLowerCase()));
 }
 
 /**
@@ -211,6 +147,20 @@ function applyClientSideFiltersOnNormalized(hotels, filters) {
   return filteredHotels;
 }
 
+/**
+ * Search hotels using backend /discover endpoint
+ * Transforms request and response data using schema transformers
+ * 
+ * @param {Object} params - Search parameters
+ * @param {string} params.location - Location to search
+ * @param {Date} params.checkIn - Check-in date
+ * @param {Date} params.checkOut - Check-out date
+ * @param {Object} params.guests - Guest information
+ * @param {Object} params.priceRange - Price range filter
+ * @param {number} params.radius - Search radius in meters
+ * @param {Object} params.filters - Additional filters
+ * @returns {Promise<Array>} Array of normalized hotel results
+ */
 export async function searchHotels({ 
   location, 
   checkIn, 
@@ -236,43 +186,51 @@ export async function searchHotels({
 
   const { minPrice = 0, maxPrice = 9999999 } = priceRange;
 
-  // Transform filter state to API parameters
-  const apiFilters = transformFiltersToAPI(filters);
-
-  const payload = {
+  // Build frontend request object
+  const frontendRequest = {
     language: "vi",
     address: location,
-    check_in: (checkIn || new Date()).toISOString(),
-    check_out: (checkOut || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)).toISOString(),
-    min_price: Math.round(minPrice ?? 0),
-    max_price: Math.round(maxPrice ?? 9999999),
+    checkIn: (checkIn || new Date()).toISOString(),
+    checkOut: (checkOut || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)).toISOString(),
+    minPrice: Math.round(minPrice ?? 0),
+    maxPrice: Math.round(maxPrice ?? 9999999),
     radius,
     children: childrenAges,
     adults: guests?.adults ?? 2,
     personality: "string",
     // Add filter parameters
-    ...apiFilters,
+    starRating: filters.starRating,
+    propertyTypes: filters.types,
+    amenities: filters.amenities,
+    availableOnly: filters.availableOnly
   };
 
   try {
-    const response = await axios.post(DISCOVER_ENDPOINT, payload, {
-      headers: { "Content-Type": "application/json" },
-    });
+    // Ensure we have a valid token (optional for discover endpoint)
+    try {
+      const token = await tokenManager.getToken();
+      apiClient.setAuthToken(token);
+    } catch (error) {
+      console.warn('No authentication token available for discover request');
+    }
 
-    const data = response.data;
-    const inner = data?.data || data?.hotels || data?.results || [];
-    const rawItems = Array.isArray(inner)
-      ? inner
-      : inner && Array.isArray(inner.hotels)
-      ? inner.hotels
-      : inner && Array.isArray(inner.results)
-      ? inner.results
-      : [];
+    // Transform frontend request to backend format
+    const backendRequest = transformDiscoverRequest(frontendRequest);
+
+    // Call backend /discover endpoint
+    const backendResponse = await apiClient.post('/discover', backendRequest);
+
+    // Extract hotel data from response
+    const backendHotels = backendResponse.data || backendResponse.hotels || backendResponse.results || [];
+    const rawItems = Array.isArray(backendHotels) ? backendHotels : [];
 
     console.log('Raw items from API:', rawItems.length);
 
-    // Transform to normalized format first
-    const normalizedHotels = rawItems.map((item) => normalizeHotelResult(item, location));
+    // Transform each hotel from backend format to frontend format
+    const transformedHotels = rawItems.map((item, index) => transformDiscoverHotel(item, index));
+    
+    // Normalize hotels for frontend use
+    const normalizedHotels = transformedHotels.map((item) => normalizeHotelResult(item, location));
     
     // Apply client-side filtering on normalized data
     const finalResults = applyClientSideFiltersOnNormalized(normalizedHotels, filters);
@@ -280,7 +238,7 @@ export async function searchHotels({
     // Cache the results
     setCachedResult(cacheKey, finalResults);
     
-    console.log(`Search completed: ${rawItems.length} raw → ${normalizedHotels.length} normalized → ${finalResults.length} final results`);
+    console.log(`Search completed: ${rawItems.length} raw → ${transformedHotels.length} transformed → ${normalizedHotels.length} normalized → ${finalResults.length} final results`);
     
     return finalResults;
   } catch (error) {
@@ -291,14 +249,16 @@ export async function searchHotels({
     
     try {
       // Load mock backend data as fallback
-      const module = await import('@/constants/mock-backend-data');
+      const module = await import('../../constants/mock-backend-data.js');
       const MOCK_BACKEND_DATA = module.MOCK_BACKEND_DATA;
       
       if (MOCK_BACKEND_DATA && MOCK_BACKEND_DATA.data) {
-        const normalizedHotels = MOCK_BACKEND_DATA.data.map((item) => normalizeHotelResult(item, location));
+        // Transform mock data using schema transformers
+        const transformedHotels = MOCK_BACKEND_DATA.data.map((item, index) => transformDiscoverHotel(item, index));
+        const normalizedHotels = transformedHotels.map((item) => normalizeHotelResult(item, location));
         const finalResults = applyClientSideFiltersOnNormalized(normalizedHotels, filters);
         
-        console.log(`Mock data loaded: ${MOCK_BACKEND_DATA.data.length} raw → ${normalizedHotels.length} normalized → ${finalResults.length} final results`);
+        console.log(`Mock data loaded: ${MOCK_BACKEND_DATA.data.length} raw → ${transformedHotels.length} transformed → ${normalizedHotels.length} normalized → ${finalResults.length} final results`);
         
         // Cache the mock results
         setCachedResult(cacheKey, finalResults);
@@ -313,10 +273,10 @@ export async function searchHotels({
     if (error.code === 'ECONNABORTED') {
       error.message = 'Request timeout - please try again';
       error.code = 'TIMEOUT_ERROR';
-    } else if (error.response) {
+    } else if (error.response || error.status) {
       // Server responded with error status
       error.code = 'SERVER_ERROR';
-      error.statusCode = error.response.status;
+      error.statusCode = error.response?.status || error.status;
     } else if (error.request) {
       // Network error
       error.code = 'NETWORK_ERROR';

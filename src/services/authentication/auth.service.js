@@ -8,11 +8,14 @@ import {
   onAuthStateChanged
 } from 'firebase/auth';
 import { auth, googleProvider, facebookProvider } from '../../config/firebase.js';
-import { profileService } from '../profile/profile.service.js';
+import { apiClient } from '../api/apiClient.js';
+import { tokenManager } from '../../utils/tokenManager.js';
 import { sessionService } from '../profile/session.service.js';
+import { transformAuthRequest, transformAuthResponse } from '../../utils/schemaTransformers.js';
 
 /**
  * Authentication service for handling Firebase Auth operations
+ * and backend API authentication synchronization
  */
 class AuthService {
   constructor() {
@@ -50,6 +53,68 @@ class AuthService {
   }
 
   /**
+   * Authenticate with backend API using Firebase ID token
+   * @param {string} idToken - Firebase ID token
+   * @returns {Promise<Object>} Backend user data (camelCase format)
+   */
+  async authenticateWithBackend(idToken) {
+    try {
+      // Set token in API client
+      apiClient.setAuthToken(idToken);
+      
+      // Transform request data to backend format (snake_case)
+      const authRequest = transformAuthRequest({ token: idToken });
+      
+      // Send token to backend /auth endpoint
+      const backendResponse = await apiClient.post('/auth', authRequest);
+      
+      // Transform response data to frontend format (camelCase)
+      const frontendAuth = transformAuthResponse(backendResponse);
+      
+      return frontendAuth;
+    } catch (error) {
+      // Log authentication error with context
+      this.logAuthenticationError(error, {
+        endpoint: '/auth',
+        operation: 'authenticateWithBackend',
+        hasToken: !!idToken
+      });
+      
+      // Handle 401 Unauthorized errors
+      if (error.status === 401) {
+        // Clear session storage on authentication failure
+        sessionService.clearSession();
+        apiClient.clearAuthToken();
+        
+        throw new Error(
+          error.message || 
+          'Authentication failed. Your session has expired. Please log in again.'
+        );
+      }
+      
+      // Return descriptive error message from backend or fallback
+      throw new Error(
+        error.message || 
+        'Failed to authenticate with backend. Please try again.'
+      );
+    }
+  }
+
+  /**
+   * Get Firebase ID token
+   * @param {boolean} forceRefresh - Force token refresh
+   * @returns {Promise<string>} Firebase ID token
+   */
+  async getIdToken(forceRefresh = false) {
+    try {
+      return await tokenManager.getToken(forceRefresh);
+    } catch (error) {
+      console.error('Failed to get ID token:', error);
+      throw new Error('Failed to get authentication token');
+    }
+  }
+
+  /**
    * Sign in with email and password
    * @param {string} email - User email
    * @param {string} password - User password
@@ -58,18 +123,24 @@ class AuthService {
    */
   async loginWithEmail(email, password, rememberMe = false) {
     try {
+      // Authenticate with Firebase
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      // Get user profile from Firestore
-      const userProfile = await profileService.getProfile(user.uid);
+      // Get Firebase ID token
+      const idToken = await user.getIdToken();
       
-      // Set session with remember me preference
-      await sessionService.setSession(user, rememberMe);
+      // Authenticate with backend (returns camelCase data)
+      const backendUser = await this.authenticateWithBackend(idToken);
       
-      // Update last login timestamp
-      await profileService.updateProfile(user.uid, {
-        lastLoginAt: new Date()
+      // Store session data
+      sessionService.setSession({
+        uid: user.uid,
+        email: user.email,
+        username: backendUser.username,
+        displayName: backendUser.displayName,
+        tokenExpiration: tokenManager.getTokenExpiration(),
+        rememberMe
       });
       
       return {
@@ -77,9 +148,24 @@ class AuthService {
         email: user.email,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        ...userProfile
+        emailVerified: user.emailVerified,
+        username: backendUser.username,
+        displayName: backendUser.displayName
       };
     } catch (error) {
+      // Log authentication error with context
+      this.logAuthenticationError(error, {
+        method: 'loginWithEmail',
+        email: email,
+        rememberMe: rememberMe
+      });
+      
+      // Handle 401 errors from backend
+      if (error.status === 401 || error.message?.includes('session has expired')) {
+        sessionService.clearSession();
+        apiClient.clearAuthToken();
+      }
+      
       throw this.translateFirebaseError(error);
     }
   }
@@ -90,34 +176,48 @@ class AuthService {
    */
   async loginWithGoogle() {
     try {
+      // Authenticate with Firebase
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
-      // Extract profile information from Google
-      const profileData = {
-        fullName: user.displayName,
+      // Get Firebase ID token
+      const idToken = await user.getIdToken();
+      
+      // Authenticate with backend (backend creates/updates profile, returns camelCase data)
+      const backendUser = await this.authenticateWithBackend(idToken);
+      
+      // Store session data
+      sessionService.setSession({
+        uid: user.uid,
         email: user.email,
-        avatar: {
-          url: user.photoURL,
-          provider: 'google'
-        },
-        authProviders: ['google.com']
-      };
-      
-      // Create or update profile
-      const userProfile = await profileService.createOrUpdateProfile(user.uid, profileData);
-      
-      // Set session
-      await sessionService.setSession(user, false);
+        username: backendUser.username,
+        displayName: backendUser.displayName,
+        tokenExpiration: tokenManager.getTokenExpiration(),
+        rememberMe: false
+      });
       
       return {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        ...userProfile
+        emailVerified: user.emailVerified,
+        username: backendUser.username,
+        displayName: backendUser.displayName
       };
     } catch (error) {
+      // Log authentication error with context
+      this.logAuthenticationError(error, {
+        method: 'loginWithGoogle',
+        provider: 'google'
+      });
+      
+      // Handle 401 errors from backend
+      if (error.status === 401 || error.message?.includes('session has expired')) {
+        sessionService.clearSession();
+        apiClient.clearAuthToken();
+      }
+      
       throw this.translateFirebaseError(error);
     }
   }
@@ -128,34 +228,48 @@ class AuthService {
    */
   async loginWithFacebook() {
     try {
+      // Authenticate with Firebase
       const result = await signInWithPopup(auth, facebookProvider);
       const user = result.user;
       
-      // Extract profile information from Facebook
-      const profileData = {
-        fullName: user.displayName,
+      // Get Firebase ID token
+      const idToken = await user.getIdToken();
+      
+      // Authenticate with backend (backend creates/updates profile, returns camelCase data)
+      const backendUser = await this.authenticateWithBackend(idToken);
+      
+      // Store session data
+      sessionService.setSession({
+        uid: user.uid,
         email: user.email,
-        avatar: {
-          url: user.photoURL,
-          provider: 'facebook'
-        },
-        authProviders: ['facebook.com']
-      };
-      
-      // Create or update profile
-      const userProfile = await profileService.createOrUpdateProfile(user.uid, profileData);
-      
-      // Set session
-      await sessionService.setSession(user, false);
+        username: backendUser.username,
+        displayName: backendUser.displayName,
+        tokenExpiration: tokenManager.getTokenExpiration(),
+        rememberMe: false
+      });
       
       return {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        ...userProfile
+        emailVerified: user.emailVerified,
+        username: backendUser.username,
+        displayName: backendUser.displayName
       };
     } catch (error) {
+      // Log authentication error with context
+      this.logAuthenticationError(error, {
+        method: 'loginWithFacebook',
+        provider: 'facebook'
+      });
+      
+      // Handle 401 errors from backend
+      if (error.status === 401 || error.message?.includes('session has expired')) {
+        sessionService.clearSession();
+        apiClient.clearAuthToken();
+      }
+      
       throw this.translateFirebaseError(error);
     }
   }
@@ -167,17 +281,9 @@ class AuthService {
    */
   async register(userData) {
     try {
-      const { email, password, username, ...profileData } = userData;
+      const { email, password, username } = userData;
       
-      // Check if username is available before creating account
-      const isUsernameAvailable = await profileService.isUsernameAvailable(username);
-      if (!isUsernameAvailable) {
-        const error = new Error('Username is already taken. Please choose a different username.');
-        error.code = 'auth/username-already-exists';
-        throw error;
-      }
-      
-      // Create user account
+      // Create user account in Firebase
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
@@ -186,25 +292,45 @@ class AuthService {
         displayName: username
       });
       
-      // Create user profile in Firestore
-      const userProfile = await profileService.createProfile(user.uid, {
-        username,
-        ...profileData,
-        email: user.email,
-        authProviders: ['password']
-      });
+      // Get Firebase ID token
+      const idToken = await user.getIdToken();
       
-      // Set session
-      await sessionService.setSession(user, false);
+      // Authenticate with backend (backend creates profile, returns camelCase data)
+      const backendUser = await this.authenticateWithBackend(idToken);
+      
+      // Store session data
+      sessionService.setSession({
+        uid: user.uid,
+        email: user.email,
+        username: backendUser.username,
+        displayName: backendUser.displayName,
+        tokenExpiration: tokenManager.getTokenExpiration(),
+        rememberMe: false
+      });
       
       return {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        ...userProfile
+        emailVerified: user.emailVerified,
+        username: backendUser.username,
+        displayName: backendUser.displayName
       };
     } catch (error) {
+      // Log authentication error with context
+      this.logAuthenticationError(error, {
+        method: 'register',
+        email: userData.email,
+        username: userData.username
+      });
+      
+      // Handle 401 errors from backend
+      if (error.status === 401 || error.message?.includes('session has expired')) {
+        sessionService.clearSession();
+        apiClient.clearAuthToken();
+      }
+      
       console.error('Registration error details:', error);
       throw this.translateFirebaseError(error);
     }
@@ -217,7 +343,13 @@ class AuthService {
   async logout() {
     try {
       // Clear session data
-      await sessionService.clearSession();
+      sessionService.clearSession();
+      
+      // Clear token manager
+      tokenManager.clearToken();
+      
+      // Clear API client token
+      apiClient.clearAuthToken();
       
       // Sign out from Firebase
       await signOut(auth);
@@ -249,12 +381,33 @@ class AuthService {
     try {
       if (this.currentUser) {
         // Get fresh token
-        const token = await this.currentUser.getIdToken(true);
+        const token = await this.getIdToken(true);
         
-        // Update session
-        await sessionService.refreshToken(token);
+        // Update API client token
+        apiClient.setAuthToken(token);
+        
+        // Update session with new token expiration
+        const session = sessionService.getSession();
+        if (session) {
+          sessionService.setSession({
+            ...session,
+            tokenExpiration: tokenManager.getTokenExpiration()
+          });
+        }
       }
     } catch (error) {
+      // Log authentication error with context
+      this.logAuthenticationError(error, {
+        method: 'refreshSession',
+        operation: 'token_refresh'
+      });
+      
+      // Handle 401 errors - clear session
+      if (error.status === 401 || error.message?.includes('session has expired')) {
+        sessionService.clearSession();
+        apiClient.clearAuthToken();
+      }
+      
       throw this.translateFirebaseError(error);
     }
   }
@@ -273,6 +426,36 @@ class AuthService {
    */
   isAuthenticated() {
     return !!this.currentUser;
+  }
+
+  /**
+   * Log authentication errors with context for debugging
+   * @param {Error} error - Error object
+   * @param {Object} context - Additional context information
+   * @returns {void}
+   */
+  logAuthenticationError(error, context = {}) {
+    const errorLog = {
+      timestamp: new Date().toISOString(),
+      errorType: error.name || 'Error',
+      errorCode: error.code || error.status || 'unknown',
+      message: error.message,
+      context: {
+        ...context,
+        currentUser: this.currentUser ? {
+          uid: this.currentUser.uid,
+          email: this.currentUser.email
+        } : null
+      }
+    };
+    
+    // Log to console with structured format
+    console.error('Authentication Error:', JSON.stringify(errorLog, null, 2));
+    
+    // In production, this could be sent to an error tracking service
+    if (import.meta.env.PROD) {
+      // Example: sendToErrorTracking(errorLog);
+    }
   }
 
   /**
@@ -304,11 +487,19 @@ class AuthService {
       'unavailable': 'Firebase service is unavailable. Please check your Firebase configuration.'
     };
     
-    let message = errorMessages[error.code] || error.message || 'An unexpected error occurred. Please try again.';
+    // First, try to get user-friendly message from error code
+    let message = errorMessages[error.code];
     
-    // Check if it's a Firebase configuration issue
-    if (error.message && error.message.includes('Firebase')) {
-      message = 'Firebase is not properly configured. Please check your environment variables and Firebase project settings.';
+    // If no mapped message, check if it's a Firebase configuration issue (only for specific codes)
+    if (!message) {
+      const configErrorCodes = ['permission-denied', 'unavailable'];
+      if (configErrorCodes.includes(error.code) || 
+          (error.message && error.message.includes('Firebase') && error.message.includes('not configured'))) {
+        message = 'Firebase is not properly configured. Please check your environment variables and Firebase project settings.';
+      } else {
+        // Use original error message or fallback
+        message = error.message || 'An unexpected error occurred. Please try again.';
+      }
     }
     
     const translatedError = new Error(message);
