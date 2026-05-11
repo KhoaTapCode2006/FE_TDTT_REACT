@@ -3,6 +3,8 @@
 // và xử lý toàn bộ business logic: load dữ liệu ban đầu, tạo/sửa/xóa nhóm, gửi tin nhắn (bao gồm gọi AI qua sendConversation), thêm/xóa member.
 
 import { useState, useEffect } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "../../../config/firebase";
 import {
   getGroups,
   getMembersByGroup,
@@ -34,7 +36,15 @@ export function useGroupChat() {
 
   // ── Load dữ liệu ban đầu ────────────────────────────────────────────────────
   useEffect(() => {
-    (async () => {
+    // Chờ Firebase Auth restore session trước khi gọi API
+    // onAuthStateChanged fires once immediately with current user (or null)
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        // Chưa đăng nhập hoặc session chưa restore — không load
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
@@ -58,7 +68,12 @@ export function useGroupChat() {
       } finally {
         setLoading(false);
       }
-    })();
+
+      // Chỉ load một lần khi user sẵn sàng, không re-run mỗi khi auth thay đổi
+      unsubscribe();
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // ── Derived state ───────────────────────────────────────────────────────────

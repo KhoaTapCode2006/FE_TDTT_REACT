@@ -44,7 +44,28 @@ import { auth } from '@/config/firebase';
 // HTTP CLIENT CONFIGURATION
 // ============================================================================
 
-const API_BASE_URL = import.meta.env.VITE_LOCAL_API || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_LOCAL_API || 'http://localhost:8000';
+
+// ============================================================================
+// LOCAL STORAGE HELPERS (workaround: backend has no GET /me/trips endpoint)
+// ============================================================================
+
+const TRIP_IDS_KEY = 'b4lu_trip_ids';
+
+function getTripIds() {
+  try {
+    return JSON.parse(localStorage.getItem(TRIP_IDS_KEY) || '[]');
+  } catch { return []; }
+}
+
+function addTripId(id) {
+  const ids = getTripIds();
+  if (!ids.includes(id)) localStorage.setItem(TRIP_IDS_KEY, JSON.stringify([...ids, id]));
+}
+
+function removeTripId(id) {
+  localStorage.setItem(TRIP_IDS_KEY, JSON.stringify(getTripIds().filter(t => t !== id)));
+}
 
 /**
  * Create configured axios instance for trip API
@@ -204,7 +225,14 @@ export function normalizeTripData(t) {
     }
   };
 
-  const uids = Array.isArray(t.member_uids) ? t.member_uids : [];
+  // Backend trả về members: [{ uid, joined_at }] hoặc member_uids: [string]
+  let uids = [];
+  if (Array.isArray(t.members) && t.members.length > 0 && typeof t.members[0] === 'object') {
+    uids = t.members.map((m) => m.uid).filter(Boolean);
+  } else if (Array.isArray(t.member_uids)) {
+    uids = t.member_uids;
+  }
+
   const avatars = uids.slice(0, 2).map((uid) => uid.slice(0, 2).toUpperCase());
   const s = fmt(t.start_at);
   const e = fmt(t.end_at);
@@ -234,8 +262,11 @@ export function normalizeTripData(t) {
  */
 function extractTripData(response) {
   // Backend response format: { status_code, message, data: { trip: {...} } }
-  const trip = response.data?.data?.trip;
-  if (!trip) {
+  // or: { status_code, message, data: {...} }
+  console.log('[extractTripData] raw response.data:', JSON.stringify(response.data));
+  const trip = response.data?.data?.trip ?? response.data?.data;
+  if (!trip || typeof trip !== 'object' || !trip.id) {
+    console.error('extractTripData: unexpected response shape', response.data);
     throw new Error('Invalid response format from server');
   }
   return normalizeTripData(trip);
@@ -269,13 +300,27 @@ export const tripService = {
    * @throws {Error} Network or authentication error
    */
   async getMyTrips() {
-    const response = await tripClient.get('/me/trips');
-    // Backend returns: { status_code, message, data: { trips: [...] } }
-    const trips = response.data?.data?.trips;
-    if (!Array.isArray(trips)) {
-      throw new Error('Invalid response format from server');
-    }
-    return trips.map(normalizeTripData);
+    const ids = getTripIds();
+    if (ids.length === 0) return [];
+    // Fetch each trip individually since backend has no GET /me/trips
+    const results = await Promise.allSettled(ids.map(id => tripClient.get(`/trips/${id}`)));
+    const trips = [];
+    const validIds = [];
+    results.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        try {
+          const trip = result.value.data?.data?.trip ?? result.value.data?.data;
+          if (trip?.id) {
+            trips.push(normalizeTripData(trip));
+            validIds.push(ids[i]);
+          }
+        } catch { /* skip malformed */ }
+      }
+      // If 404, trip was deleted — don't add to validIds so it gets cleaned up
+    });
+    // Clean up IDs that no longer exist
+    localStorage.setItem(TRIP_IDS_KEY, JSON.stringify(validIds));
+    return trips;
   },
 
   /**
@@ -302,7 +347,9 @@ export const tripService = {
   async createTrip(tripData) {
     validateTripData(tripData);
     const response = await tripClient.post('/trips', tripData);
-    return extractTripData(response);
+    const trip = extractTripData(response);
+    addTripId(trip.id); // persist ID locally
+    return trip;
   },
 
   /**
@@ -330,6 +377,7 @@ export const tripService = {
    */
   async deleteTrip(tripId) {
     const response = await tripClient.delete(`/trips/${tripId}`);
+    removeTripId(tripId); // remove from local storage
     return extractBooleanResult(response);
   },
 

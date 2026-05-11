@@ -1,341 +1,753 @@
-// ─── Chat Service — Firestore ─────────────────────────────────────────────────
+// ─── Chat Service — REST API + Firestore fallback ────────────────────────────
 //
-// Cấu trúc Firestore:
-//   conversations/{groupId}                  — thông tin nhóm
-//   conversations/{groupId}/messages/{msgId} — tin nhắn
+// Pattern: trip.service.js
+// REST API: chatClient (axios) cho conversations CRUD, members, messages write
+// Firestore: getMessages() read-only fallback (backend chưa có GET /messages)
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  serverTimestamp,
-  arrayUnion,
-  arrayRemove,
-} from "firebase/firestore";
-import { db, auth } from "../../config/firebase.js";
+import axios from 'axios';
+import { auth, db } from '@/config/firebase';
+import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const getCurrentUid = () =>
-  auth.currentUser?.uid ?? import.meta.env.VITE_CURRENT_UID ?? "me";
-
-const getCurrentDisplayName = () =>
-  auth.currentUser?.displayName ?? auth.currentUser?.email ?? "Me";
-
-const CONV_COL = "conversations";
-
-/** Chuyển Firestore doc → group object dùng trong UI */
-function docToGroup(docSnap) {
-  const d = docSnap.data();
-  return {
-    id:            docSnap.id,
-    owner_uid:     d.owner_uid ?? "",
-    name:          d.name ?? "",
-    description:   d.description ?? "",
-    thumbnail_url: d.thumbnail_url ?? null,
-    created_at:    d.created_at?.toDate?.()?.toISOString() ?? null,
-    updated_at:    d.updated_at?.toDate?.()?.toISOString() ?? null,
-    members:       d.members ?? [],
-    lastMsg:       d.last_message ?? "",
-    time:          d.last_message_at ? formatTime(d.last_message_at.toDate()) : "",
-    unread:        d.unread_counts?.[getCurrentUid()] ?? 0,
-    active:        false,
-  };
-}
-
-/** Chuyển Firestore doc → message object dùng trong UI */
-function docToMessage(docSnap) {
-  const d      = docSnap.data();
-  const uid    = getCurrentUid();
-  const isMine = d.sender_uid === uid;
-  const name   = d.sender_name ?? d.sender_uid ?? "Unknown";
-  return {
-    id:       docSnap.id,
-    sender:   isMine ? "Me" : name,
-    avatar:   isMine ? "ME" : name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase(),
-    time:     d.created_at ? formatTime(d.created_at.toDate()) : "",
-    text:     d.content ?? "",
-    isMine,
-    type:     d.type ?? "text",
-    seen:     isMine ? true : undefined,
-    url:      d.url ?? null,
-    fileName: d.file_name ?? null,
-    placeId:  d.place_id ?? null,
-  };
-}
-
-function formatTime(date) {
-  if (!date) return "";
-  const diffDays = Math.floor((Date.now() - date) / 86_400_000);
-  if (diffDays === 0) return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7)  return date.toLocaleDateString([], { weekday: "short" });
-  return date.toLocaleDateString([], { day: "2-digit", month: "short" });
-}
-
-// ─── Groups ───────────────────────────────────────────────────────────────────
+// ============================================================================
+// TYPE DEFINITIONS (JSDoc)
+// ============================================================================
 
 /**
- * Lấy danh sách nhóm mà user hiện tại là thành viên.
+ * @typedef {Object} Group
+ * @property {string} id
+ * @property {string} owner_uid
+ * @property {string} name
+ * @property {string} description
+ * @property {string|null} thumbnail_url
+ * @property {string|null} created_at
+ * @property {string|null} updated_at
+ * @property {Member[]} members
+ * @property {string} lastMsg
+ * @property {string} time
+ * @property {number} unread
+ * @property {boolean} active
  */
-export async function getGroups() {
-  const uid = getCurrentUid();
-  const q   = query(
-    collection(db, CONV_COL),
-    where("member_uids", "array-contains", uid),
-    orderBy("updated_at", "desc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(docToGroup);
-}
 
 /**
- * Lấy map groupId → members[] từ groupList đã fetch.
+ * @typedef {Object} Message
+ * @property {string} id
+ * @property {string} sender
+ * @property {string} avatar
+ * @property {string} time
+ * @property {string} text
+ * @property {boolean} isMine
+ * @property {string} type
+ * @property {boolean|undefined} seen
+ * @property {string|null} url
+ * @property {string|null} fileName
+ * @property {string|null} placeId
  */
-export function getMembersByGroup(groupList = []) {
-  return Object.fromEntries(groupList.map((g) => [g.id, g.members]));
-}
 
 /**
- * Lấy map groupId → messages[] cho nhiều nhóm cùng lúc.
+ * @typedef {Object} Member
+ * @property {string} uid
+ * @property {string} role
+ * @property {string} joined_at
+ * @property {string} display_name
+ * @property {string} username
+ * @property {string|null} avatar_url
  */
-export async function getMessagesByGroup(groupIds = []) {
-  const entries = await Promise.all(
-    groupIds.map(async (id) => {
-      const msgs = await getMessages(id);
-      return [id, msgs];
-    })
-  );
-  return Object.fromEntries(entries);
-}
+
+// ============================================================================
+// HTTP CLIENT CONFIGURATION
+// ============================================================================
 
 /**
- * Lấy tin nhắn của một nhóm, sắp xếp theo thời gian.
+ * Axios instance for chat API.
+ * baseURL from VITE_API_BASE_URL, 10s timeout, JSON content-type.
  */
-export async function getMessages(groupId) {
-  const q    = query(
-    collection(db, CONV_COL, groupId, "messages"),
-    orderBy("created_at", "asc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(docToMessage);
-}
-
-// ─── CRUD Conversations ───────────────────────────────────────────────────────
+const chatClient = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
 /**
- * Tạo nhóm chat mới.
+ * Request interceptor — inject Firebase ID token.
+ * Throws AUTH_ERROR if no current user.
+ * Re-throws getIdToken() errors without wrapping.
  */
-export async function createConversation({ name, description, thumbnail_url }) {
-  const uid         = getCurrentUid();
-  const displayName = getCurrentDisplayName();
-  const avatarUrl   = auth.currentUser?.photoURL ?? null;
-
-  const ownerMember = {
-    uid,
-    role:         "owner",
-    joined_at:    new Date().toISOString(),
-    display_name: displayName,
-    username:     displayName.toLowerCase().replace(/\s+/g, "_"),
-    avatar_url:   avatarUrl,
-  };
-
-  const payload = {
-    owner_uid:     uid,
-    name,
-    description:   description ?? "",
-    thumbnail_url: thumbnail_url ?? null,
-    members:       [ownerMember],
-    member_uids:   [uid],           // dùng để query array-contains
-    last_message:  "",
-    last_message_at: null,
-    unread_counts: { [uid]: 0 },
-    created_at:    serverTimestamp(),
-    updated_at:    serverTimestamp(),
-  };
-
-  const ref  = await addDoc(collection(db, CONV_COL), payload);
-  const snap = await getDoc(ref);
-  return docToGroup(snap);
-}
+chatClient.interceptors.request.use(
+  async (config) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      const error = new Error('User not authenticated');
+      error.code = 'AUTH_ERROR';
+      throw error;
+    }
+    // Re-throw getIdToken errors as-is (no wrapping)
+    const token = await currentUser.getIdToken();
+    config.headers.Authorization = `Bearer ${token}`;
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 /**
- * Cập nhật thông tin nhóm.
+ * Response interceptor — pass-through success; transform errors.
  */
-export async function updateConversation(id, { name, description, thumbnail_url }) {
-  const ref = doc(db, CONV_COL, id);
-  const updates = { updated_at: serverTimestamp() };
-  if (name          !== undefined) updates.name          = name;
-  if (description   !== undefined) updates.description   = description;
-  if (thumbnail_url !== undefined) updates.thumbnail_url = thumbnail_url;
-  await updateDoc(ref, updates);
-  const snap = await getDoc(ref);
-  return docToGroup(snap);
-}
+chatClient.interceptors.response.use(
+  (response) => response,
+  (error) => Promise.reject(transformChatError(error))
+);
+
+// ============================================================================
+// LOCAL STORAGE HELPERS
+// ============================================================================
+
+const CONV_IDS_KEY = 'b4lu_conversation_ids';
 
 /**
- * Xóa nhóm chat và toàn bộ tin nhắn.
+ * Read conversation IDs from localStorage.
+ * Returns [] on missing key, invalid JSON, or non-array value.
+ * @returns {string[]}
  */
-export async function deleteConversation(id) {
-  // Xóa tất cả messages trước
-  const msgSnap = await getDocs(collection(db, CONV_COL, id, "messages"));
-  await Promise.all(msgSnap.docs.map((d) => deleteDoc(d.ref)));
-  // Xóa conversation
-  await deleteDoc(doc(db, CONV_COL, id));
-}
-
-// ─── Members ──────────────────────────────────────────────────────────────────
-
-/**
- * Thêm thành viên vào nhóm.
- */
-export async function addMembers(groupId, uids) {
-  const ref      = doc(db, CONV_COL, groupId);
-  const snap     = await getDoc(ref);
-  const existing = (snap.data()?.members ?? []).map((m) => m.uid);
-
-  const newMembers = uids
-    .filter((uid) => !existing.includes(uid))
-    .map((uid) => ({
-      uid,
-      role:         "member",
-      joined_at:    new Date().toISOString(),
-      display_name: uid,
-      username:     uid,
-      avatar_url:   null,
-    }));
-
-  if (newMembers.length === 0) return docToGroup(snap);
-
-  await updateDoc(ref, {
-    members:      arrayUnion(...newMembers),
-    member_uids:  arrayUnion(...uids),
-    updated_at:   serverTimestamp(),
-  });
-
-  const updated = await getDoc(ref);
-  return docToGroup(updated);
-}
-
-/**
- * Xóa thành viên khỏi nhóm.
- */
-export async function removeMembers(groupId, uids) {
-  const ref  = doc(db, CONV_COL, groupId);
-  const snap = await getDoc(ref);
-  const data = snap.data();
-
-  console.log("[removeMembers] groupId:", groupId);
-  console.log("[removeMembers] uids to remove:", uids);
-  console.log("[removeMembers] current members:", data?.members);
-  console.log("[removeMembers] current member_uids:", data?.member_uids);
-
-  // Filter thủ công thay vì arrayRemove để tránh lỗi deep equality với object
-  const remainingMembers = (data?.members ?? []).filter((m) => !uids.includes(m.uid));
-  const remainingUids    = (data?.member_uids ?? []).filter((uid) => !uids.includes(uid));
-
-  console.log("[removeMembers] remainingMembers:", remainingMembers);
-  console.log("[removeMembers] remainingUids:", remainingUids);
-
+function getConversationIds() {
   try {
-    await updateDoc(ref, {
-      members:     remainingMembers,
-      member_uids: remainingUids,
-      updated_at:  serverTimestamp(),
-    });
-    console.log("[removeMembers] updateDoc SUCCESS");
-  } catch (err) {
-    console.error("[removeMembers] updateDoc FAILED:", err.code, err.message);
+    const parsed = JSON.parse(localStorage.getItem(CONV_IDS_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Append a conversation ID if not already present. Max 200 entries.
+ * No-op if ID already exists.
+ * @param {string} id
+ */
+function addConversationId(id) {
+  const ids = getConversationIds();
+  if (ids.includes(id)) return;
+  const updated = [...ids, id].slice(-200);
+  localStorage.setItem(CONV_IDS_KEY, JSON.stringify(updated));
+}
+
+/**
+ * Remove a conversation ID from the store.
+ * No-op if ID does not exist (no write performed).
+ * @param {string} id
+ */
+function removeConversationId(id) {
+  const ids = getConversationIds();
+  if (!ids.includes(id)) return;
+  localStorage.setItem(CONV_IDS_KEY, JSON.stringify(ids.filter((x) => x !== id)));
+}
+
+// ============================================================================
+// ERROR HANDLING UTILITIES
+// ============================================================================
+
+/**
+ * Transform axios errors into application errors.
+ * Fields: code, statusCode, message, originalError.
+ * @param {Error} error - Axios error
+ * @returns {Error} Application error
+ */
+function transformChatError(error) {
+  const appError = new Error();
+  appError.originalError = error;
+
+  if (error.code === 'ECONNABORTED') {
+    appError.code = 'TIMEOUT_ERROR';
+    appError.message = 'Request timeout - please try again';
+  } else if (error.response?.status === 404) {
+    appError.code = 'NOT_FOUND';
+    appError.statusCode = 404;
+    appError.message = 'Conversation not found';
+  } else if (error.response?.status === 403) {
+    appError.code = 'FORBIDDEN';
+    appError.statusCode = 403;
+    appError.message = error.response.data?.message || 'Permission denied';
+  } else if (error.response) {
+    appError.code = 'SERVER_ERROR';
+    appError.statusCode = error.response.status;
+    appError.message = error.response.data?.message || error.message;
+  } else if (error.request) {
+    appError.code = 'NETWORK_ERROR';
+    appError.message = 'Network error - please check your connection';
+  } else {
+    // AUTH_ERROR or other pre-request errors — pass through
+    appError.code = error.code || 'UNKNOWN_ERROR';
+    appError.message = error.message || 'An unexpected error occurred';
+  }
+
+  return appError;
+}
+
+// ============================================================================
+// TIME FORMATTING
+// ============================================================================
+
+/**
+ * Format an ISO date string for display in conversation/message lists.
+ * - today      → "HH:MM" (locale time)
+ * - yesterday  → "Yesterday"
+ * - < 7 days   → abbreviated weekday ("Mon", "Tue", …)
+ * - older      → "DD Mon" (e.g. "05 Jun")
+ * - absent/invalid → ""
+ *
+ * @param {string|null|undefined} isoString
+ * @returns {string}
+ */
+function formatTime(isoString) {
+  if (!isoString) return '';
+  let date;
+  try {
+    date = new Date(isoString);
+    if (isNaN(date.getTime())) return '';
+  } catch {
+    return '';
+  }
+
+  const now = new Date();
+  // Midnight of today (local)
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Midnight of yesterday (local)
+  const yesterdayStart = new Date(todayStart.getTime() - 86_400_000);
+  // 7 days ago midnight
+  const sevenDaysAgo = new Date(todayStart.getTime() - 6 * 86_400_000);
+
+  if (date >= todayStart) {
+    // Today → HH:MM
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  if (date >= yesterdayStart) {
+    return 'Yesterday';
+  }
+  if (date >= sevenDaysAgo) {
+    // Abbreviated weekday
+    return date.toLocaleDateString([], { weekday: 'short' });
+  }
+  // Older → "DD Mon"
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = date.toLocaleDateString([], { month: 'short' });
+  return `${day} ${month}`;
+}
+
+// ============================================================================
+// RESPONSE NORMALIZERS
+// ============================================================================
+
+/**
+ * Normalize a raw member object from API.
+ * @param {Object} m
+ * @returns {Member}
+ */
+function normalizeMember(m) {
+  return {
+    uid:          m.uid          ?? '',
+    role:         m.role         ?? '',
+    joined_at:    m.joined_at    ?? '',
+    display_name: m.display_name ?? '',
+    username:     m.username     ?? '',
+    avatar_url:   m.avatar_url   ?? null,
+  };
+}
+
+/**
+ * Normalize a raw conversation API response into a Group object.
+ * Emits a debug log of the raw data.
+ * @param {Object} data - Raw conversation from API
+ * @returns {Group}
+ */
+function normalizeConversation(data) {
+  console.debug('[normalizeConversation] raw:', data);
+
+  const lastMsg = data.last_message ?? data.last_message_content ?? '';
+  const timeStr = formatTime(data.last_message_at ?? data.updated_at);
+  const unread  = data.unread_counts?.[auth.currentUser?.uid] ?? 0;
+  const members = Array.isArray(data.members)
+    ? data.members.map(normalizeMember)
+    : [];
+
+  return {
+    id:            data.id            ?? '',
+    owner_uid:     data.owner_uid     ?? '',
+    name:          data.name          ?? '',
+    description:   data.description   ?? '',
+    thumbnail_url: data.thumbnail_url ?? null,
+    created_at:    data.created_at    ?? null,
+    updated_at:    data.updated_at    ?? null,
+    members,
+    lastMsg,
+    time:   timeStr,
+    unread,
+    active: false,
+  };
+}
+
+/**
+ * Normalize a raw message API response into a Message object.
+ * @param {Object} data - Raw message from API or Firestore
+ * @returns {Message}
+ */
+function normalizeMessage(data) {
+  const isMine = data.sender_uid === auth.currentUser?.uid;
+  const senderName = isMine
+    ? 'Me'
+    : (data.sender_name ?? data.sender_uid ?? 'Unknown');
+
+  // Avatar: 2-char uppercase initials from sender name
+  const avatar = senderName
+    .split(' ')
+    .map((w) => w[0] ?? '')
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || '??';
+
+  return {
+    id:       data.id       ?? '',
+    sender:   senderName,
+    avatar,
+    time:     formatTime(data.created_at),
+    text:     data.content  ?? '',
+    isMine,
+    type:     data.type     ?? 'text',
+    seen:     isMine ? true : undefined,
+    url:      data.url      ?? null,
+    fileName: data.file_name ?? null,
+    placeId:  data.place_id  ?? null,
+  };
+}
+
+// ============================================================================
+// RESPONSE EXTRACTION
+// ============================================================================
+
+/**
+ * Extract and normalize a conversation from an API response envelope.
+ * Supports both:
+ *   { data: { conversation: {...} } }
+ *   { data: { ...conversation fields... } }
+ *
+ * @param {import('axios').AxiosResponse} response
+ * @returns {Group}
+ * @throws {Error} If the extracted object has no `id`
+ */
+function extractConversation(response) {
+  const raw = response.data?.data?.conversation ?? response.data?.data;
+  console.log('[extractConversation] raw:', JSON.stringify(raw));
+  if (!raw || typeof raw !== 'object' || !raw.id) {
+    const err = new Error('Invalid response format from server');
+    err.code = 'SERVER_ERROR';
+    throw err;
+  }
+  return normalizeConversation(raw);
+}
+
+// ============================================================================
+// VALIDATION HELPERS
+// ============================================================================
+
+/**
+ * Validate conversation creation/update data.
+ * @param {{ name?: string, thumbnail_url?: any }} param0
+ * @throws {Error} VALIDATION_ERROR
+ */
+function validateConversationData({ name, thumbnail_url }) {
+  if (name !== undefined) {
+    if (typeof name !== 'string' || name.trim().length === 0) {
+      const err = new Error('Name must be a non-empty string');
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+    if (name.length > 100) {
+      const err = new Error('Name must be 100 characters or fewer');
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+  } else {
+    // name is undefined — treat as missing/empty for createConversation context
+    // (callers that require name must pass it explicitly)
+    const err = new Error('Name must be a non-empty string');
+    err.code = 'VALIDATION_ERROR';
     throw err;
   }
 
-  const updated = await getDoc(ref);
-  return docToGroup(updated);
+  if (thumbnail_url !== undefined && thumbnail_url !== null) {
+    if (typeof thumbnail_url !== 'string') {
+      const err = new Error('thumbnail_url must be a string or null');
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+  }
 }
 
-// ─── Messages ─────────────────────────────────────────────────────────────────
-
 /**
- * Gửi tin nhắn vào nhóm.
+ * Validate a UIDs array parameter.
+ * @param {any} uids - Value to validate
+ * @param {string} paramName - Name for error messages
+ * @throws {Error} VALIDATION_ERROR
  */
-export async function sendMessage(groupId, { type, content, url, file_name, place_id }) {
-  const uid  = getCurrentUid();
-  const name = getCurrentDisplayName();
+function validateUids(uids, paramName) {
+  if (!Array.isArray(uids) || uids.length === 0) {
+    const err = new Error(`${paramName} must be a non-empty array`);
+    err.code = 'VALIDATION_ERROR';
+    throw err;
+  }
+  const hasInvalid = uids.some((uid) => uid === null || uid === undefined || uid === '');
+  if (hasInvalid) {
+    const err = new Error(`${paramName} must not contain null, undefined, or empty string elements`);
+    err.code = 'VALIDATION_ERROR';
+    throw err;
+  }
+}
 
-  const msgPayload = {
-    sender_uid:  uid,
-    sender_name: name,
-    type:        type ?? "text",
-    content:     content ?? "",
-    url:         url ?? null,
-    file_name:   file_name ?? null,
-    place_id:    place_id ?? null,
-    created_at:  serverTimestamp(),
-  };
+// ============================================================================
+// FIRESTORE FALLBACK — READ-ONLY MESSAGES
+// ============================================================================
 
-  // Thêm message vào subcollection
-  const msgRef = await addDoc(
-    collection(db, CONV_COL, groupId, "messages"),
-    msgPayload
+/**
+ * Fetch messages for a conversation from Firestore.
+ * Internal use only — not exported.
+ * Used as fallback while backend has no GET /conversations/{id}/messages.
+ *
+ * @param {string} groupId
+ * @returns {Promise<Message[]>}
+ */
+async function getMessages(groupId) {
+  const q = query(
+    collection(db, 'conversations', groupId, 'messages'),
+    orderBy('created_at', 'asc')
   );
-
-  // Cập nhật last_message trên conversation
-  await updateDoc(doc(db, CONV_COL, groupId), {
-    last_message:    content ?? "",
-    last_message_at: serverTimestamp(),
-    updated_at:      serverTimestamp(),
+  const snap = await getDocs(q);
+  return snap.docs.map((docSnap) => {
+    const d = docSnap.data();
+    return normalizeMessage({
+      id: docSnap.id,
+      ...d,
+      created_at: d.created_at?.toDate?.()?.toISOString(),
+    });
   });
+}
 
-  return { id: msgRef.id, ...msgPayload };
+// ─── PUBLIC EXPORTS (Tasks 2-6) ───
+
+// ─── GROUPS ───
+
+/**
+ * Fetch all groups the user belongs to.
+ * Reads conversation IDs from localStorage, fetches each in parallel,
+ * prunes IDs that no longer exist (404, network error, etc.).
+ *
+ * @returns {Promise<Group[]>}
+ */
+export async function getGroups() {
+  const ids = getConversationIds();
+  if (ids.length === 0) return [];
+  const results = await Promise.allSettled(ids.map(id => chatClient.get(`/conversations/${id}`)));
+  const groups = [];
+  const validIds = [];
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled') {
+      try {
+        const group = extractConversation(result.value);
+        groups.push(group);
+        validIds.push(ids[i]);
+      } catch { /* skip malformed response */ }
+    } else {
+      const err = result.reason;
+      // Chỉ prune nếu backend xác nhận không tồn tại (404)
+      // Giữ lại ID nếu lỗi là network, auth, timeout, hoặc server error khác
+      if (err?.code === 'NOT_FOUND' || err?.statusCode === 404) {
+        console.log(`[getGroups] pruning deleted conversation: ${ids[i]}`);
+      } else {
+        console.warn(`[getGroups] keeping conversation ${ids[i]} despite error:`, err?.code, err?.message);
+        validIds.push(ids[i]);
+      }
+    }
+  });
+  localStorage.setItem('b4lu_conversation_ids', JSON.stringify(validIds));
+  return groups;
 }
 
 /**
- * Xóa tin nhắn.
+ * Build a map of groupId → members array from a list of groups.
+ * Synchronous — no API call needed (members are already on the Group objects).
+ *
+ * @param {Group[]} groupList
+ * @returns {Object.<string, Member[]>}
+ */
+export function getMembersByGroup(groupList = []) {
+  return Object.fromEntries(groupList.map(g => [g.id, g.members]));
+}
+
+/**
+ * Fetch messages for multiple groups in parallel from Firestore.
+ * Uses Promise.allSettled so one failure doesn't reject the whole map.
+ * Falls back to [] for any group that fails.
+ *
+ * @param {string[]} groupIds
+ * @returns {Promise<Object.<string, Message[]>>}
+ */
+export async function getMessagesByGroup(groupIds = []) {
+  const results = await Promise.allSettled(
+    groupIds.map(async id => [id, await getMessages(id)])
+  );
+  return Object.fromEntries(
+    results.map((r, i) => r.status === 'fulfilled' ? r.value : [groupIds[i], []])
+  );
+}
+
+// ─── CONVERSATION CRUD ───
+
+/**
+ * Fetch a single conversation by ID.
+ * Internal helper — not exported.
+ *
+ * @param {string} id
+ * @returns {Promise<Group>}
+ */
+async function getConversation(id) {
+  const response = await chatClient.get(`/conversations/${id}`);
+  return extractConversation(response);
+}
+
+/**
+ * Create a new conversation.
+ * Validates name and thumbnail_url before making the API call.
+ * Adds the new conversation ID to localStorage on success.
+ *
+ * @param {{ name: string, description?: string, thumbnail_url?: string|null }} param0
+ * @returns {Promise<Group>}
+ * @throws {Error} VALIDATION_ERROR if name is invalid
+ * @throws {Error} API error if POST fails (ID is NOT added)
+ */
+export async function createConversation({ name, description, thumbnail_url } = {}) {
+  validateConversationData({ name, thumbnail_url });
+
+  const payload = {};
+  if (name !== undefined) payload.name = name;
+  if (description !== undefined) payload.description = description;
+  if (thumbnail_url !== undefined) payload.thumbnail_url = thumbnail_url;
+
+  const response = await chatClient.post('/conversations', payload);
+  const group = extractConversation(response);
+  addConversationId(group.id);
+  return group;
+}
+
+/**
+ * Update an existing conversation.
+ * Only sends fields that are explicitly provided (not undefined).
+ * null IS a valid value (clears a field).
+ * If no fields are provided, returns the existing conversation without making a PATCH.
+ *
+ * @param {string} id
+ * @param {{ name?: string, description?: string, thumbnail_url?: string|null }} param1
+ * @returns {Promise<Group>}
+ */
+export async function updateConversation(id, { name, description, thumbnail_url } = {}) {
+  if (name === undefined && description === undefined && thumbnail_url === undefined) {
+    return getConversation(id);
+  }
+
+  const patch = {};
+  if (name !== undefined) patch.name = name;
+  if (description !== undefined) patch.description = description;
+  if (thumbnail_url !== undefined) patch.thumbnail_url = thumbnail_url;
+
+  const response = await chatClient.patch(`/conversations/${id}`, patch);
+  return extractConversation(response);
+}
+
+/**
+ * Delete a conversation.
+ * Removes the conversation ID from localStorage on success.
+ *
+ * @param {string} id
+ * @returns {Promise<true>}
+ * @throws {Error} 'Permission denied' if 403
+ * @throws {Error} code 'NOT_FOUND' if 404
+ * @throws {Error} original error for any other failure
+ */
+export async function deleteConversation(id) {
+  try {
+    await chatClient.delete(`/conversations/${id}`);
+    removeConversationId(id);
+    return true;
+  } catch (error) {
+    if (error.code === 'FORBIDDEN' || error.statusCode === 403) {
+      throw new Error('Permission denied');
+    }
+    if (error.code === 'NOT_FOUND' || error.statusCode === 404) {
+      const err = new Error('Conversation not found');
+      err.code = 'NOT_FOUND';
+      throw err;
+    }
+    throw error;
+  }
+}
+
+// ─── MEMBERS ───
+
+/**
+ * Add members to a group conversation.
+ * Validates UIDs before making the API call.
+ * The backend handles deduplication — the returned Group reflects the actual member list.
+ *
+ * @param {string} groupId - ID of the conversation to add members to
+ * @param {string[]} uids - Array of user UIDs to add
+ * @returns {Promise<Group>} Normalized Group with updated members
+ * @throws {Error} VALIDATION_ERROR if uids is not a non-empty array or contains invalid entries
+ * @throws {Error} NOT_FOUND (propagated) if groupId does not exist
+ */
+export async function addMembers(groupId, uids) {
+  validateUids(uids, 'uids');
+  const response = await chatClient.post(`/conversations/${groupId}/members`, {
+    member_uids: uids,
+  });
+  return extractConversation(response);
+}
+
+/**
+ * Remove members from a group conversation.
+ * Validates UIDs before making the API call.
+ * The backend handles no-op cases — the returned Group reflects the actual member list.
+ *
+ * @param {string} groupId - ID of the conversation to remove members from
+ * @param {string[]} uids - Array of user UIDs to remove
+ * @returns {Promise<Group>} Normalized Group with updated members
+ * @throws {Error} VALIDATION_ERROR if uids is not a non-empty array or contains invalid entries
+ * @throws {Error} NOT_FOUND (propagated) if groupId does not exist
+ */
+export async function removeMembers(groupId, uids) {
+  validateUids(uids, 'uids');
+  const response = await chatClient.delete(`/conversations/${groupId}/members`, {
+    data: { member_uids: uids },
+  });
+  return extractConversation(response);
+}
+
+// ─── MESSAGES ───
+
+/**
+ * Send a message to a group conversation.
+ * Validates `type` before making the API call.
+ * Builds payload with only non-undefined fields.
+ *
+ * @param {string} groupId - ID of the conversation to send the message to
+ * @param {{ type: string, content?: string, url?: string, file_name?: string, place_id?: string }} param1
+ * @returns {Promise<Message>} Normalized Message object
+ * @throws {Error} VALIDATION_ERROR if `type` is not one of the allowed values
+ * @throws {Error} API error if POST fails (caller handles rollback)
+ */
+export async function sendMessage(groupId, { type, content, url, file_name, place_id } = {}) {
+  const VALID_TYPES = ['text', 'image', 'video', 'file', 'place'];
+  if (!VALID_TYPES.includes(type)) {
+    const err = new Error(`type must be one of: ${VALID_TYPES.join(', ')}`);
+    err.code = 'VALIDATION_ERROR';
+    throw err;
+  }
+
+  const payload = {};
+  if (type !== undefined) payload.type = type;
+  if (content !== undefined) payload.content = content;
+  if (url !== undefined) payload.url = url;
+  if (file_name !== undefined) payload.file_name = file_name;
+  if (place_id !== undefined) payload.place_id = place_id;
+
+  const response = await chatClient.post(`/conversations/${groupId}/messages`, payload);
+  const raw = response.data?.data?.message ?? response.data?.data;
+  console.log('[sendMessage] raw:', JSON.stringify(raw));
+  return normalizeMessage(raw);
+}
+
+/**
+ * Delete a message from a group conversation.
+ *
+ * @param {string} groupId - ID of the conversation containing the message
+ * @param {string} msgId - ID of the message to delete
+ * @returns {Promise<true>}
+ * @throws {Error} 'Permission denied' if 403
+ * @throws {Error} code 'NOT_FOUND' if 404
+ * @throws {Error} original error for any other failure
  */
 export async function deleteMessage(groupId, msgId) {
-  await deleteDoc(doc(db, CONV_COL, groupId, "messages", msgId));
+  try {
+    await chatClient.delete(`/conversations/${groupId}/messages/${msgId}`);
+    return true;
+  } catch (error) {
+    if (error.code === 'FORBIDDEN' || error.statusCode === 403) {
+      throw new Error('Permission denied');
+    }
+    if (error.code === 'NOT_FOUND' || error.statusCode === 404) {
+      const err = new Error('Message not found');
+      err.code = 'NOT_FOUND';
+      throw err;
+    }
+    throw error;
+  }
 }
 
 /**
- * Đánh dấu đã đọc — reset unread count của user hiện tại.
+ * Mark all messages in a conversation as read for the current user.
+ * Returns `false` immediately if `groupId` is null, undefined, or empty string.
+ * Never throws — any API error is logged and `false` is returned.
+ *
+ * @param {string|null|undefined} groupId - ID of the conversation to mark as read
+ * @returns {Promise<boolean>} `true` on success, `false` on invalid input or any error
  */
 export async function markAsRead(groupId) {
-  const uid = getCurrentUid();
-  await updateDoc(doc(db, CONV_COL, groupId), {
-    [`unread_counts.${uid}`]: 0,
-  });
+  if (groupId === null || groupId === undefined || groupId === '') {
+    return false;
+  }
+  try {
+    await chatClient.patch(`/conversations/${groupId}/read`);
+    return true;
+  } catch (error) {
+    console.error('[markAsRead] failed:', error);
+    return false;
+  }
 }
 
-// ─── AI Conversation ──────────────────────────────────────────────────────────
+// ─── AI CONVERSATION ───
 
-const BASE_URL     = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-const STATIC_TOKEN = import.meta.env.VITE_API_TOKEN    ?? "";
-
+/**
+ * Send messages to the AI conversation endpoint and get a reply.
+ * Uses native fetch with a static API token (not chatClient).
+ *
+ * @param {Array<{ role: string, content: string }>} messages
+ * @returns {Promise<string>} AI reply content, or "" if no content in response
+ * @throws {Error} "AI API error {status}" on non-2xx response
+ * @throws {Error} "AI API error network" on network failure
+ */
 export async function sendConversation(messages) {
-  const res = await fetch(`${BASE_URL}/conversation`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${STATIC_TOKEN}`,
-    },
-    body: JSON.stringify({ messages }),
-  });
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+  const STATIC_TOKEN = import.meta.env.VITE_API_TOKEN ?? '';
 
-  if (!res.ok) throw new Error(`AI API error ${res.status}`);
+  let res;
+  try {
+    res = await fetch(`${BASE_URL}/conversation`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${STATIC_TOKEN}`,
+      },
+      body: JSON.stringify({ messages }),
+    });
+  } catch {
+    throw new Error('AI API error network');
+  }
+
+  if (!res.ok) {
+    throw new Error(`AI API error ${res.status}`);
+  }
 
   const data = await res.json();
   return (
     data.response ??
     data.messages?.[data.messages.length - 1]?.content ??
-    ""
+    ''
   );
 }

@@ -5,6 +5,7 @@ import { authService } from '../services/authentication/auth.service.js';
 import { profileService } from '../services/profile/profile.service.js';
 import { sessionService } from '../services/profile/session.service.js';
 import { ErrorLogger } from '../utils/errorHandling.js';
+import { authenticateWithBackend } from '../services/backend/backendAuth.service.js';
 
 /**
  * Authentication Context
@@ -59,6 +60,14 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       
       if (firebaseUser) {
+        // Sync user with backend DB (creates user if not exists)
+        try {
+          await authenticateWithBackend();
+        } catch (backendAuthError) {
+          console.warn('Backend auth sync failed:', backendAuthError.message);
+          // Non-fatal: continue with Firebase auth even if backend sync fails
+        }
+
         // User is signed in - load profile but don't fail auth if profile fetch fails
         let userProfile = null;
         try {

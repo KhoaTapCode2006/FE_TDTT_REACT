@@ -3,8 +3,8 @@
 // danh sách trips, filter theo nav/search, tạo/sửa/xóa trip, thêm/xóa member,
 // và trạng thái mở/đóng các modal.
 
-import { useState } from "react";
-import { MOCK_TRIPS } from "../../../services/backend/trip.service";
+import { useState, useEffect, useCallback } from "react";
+import { tripService } from "../../../services/backend/trip.service";
 
 export const NAV_ITEMS = [
   { id: "all",     label: "All Trips", icon: "🗺️" },
@@ -15,13 +15,34 @@ export const NAV_ITEMS = [
 
 export function useTrip() {
   const [activeNav, setActiveNav]         = useState("all");
-  const [trips, setTrips]                 = useState(MOCK_TRIPS);
+  const [trips, setTrips]                 = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState(null);
   const [search, setSearch]               = useState("");
   const [showCreate, setShowCreate]       = useState(false);
   const [editingTrip, setEditingTrip]     = useState(null);
   const [viewingTrip, setViewingTrip]     = useState(null);
   const [infoTripId, setInfoTripId]       = useState(null);
   const [addMemberTrip, setAddMemberTrip] = useState(null);
+
+  // ── Fetch trips từ API ───────────────────────────────────────────────────────
+  const fetchTrips = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await tripService.getMyTrips();
+      setTrips(data);
+    } catch (err) {
+      console.error("Failed to fetch trips:", err);
+      setError(err.message || "Không thể tải danh sách chuyến đi");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTrips();
+  }, [fetchTrips]);
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const infoTrip = infoTripId ? trips.find((t) => t.id === infoTripId) ?? null : null;
@@ -34,49 +55,69 @@ export function useTrip() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
-  const handleCreate = ({ title, description, dateFrom, dateTo }) => {
-    const newTrip = {
-      id:          Date.now(),
-      title,
-      description: description || "No description provided.",
-      status:      "waiting",
-      dateRange:   dateFrom && dateTo ? `${dateFrom} - ${dateTo}` : "TBD",
-      dateFrom,
-      dateTo,
-      members:     1,
-      member_uids: [],
-      avatars:     [],
-      extra:       0,
-    };
-    setTrips((prev) => [newTrip, ...prev]);
+  const handleCreate = async ({ title, description, dateFrom, dateTo }) => {
+    try {
+      const toISO = (dateStr) => dateStr ? new Date(dateStr).toISOString() : undefined;
+      const payload = {
+        name:     title,
+        place_id: description || undefined,
+        start_at: toISO(dateFrom),
+        end_at:   toISO(dateTo),
+      };
+      const newTrip = await tripService.createTrip(payload);
+      setTrips((prev) => [newTrip, ...prev]);
+    } catch (err) {
+      console.error("Failed to create trip:", err);
+      setError(err.message || "Không thể tạo chuyến đi");
+    }
   };
 
-  const handleDelete = (id) => {
-    setTrips((prev) => prev.filter((t) => t.id !== id));
+  const handleDelete = async (id) => {
+    try {
+      await tripService.deleteTrip(id);
+      setTrips((prev) => prev.filter((t) => t.id !== id));
+    } catch (err) {
+      console.error("Failed to delete trip:", err);
+      setError(err.message || "Không thể xóa chuyến đi");
+    }
   };
 
-  const handleSaveEdit = (updated) => {
-    setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  const handleSaveEdit = async (updated) => {
+    try {
+      const toISO = (dateStr) => dateStr ? new Date(dateStr).toISOString() : undefined;
+      const payload = {
+        name:     updated.title,
+        place_id: updated.description || undefined,
+        status:   updated.status,
+        start_at: toISO(updated.dateFrom),
+        end_at:   toISO(updated.dateTo),
+      };
+      const savedTrip = await tripService.updateTrip(updated.id, payload);
+      setTrips((prev) => prev.map((t) => (t.id === savedTrip.id ? savedTrip : t)));
+    } catch (err) {
+      console.error("Failed to update trip:", err);
+      setError(err.message || "Không thể cập nhật chuyến đi");
+    }
   };
 
-  const handleAddMember = (tripId, uid) => {
-    setTrips((prev) =>
-      prev.map((t) =>
-        t.id === tripId
-          ? { ...t, member_uids: [...(t.member_uids || []), uid] }
-          : t
-      )
-    );
+  const handleAddMember = async (tripId, uid) => {
+    try {
+      const updatedTrip = await tripService.addMembersToTrip(tripId, [uid]);
+      setTrips((prev) => prev.map((t) => (t.id === updatedTrip.id ? updatedTrip : t)));
+    } catch (err) {
+      console.error("Failed to add member:", err);
+      setError(err.message || "Không thể thêm thành viên");
+    }
   };
 
-  const handleRemoveMember = (tripId, uid) => {
-    setTrips((prev) =>
-      prev.map((t) =>
-        t.id === tripId
-          ? { ...t, member_uids: (t.member_uids || []).filter((u) => u !== uid) }
-          : t
-      )
-    );
+  const handleRemoveMember = async (tripId, uid) => {
+    try {
+      const updatedTrip = await tripService.removeMembersFromTrip(tripId, [uid]);
+      setTrips((prev) => prev.map((t) => (t.id === updatedTrip.id ? updatedTrip : t)));
+    } catch (err) {
+      console.error("Failed to remove member:", err);
+      setError(err.message || "Không thể xóa thành viên");
+    }
   };
 
   return {
@@ -85,6 +126,8 @@ export function useTrip() {
     setActiveNav,
     trips,
     filteredTrips,
+    loading,
+    error,
     search,
     setSearch,
     showCreate,
@@ -103,5 +146,7 @@ export function useTrip() {
     handleSaveEdit,
     handleAddMember,
     handleRemoveMember,
+    // Refresh
+    refetch: fetchTrips,
   };
 }
