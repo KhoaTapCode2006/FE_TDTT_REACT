@@ -1,5 +1,6 @@
 import { apiClient } from '../api/apiClient.js';
 import { tokenManager } from '../../utils/tokenManager.js';
+import { transformUserProfile, transformUserProfileUpdate } from '../../utils/schemaTransformers.js';
 
 /**
  * Profile service for handling user profile operations via backend REST API
@@ -25,20 +26,20 @@ class ProfileService {
   }
 
   /**
-   * Get user profile by UID (current user)
-   * @param {string} uid - User ID (not used, kept for backward compatibility)
+   * Get current user profile
    * @returns {Promise<Object>} User profile
    */
-  async getProfile(uid) {
+  async getCurrentUserProfile() {
     try {
       await this.ensureValidToken();
       
       // Get current user's profile from backend
-      const profile = await apiClient.get('/me');
+      const backendProfile = await apiClient.get('/me');
       
-      return this.transformBackendProfile(profile);
+      // Transform backend response to frontend format
+      return transformUserProfile(backendProfile);
     } catch (error) {
-      console.error('Error getting profile:', error);
+      console.error('Error getting current user profile:', error);
       
       if (error.status === 401) {
         throw new Error('Session expired. Please log in again.');
@@ -49,11 +50,21 @@ class ProfileService {
   }
 
   /**
-   * Get public user profile by username
+   * Get user profile by UID (current user)
+   * @param {string} uid - User ID (not used, kept for backward compatibility)
+   * @returns {Promise<Object>} User profile
+   */
+  async getProfile(uid) {
+    // Delegate to getCurrentUserProfile for backward compatibility
+    return this.getCurrentUserProfile();
+  }
+
+  /**
+   * Get user profile by username
    * @param {string} username - Username
    * @returns {Promise<Object>} Public user profile
    */
-  async getPublicProfile(username) {
+  async getUserProfile(username) {
     try {
       // Public profiles may not require authentication, but include token if available
       try {
@@ -64,11 +75,12 @@ class ProfileService {
       }
       
       // Get public profile from backend
-      const profile = await apiClient.get(`/users/${username}`);
+      const backendProfile = await apiClient.get(`/users/${username}`);
       
-      return this.transformBackendProfile(profile);
+      // Transform backend response to frontend format
+      return transformUserProfile(backendProfile);
     } catch (error) {
-      console.error('Error getting public profile:', error);
+      console.error('Error getting user profile:', error);
       
       if (error.status === 404) {
         throw new Error('User not found.');
@@ -79,22 +91,32 @@ class ProfileService {
   }
 
   /**
+   * Get public user profile by username (alias for backward compatibility)
+   * @param {string} username - Username
+   * @returns {Promise<Object>} Public user profile
+   */
+  async getPublicProfile(username) {
+    return this.getUserProfile(username);
+  }
+
+  /**
    * Update user profile
-   * @param {string} uid - User ID (not used, kept for backward compatibility)
-   * @param {Object} profileData - Profile data to update
+   * @param {string} userId - User ID (not used, kept for backward compatibility)
+   * @param {Object} updateData - Profile data to update
    * @returns {Promise<Object>} Updated profile
    */
-  async updateProfile(uid, profileData) {
+  async updateProfile(userId, updateData) {
     try {
       await this.ensureValidToken();
       
-      // Transform frontend field names to backend schema
-      const updateData = this.transformToBackendUpdate(profileData);
+      // Transform frontend data to backend schema
+      const backendUpdateData = transformUserProfileUpdate(updateData);
       
       // Update profile via backend API
-      const updatedProfile = await apiClient.patch('/me', updateData);
+      const backendProfile = await apiClient.patch('/me', backendUpdateData);
       
-      return this.transformBackendProfile(updatedProfile);
+      // Transform backend response to frontend format
+      return transformUserProfile(backendProfile);
     } catch (error) {
       console.error('Error updating profile:', error);
       
@@ -111,6 +133,26 @@ class ProfileService {
   }
 
   /**
+   * Delete user profile
+   * @param {string} userId - User ID (not used, kept for backward compatibility)
+   * @returns {Promise<void>}
+   */
+  async deleteProfile(userId) {
+    try {
+      await this.ensureValidToken();
+      
+      // Delete profile via backend API
+      await apiClient.delete('/me');
+      
+      // Profile deletion successful
+      // Logout will be triggered by the calling code
+    } catch (error) {
+      console.error('Error deleting profile:', error);
+      throw new Error(error.message || 'Failed to delete user profile. Please try again.');
+    }
+  }
+
+  /**
    * Add collection to liked collections
    * @param {string} placeId - Place/collection ID
    * @returns {Promise<Object>} Updated profile
@@ -120,9 +162,10 @@ class ProfileService {
       await this.ensureValidToken();
       
       // Add liked collection via backend API
-      const updatedProfile = await apiClient.post(`/me/liked-collection?place_id=${placeId}`);
+      const backendProfile = await apiClient.post(`/me/liked-collection?place_id=${placeId}`);
       
-      return this.transformBackendProfile(updatedProfile);
+      // Transform backend response to frontend format
+      return transformUserProfile(backendProfile);
     } catch (error) {
       console.error('Error adding liked collection:', error);
       throw new Error(error.message || 'Failed to add collection to favorites. Please try again.');
@@ -139,32 +182,13 @@ class ProfileService {
       await this.ensureValidToken();
       
       // Remove liked collection via backend API
-      const updatedProfile = await apiClient.delete(`/me/liked-collection?place_id=${placeId}`);
+      const backendProfile = await apiClient.delete(`/me/liked-collection?place_id=${placeId}`);
       
-      return this.transformBackendProfile(updatedProfile);
+      // Transform backend response to frontend format
+      return transformUserProfile(backendProfile);
     } catch (error) {
       console.error('Error removing liked collection:', error);
       throw new Error(error.message || 'Failed to remove collection from favorites. Please try again.');
-    }
-  }
-
-  /**
-   * Delete user profile
-   * @param {string} uid - User ID (not used, kept for backward compatibility)
-   * @returns {Promise<void>}
-   */
-  async deleteProfile(uid) {
-    try {
-      await this.ensureValidToken();
-      
-      // Delete profile via backend API
-      await apiClient.delete('/me');
-      
-      // Profile deletion successful
-      // Logout will be triggered by the calling code
-    } catch (error) {
-      console.error('Error deleting profile:', error);
-      throw new Error(error.message || 'Failed to delete user profile. Please try again.');
     }
   }
 
@@ -213,7 +237,7 @@ class ProfileService {
       const avatarUrl = await this.createImageDataUrl(file);
       
       // Update profile with new avatar URL
-      await this.updateProfile(uid, { avatar_url: avatarUrl });
+      await this.updateProfile(uid, { avatarUrl: avatarUrl });
       
       return avatarUrl;
     } catch (error) {
@@ -241,60 +265,6 @@ class ProfileService {
       
       reader.readAsDataURL(file);
     });
-  }
-
-  /**
-   * Transform backend profile data to frontend format
-   * @param {Object} backendProfile - Profile data from backend
-   * @returns {Object} Transformed profile
-   */
-  transformBackendProfile(backendProfile) {
-    return {
-      uid: backendProfile.uid,
-      username: backendProfile.username,
-      displayName: backendProfile.display_name,
-      email: backendProfile.email,
-      phoneNumber: backendProfile.phone_number,
-      avatar: {
-        url: backendProfile.avatar_url,
-        provider: 'backend'
-      },
-      bio: backendProfile.bio,
-      createdAt: backendProfile.created_at ? new Date(backendProfile.created_at) : null,
-      lastLoginAt: backendProfile.last_login ? new Date(backendProfile.last_login) : null,
-      lastUpdated: backendProfile.last_updated ? new Date(backendProfile.last_updated) : null,
-      likedCollection: backendProfile.liked_collection,
-      travelProfile: backendProfile.travel_profile,
-      collections: backendProfile.collections || [],
-      publicCollections: backendProfile.public_collections || [],
-      userBehaviorHistory: backendProfile.user_behavior_history || [],
-      scoringWeights: backendProfile.scoring_weights
-    };
-  }
-
-  /**
-   * Transform frontend update data to backend schema
-   * @param {Object} profileData - Frontend profile data
-   * @returns {Object} Backend-compatible update data
-   */
-  transformToBackendUpdate(profileData) {
-    const updateData = {};
-    
-    // Map frontend field names to backend field names
-    if (profileData.username !== undefined) updateData.username = profileData.username;
-    if (profileData.displayName !== undefined) updateData.display_name = profileData.displayName;
-    if (profileData.email !== undefined) updateData.email = profileData.email;
-    if (profileData.phoneNumber !== undefined) updateData.phone_number = profileData.phoneNumber;
-    if (profileData.avatar_url !== undefined) updateData.avatar_url = profileData.avatar_url;
-    if (profileData.bio !== undefined) updateData.bio = profileData.bio;
-    if (profileData.currentTrip !== undefined) updateData.current_trip = profileData.currentTrip;
-    
-    // Handle nested avatar object
-    if (profileData.avatar?.url !== undefined) {
-      updateData.avatar_url = profileData.avatar.url;
-    }
-    
-    return updateData;
   }
 
   /**

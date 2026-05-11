@@ -2,13 +2,86 @@ import { auth } from '../../config/firebase.js';
 
 /**
  * API Client for making authenticated requests to the backend API
- * Handles automatic token injection, token refresh, and error translation
+ * Handles automatic token injection, token refresh, error translation, and retry logic
  */
 class APIClient {
   constructor() {
     this.baseURL = this.getBaseURL();
     this.timeout = 30000; // 30 seconds
     this.authToken = null;
+    this.maxRetries = 3; // Maximum retry attempts for 5xx errors
+    this.retryDelay = 1000; // Initial retry delay in ms (exponential backoff)
+  }
+
+  /**
+   * Log request/response for debugging (development mode only)
+   * @param {string} type - Log type ('request' or 'response' or 'error')
+   * @param {Object} data - Data to log
+   */
+  logDebug(type, data) {
+    if (import.meta.env.DEV) {
+      const timestamp = new Date().toISOString();
+      
+      if (type === 'request') {
+        console.group(`🔵 API Request [${timestamp}]`);
+        console.log('Method:', data.method);
+        console.log('URL:', data.url);
+        console.log('Headers:', data.headers);
+        if (data.body) {
+          console.log('Body:', data.body);
+        }
+        console.groupEnd();
+      } else if (type === 'response') {
+        console.group(`🟢 API Response [${timestamp}]`);
+        console.log('Status:', data.status);
+        console.log('URL:', data.url);
+        console.log('Data:', data.data);
+        console.groupEnd();
+      } else if (type === 'error') {
+        console.group(`🔴 API Error [${timestamp}]`);
+        console.log('Status:', data.status);
+        console.log('URL:', data.url);
+        console.log('Message:', data.message);
+        console.log('Error:', data.error);
+        console.groupEnd();
+      } else if (type === 'retry') {
+        console.group(`🟡 API Retry [${timestamp}]`);
+        console.log('Attempt:', data.attempt);
+        console.log('URL:', data.url);
+        console.log('Delay:', data.delay, 'ms');
+        console.groupEnd();
+      }
+    }
+  }
+
+  /**
+   * Calculate exponential backoff delay
+   * @param {number} attempt - Retry attempt number (0-indexed)
+   * @returns {number} Delay in milliseconds
+   */
+  calculateBackoffDelay(attempt) {
+    // Exponential backoff: delay * (2 ^ attempt)
+    // Attempt 0: 1000ms, Attempt 1: 2000ms, Attempt 2: 4000ms
+    return this.retryDelay * Math.pow(2, attempt);
+  }
+
+  /**
+   * Sleep for specified duration
+   * @param {number} ms - Duration in milliseconds
+   * @returns {Promise<void>}
+   */
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Check if error is retryable (5xx server errors)
+   * @param {Object} error - Error object
+   * @returns {boolean} True if error is retryable
+   */
+  isRetryableError(error) {
+    // Retry on 5xx server errors
+    return error.status >= 500 && error.status < 600;
   }
 
   /**
@@ -84,14 +157,23 @@ class APIClient {
   }
 
   /**
-   * Make HTTP request with timeout and error handling
+   * Make HTTP request with timeout, retry logic, and error handling
    * @param {string} endpoint - API endpoint
    * @param {Object} options - Fetch options
+   * @param {number} retryAttempt - Current retry attempt (internal use)
    * @returns {Promise<any>} Response data
    */
-  async request(endpoint, options = {}) {
+  async request(endpoint, options = {}, retryAttempt = 0) {
     const url = `${this.baseURL}${endpoint}`;
     const config = this.addAuthHeader(options);
+    
+    // Log request in development mode
+    this.logDebug('request', {
+      method: config.method || 'GET',
+      url: url,
+      headers: config.headers,
+      body: config.body
+    });
     
     // Create abort controller for timeout
     const controller = new AbortController();
@@ -105,9 +187,45 @@ class APIClient {
       
       clearTimeout(timeoutId);
       
-      return await this.handleResponse(response, endpoint, options);
+      const result = await this.handleResponse(response, endpoint, options);
+      
+      // Log successful response in development mode
+      this.logDebug('response', {
+        status: response.status,
+        url: url,
+        data: result
+      });
+      
+      return result;
     } catch (error) {
       clearTimeout(timeoutId);
+      
+      // Check if error is retryable and we haven't exceeded max retries
+      if (this.isRetryableError(error) && retryAttempt < this.maxRetries) {
+        const delay = this.calculateBackoffDelay(retryAttempt);
+        
+        // Log retry attempt in development mode
+        this.logDebug('retry', {
+          attempt: retryAttempt + 1,
+          url: url,
+          delay: delay
+        });
+        
+        // Wait before retrying
+        await this.sleep(delay);
+        
+        // Retry the request
+        return await this.request(endpoint, options, retryAttempt + 1);
+      }
+      
+      // Log error in development mode
+      this.logDebug('error', {
+        status: error.status,
+        url: url,
+        message: error.message,
+        error: error
+      });
+      
       return await this.handleError(error, endpoint, options);
     }
   }

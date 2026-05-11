@@ -61,12 +61,13 @@ export const AuthProvider = ({ children }) => {
       if (firebaseUser) {
         // User is signed in
         try {
-          const userProfile = await profileService.getProfile(firebaseUser.uid);
+          // Get current user profile from backend API
+          const userProfile = await profileService.getCurrentUserProfile();
           
           const userData = {
             uid: firebaseUser.uid,
             email: firebaseUser.email,
-            displayName: firebaseUser.displayName,
+            displayName: firebaseUser.displayName || userProfile.displayName || userProfile.username,
             photoURL: firebaseUser.photoURL,
             emailVerified: firebaseUser.emailVerified,
             ...userProfile
@@ -90,12 +91,22 @@ export const AuthProvider = ({ children }) => {
           } else if (profileError.message?.includes('Server error')) {
             setError('Server error. Please try again later.');
           } else {
-            setError('Failed to load user data. Please try refreshing the page.');
+            // For now, if profile loading fails, use Firebase user data as fallback
+            console.warn('Using Firebase user data as fallback due to profile load error');
+            const userData = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+              photoURL: firebaseUser.photoURL,
+              emailVerified: firebaseUser.emailVerified,
+              username: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
+              fullName: firebaseUser.displayName || ''
+            };
+            
+            setUser(userData);
+            setIsAuthenticated(true);
+            sessionService.updateActivity();
           }
-          
-          // Set user to null on profile load error
-          setUser(null);
-          setIsAuthenticated(false);
         }
       } else {
         // User is signed out
