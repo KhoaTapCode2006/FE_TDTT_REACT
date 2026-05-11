@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { tripService } from "../../../services/backend/trip.service";
+import { useAuth } from "../../../contexts/AuthContext";
 
 export const NAV_ITEMS = [
   { id: "all",     label: "All Trips", icon: "🗺️" },
@@ -14,6 +15,8 @@ export const NAV_ITEMS = [
 ];
 
 export function useTrip() {
+  const { loading: authLoading, isAuthenticated } = useAuth();
+
   const [activeNav, setActiveNav]         = useState("all");
   const [trips, setTrips]                 = useState([]);
   const [loading, setLoading]             = useState(true);
@@ -40,9 +43,16 @@ export function useTrip() {
     }
   }, []);
 
+  // Đợi Firebase xác nhận auth xong mới fetch — tránh lỗi "not authenticated" khi F5
   useEffect(() => {
+    if (authLoading) return;          // Firebase chưa restore session
+    if (!isAuthenticated) {
+      setTrips([]);
+      setLoading(false);
+      return;
+    }
     fetchTrips();
-  }, [fetchTrips]);
+  }, [authLoading, isAuthenticated, fetchTrips]);
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const infoTrip = infoTripId ? trips.find((t) => t.id === infoTripId) ?? null : null;
