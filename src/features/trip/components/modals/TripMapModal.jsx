@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect } from "react";
-import { useApp } from "@/app/AppContext";
-import { auth } from "@/config/firebase";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { collection, onSnapshot, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db, auth } from "@/config/firebase";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -9,66 +9,121 @@ export const MEMBER_COLORS = [
   "#1abc9c", "#e67e22", "#e91e63", "#00bcd4", "#ff5722",
 ];
 
-// Tọa độ điểm đến mặc định — HCMUS (227 Nguyễn Văn Cừ, Q5, TP.HCM)
-const DEFAULT_DEST = { lat: 10.7626, lng: 106.6822 };
+// Điểm đến cố định — HCMUS (227 Nguyễn Văn Cừ, Q5, TP.HCM)
+const DEST = { lat: 10.7626, lng: 106.6822 };
 
-function generateLocations(members, centerLat, centerLng) {
-  return members.map((m, i) => {
-    const angle = (i / members.length) * 2 * Math.PI;
-    const r     = 0.008 + (i % 3) * 0.005;
-    return {
-      ...m,
-      lat:   centerLat + Math.sin(angle) * r,
-      lng:   centerLng + Math.cos(angle) * r,
-      color: MEMBER_COLORS[i % MEMBER_COLORS.length],
-    };
-  });
-}
+// GPS tracking interval (ms)
+const TRACKING_INTERVAL = 10000;
 
 // ─── TripMapModal ─────────────────────────────────────────────────────────────
-// Modal bản đồ hiển thị vị trí các thành viên và tuyến đường đến điểm đến.
-// Click vào member để vẽ route từ vị trí của họ đến điểm đến.
 function TripMapModal({ trip, onClose }) {
-  const { userLoc } = useApp();
-  const mapRef    = useRef(null);
-  const mapObjRef = useRef(null);
-  const markersRef = useRef([]);
+  const mapRef     = useRef(null);
+  const mapObjRef  = useRef(null);
+  const markersRef = useRef({}); // { uid: vietmapgl.Marker }
+  const watchIdRef = useRef(null);
+  const intervalRef = useRef(null);
 
-  const [mapReady, setMapReady]           = useState(false);
+  const [mapReady, setMapReady]             = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
-  const [routeInfo, setRouteInfo]         = useState(null);
-  const [loadingRoute, setLoadingRoute]   = useState(false);
-  // GPS thực của user hiện tại (lấy fresh khi modal mở)
-  const [myGps, setMyGps] = useState(userLoc || DEFAULT_DEST);
-
-  // Lấy GPS thực khi modal mở
-  useEffect(() => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setMyGps({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => { /* giữ fallback */ },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
-    );
-  }, []);
-
-  // Điểm đến = HCMUS (hardcode)
-  const DEST = DEFAULT_DEST;
+  const [routeInfo, setRouteInfo]           = useState(null);
+  const [loadingRoute, setLoadingRoute]     = useState(false);
+  // memberTracking: { [uid]: { lat, lng, status, updated_at } }
+  const [memberTracking, setMemberTracking] = useState({});
 
   const currentUid = auth.currentUser?.uid;
+  const tripId     = trip.id;
 
-  const rawMembers = (trip.member_uids || []).map((uid, i) => ({
-    id:     i + 1,
-    name:   uid,
-    avatar: uid.slice(0, 2).toUpperCase(),
-    isMe:   uid === currentUid,
-  }));
+  // ── 1. Push GPS của user hiện tại lên Firestore ───────────────────────────
+  const pushTracking = useCallback(async (lat, lng) => {
+    if (!currentUid || !tripId) return;
+    try {
+      const ref = doc(db, "trips", tripId, "members", currentUid);
+      await setDoc(ref, {
+        tracking: {
+          lat,
+          lng,
+          updated_at: serverTimestamp(),
+          status: "active",
+        },
+      }, { merge: true });
+    } catch (err) {
+      console.warn("[TripMapModal] pushTracking failed:", err);
+    }
+  }, [currentUid, tripId]);
 
-  // User hiện tại dùng GPS thực, các member khác dùng vị trí giả xung quanh DEST
-  const members = generateLocations(rawMembers, DEST.lat, DEST.lng).map((m) =>
-    m.isMe ? { ...m, lat: myGps.lat, lng: myGps.lng } : m
-  );
+  useEffect(() => {
+    if (!navigator.geolocation || !currentUid) return;
 
-  // ── Init map ─────────────────────────────────────────────────────────────────
+    // Lấy ngay lần đầu
+    navigator.geolocation.getCurrentPosition(
+      (pos) => pushTracking(pos.coords.latitude, pos.coords.longitude),
+      () => {},
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+
+    // Watch liên tục
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => pushTracking(pos.coords.latitude, pos.coords.longitude),
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+    );
+
+    return () => {
+      if (watchIdRef.current != null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      // Đặt status = no_share khi đóng modal
+      if (currentUid && tripId) {
+        const ref = doc(db, "trips", tripId, "members", currentUid);
+        setDoc(ref, { tracking: { status: "no_share" } }, { merge: true }).catch(() => {});
+      }
+    };
+  }, [currentUid, tripId, pushTracking]);
+
+  // ── 2. Subscribe realtime tracking của tất cả members ────────────────────
+  useEffect(() => {
+    if (!tripId) return;
+    const colRef = collection(db, "trips", tripId, "members");
+    const unsub = onSnapshot(colRef, (snap) => {
+      const tracking = {};
+      snap.forEach((d) => {
+        const data = d.data();
+        if (data.tracking?.lat != null && data.tracking?.lng != null) {
+          tracking[d.id] = {
+            lat:        data.tracking.lat,
+            lng:        data.tracking.lng,
+            status:     data.tracking.status || "active",
+            updated_at: data.tracking.updated_at,
+          };
+        }
+      });
+      setMemberTracking(tracking);
+    }, (err) => {
+      console.warn("[TripMapModal] onSnapshot error:", err);
+    });
+    return () => unsub();
+  }, [tripId]);
+
+  // ── 3. Build members list với tọa độ thực hoặc fallback giả ──────────────
+  const members = (trip.member_uids || []).map((uid, i) => {
+    const t = memberTracking[uid];
+    // Fallback: vị trí giả xung quanh DEST nếu chưa có tracking
+    const angle = (i / (trip.member_uids?.length || 1)) * 2 * Math.PI;
+    const r     = 0.008 + (i % 3) * 0.005;
+    return {
+      id:     uid,
+      name:   uid,
+      avatar: uid.slice(0, 2).toUpperCase(),
+      color:  MEMBER_COLORS[i % MEMBER_COLORS.length],
+      lat:    t ? t.lat : DEST.lat + Math.sin(angle) * r,
+      lng:    t ? t.lng : DEST.lng + Math.cos(angle) * r,
+      hasRealGps: !!t,
+      status: t?.status || "no_share",
+      isMe:   uid === currentUid,
+    };
+  });
+
+  // ── 4. Init map ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current || mapObjRef.current) return;
     const init = () => {
@@ -85,55 +140,60 @@ function TripMapModal({ trip, onClose }) {
     };
     init();
     return () => {
-      markersRef.current.forEach((m) => m.remove());
+      Object.values(markersRef.current).forEach((m) => m.remove());
+      markersRef.current = {};
       if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; }
     };
   }, []);
 
-  // ── Place markers ─────────────────────────────────────────────────────────────
+  // ── 5. Update markers khi tracking thay đổi ───────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapObjRef.current || !window.vietmapgl) return;
     const map = mapObjRef.current;
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
 
-    // Điểm đến
-    const destEl = document.createElement("div");
-    destEl.style.cssText = `width:36px;height:36px;border-radius:50%;background:#255dad;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:18px;`;
-    destEl.innerHTML = "🏁";
-    destEl.title = trip.title;
-    markersRef.current.push(
-      new window.vietmapgl.Marker({ element: destEl, anchor: "center" })
+    // Đặt/cập nhật marker điểm đến (chỉ 1 lần)
+    if (!markersRef.current["__dest__"]) {
+      const destEl = document.createElement("div");
+      destEl.style.cssText = `width:40px;height:40px;border-radius:50%;background:#255dad;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:20px;`;
+      destEl.innerHTML = "🏁";
+      destEl.title = "HCMUS — Điểm đến";
+      markersRef.current["__dest__"] = new window.vietmapgl.Marker({ element: destEl, anchor: "center" })
         .setLngLat([DEST.lng, DEST.lat])
-        .addTo(map)
-    );
+        .addTo(map);
+    }
 
-    // Thành viên
+    // Cập nhật marker từng member
     members.forEach((m) => {
-      const el = document.createElement("div");
-      el.style.cssText = `width:36px;height:36px;border-radius:50%;background:${m.color};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;cursor:pointer;transition:transform 0.2s;`;
-      el.innerHTML = m.avatar;
-      el.title = m.name;
-      el.addEventListener("mouseenter", () => { el.style.transform = "scale(1.2)"; });
-      el.addEventListener("mouseleave", () => { el.style.transform = "scale(1)"; });
-      el.addEventListener("click", () => handleMemberClick(m));
-      markersRef.current.push(
-        new window.vietmapgl.Marker({ element: el, anchor: "center" })
+      if (markersRef.current[m.id]) {
+        // Di chuyển marker đến vị trí mới
+        markersRef.current[m.id].setLngLat([m.lng, m.lat]);
+      } else {
+        // Tạo marker mới
+        const el = document.createElement("div");
+        const pulse = m.isMe ? `box-shadow:0 0 0 4px ${m.color}44,0 2px 8px rgba(0,0,0,0.3);` : `box-shadow:0 2px 8px rgba(0,0,0,0.3);`;
+        el.style.cssText = `width:36px;height:36px;border-radius:50%;background:${m.color};border:3px solid white;${pulse}display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;cursor:pointer;transition:transform 0.2s;`;
+        el.innerHTML = m.avatar;
+        el.title = m.isMe ? `${m.name} (bạn)` : m.name;
+        el.addEventListener("mouseenter", () => { el.style.transform = "scale(1.2)"; });
+        el.addEventListener("mouseleave", () => { el.style.transform = "scale(1)"; });
+        el.addEventListener("click", () => handleMemberClick(m));
+        markersRef.current[m.id] = new window.vietmapgl.Marker({ element: el, anchor: "center" })
           .setLngLat([m.lng, m.lat])
-          .addTo(map)
-      );
+          .addTo(map);
+      }
     });
 
+    // Fit bounds bao gồm tất cả markers
     const all  = [[DEST.lng, DEST.lat], ...members.map((m) => [m.lng, m.lat])];
     const lngs = all.map((p) => p[0]);
-    const lats = all.map((p) => p[1]);
+    const lats  = all.map((p) => p[1]);
     map.fitBounds(
-      [[Math.min(...lngs) - 0.01, Math.min(...lats) - 0.01], [Math.max(...lngs) + 0.01, Math.max(...lats) + 0.01]],
-      { padding: 50, duration: 800 }
+      [[Math.min(...lngs) - 0.005, Math.min(...lats) - 0.005], [Math.max(...lngs) + 0.005, Math.max(...lats) + 0.005]],
+      { padding: 60, duration: 800, maxZoom: 16 }
     );
-  }, [mapReady, myGps]);
+  }, [mapReady, memberTracking]);
 
-  // ── Route ─────────────────────────────────────────────────────────────────────
+  // ── 6. Route ──────────────────────────────────────────────────────────────
   const handleMemberClick = async (member) => {
     if (!mapObjRef.current || !mapReady) return;
     setSelectedMember(member);
@@ -156,7 +216,7 @@ function TripMapModal({ trip, onClose }) {
 
       map.addSource("route", { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: coords } } });
       map.addLayer({ id: "route-line", type: "line", source: "route", layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": member.color, "line-width": 4, "line-opacity": 0.85 } });
-      setRouteInfo({ distKm: (route.distance / 1000).toFixed(1), timeMin: Math.round(route.duration / 60), memberName: member.name });
+      setRouteInfo({ distKm: (route.distance / 1000).toFixed(1), timeMin: Math.round(route.duration / 60), memberName: member.name, hasRealGps: member.hasRealGps });
 
       const lngs = coords.map((c) => c[0]);
       const lats  = coords.map((c) => c[1]);
@@ -167,15 +227,25 @@ function TripMapModal({ trip, onClose }) {
         map.addSource("route", { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: [[member.lng, member.lat], [DEST.lng, DEST.lat]] } } });
         map.addLayer({ id: "route-line", type: "line", source: "route", layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": member.color, "line-width": 3, "line-dasharray": [2, 2] } });
       }
-      const R    = 6371;
-      const dLat = (DEST.lat - member.lat) * Math.PI / 180;
-      const dLng = (DEST.lng - member.lng) * Math.PI / 180;
-      const a    = Math.sin(dLat / 2) ** 2 + Math.cos(member.lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      const R      = 6371;
+      const dLat   = (DEST.lat - member.lat) * Math.PI / 180;
+      const dLng   = (DEST.lng - member.lng) * Math.PI / 180;
+      const a      = Math.sin(dLat / 2) ** 2 + Math.cos(member.lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
       const distKm = (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1);
-      setRouteInfo({ distKm, timeMin: Math.round(distKm / 0.5), memberName: member.name });
+      setRouteInfo({ distKm, timeMin: Math.round(distKm / 0.5), memberName: member.name, hasRealGps: member.hasRealGps });
     } finally {
       setLoadingRoute(false);
     }
+  };
+
+  // ── Status badge ──────────────────────────────────────────────────────────
+  const statusLabel = {
+    active:            { text: "Đang di chuyển", color: "text-green-600" },
+    lost_signal:       { text: "Mất tín hiệu",   color: "text-yellow-600" },
+    wrong_direction:   { text: "Sai hướng",       color: "text-red-500" },
+    arrived:           { text: "Đã đến",          color: "text-blue-600" },
+    left:              { text: "Đã rời",           color: "text-gray-400" },
+    no_share:          { text: "Không chia sẻ",   color: "text-gray-400" },
   };
 
   return (
@@ -188,7 +258,7 @@ function TripMapModal({ trip, onClose }) {
             <div>
               <h3 className="text-base font-bold text-gray-900">Trip — Tuyến đường</h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                {trip.title} · Điểm đến: <span className="text-primary font-semibold">{trip.title}</span>
+                {trip.title} · Điểm đến: <span className="text-primary font-semibold">HCMUS</span>
               </p>
             </div>
             <button onClick={onClose} className="w-8 h-8 rounded-lg text-gray-400 hover:bg-gray-100 flex items-center justify-center transition-colors">✕</button>
@@ -196,30 +266,40 @@ function TripMapModal({ trip, onClose }) {
 
           <div className="flex flex-1 min-h-0">
             {/* Member list */}
-            <div className="w-48 shrink-0 border-r border-gray-100 flex flex-col">
+            <div className="w-52 shrink-0 border-r border-gray-100 flex flex-col">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 pt-3 pb-2">
                 Thành viên ({members.length})
               </p>
               <div className="flex-1 overflow-y-auto">
-                {members.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => handleMemberClick(m)}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                      selectedMember?.id === m.id ? "bg-primary/10" : "hover:bg-gray-50"
-                    }`}
-                  >
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                      style={{ background: m.color }}
+                {members.map((m) => {
+                  const sl = statusLabel[m.status] || statusLabel.no_share;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => handleMemberClick(m)}
+                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                        selectedMember?.id === m.id ? "bg-primary/10" : "hover:bg-gray-50"
+                      }`}
                     >
-                      {m.avatar}
-                    </div>
-                    <span className={`text-sm truncate ${selectedMember?.id === m.id ? "font-semibold text-primary" : "text-gray-700"}`}>
-                      {m.name.split(" ").slice(-1)[0]}
-                    </span>
-                  </button>
-                ))}
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 relative"
+                        style={{ background: m.color }}
+                      >
+                        {m.avatar}
+                        {/* Dot GPS thực */}
+                        {m.hasRealGps && (
+                          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full" />
+                        )}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className={`text-sm truncate ${selectedMember?.id === m.id ? "font-semibold text-primary" : "text-gray-700"}`}>
+                          {m.isMe ? "Bạn" : m.name.slice(0, 10) + "..."}
+                        </span>
+                        <span className={`text-[10px] ${sl.color}`}>{sl.text}</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Route info */}
@@ -232,9 +312,14 @@ function TripMapModal({ trip, onClose }) {
                     </div>
                   ) : routeInfo && (
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-700 truncate">{routeInfo.memberName.split(" ").slice(-1)[0]}</p>
+                      <p className="text-xs font-semibold text-gray-700 truncate">
+                        {routeInfo.memberName === currentUid ? "Bạn" : routeInfo.memberName.slice(0, 12) + "..."}
+                      </p>
                       <p className="text-xs text-gray-500">📍 {routeInfo.distKm} km</p>
                       <p className="text-xs text-gray-500">⏱ ~{routeInfo.timeMin} phút</p>
+                      {!routeInfo.hasRealGps && (
+                        <p className="text-[10px] text-yellow-500">⚠ Vị trí ước tính</p>
+                      )}
                     </div>
                   )}
                 </div>
