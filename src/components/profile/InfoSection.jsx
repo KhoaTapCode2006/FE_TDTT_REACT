@@ -4,32 +4,19 @@ import Icon from '@/components/ui/Icon';
 /**
  * InfoSection Component
  * Displays personal information fields with edit functionality
+ * Synchronized with backend API fields
  * 
- * Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8
- * 
- * @param {Object} props
- * @param {Object} props.profileData - User profile data
- * @param {Function} props.onEdit - Callback when edit button is clicked
- * @param {boolean} props.loading - Loading state
+ * Backend fields: username, display_name, email, phone_number, avatar_url, bio
  */
 const InfoSection = ({ profileData, onEdit, loading = false }) => {
   /**
    * Format field value with placeholder for empty fields
-   * Requirement 2.8: Display placeholder text for empty fields
    */
   const formatValue = (value, placeholder = 'Not provided') => {
     if (value === null || value === undefined || value === '') {
       return <span className="text-on-surface-variant italic">{placeholder}</span>;
     }
     return value;
-  };
-
-  /**
-   * Capitalize first letter of string
-   */
-  const capitalize = (str) => {
-    if (!str) return '';
-    return str.charAt(0).toUpperCase() + str.slice(1);
   };
 
   return (
@@ -52,17 +39,17 @@ const InfoSection = ({ profileData, onEdit, loading = false }) => {
 
       {/* Information Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Full Name - Requirement 2.1 */}
+        {/* Display Name */}
         <div>
           <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 block">
-            Full Name
+            Display Name
           </label>
           <p className="text-on-surface font-medium">
-            {formatValue(profileData?.fullName)}
+            {formatValue(profileData?.displayName)}
           </p>
         </div>
 
-        {/* Username - Requirement 2.2 */}
+        {/* Username */}
         <div>
           <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 block">
             Username
@@ -91,7 +78,7 @@ const InfoSection = ({ profileData, onEdit, loading = false }) => {
           </p>
         </div>
 
-        {/* Phone Number - Requirement 2.6 */}
+        {/* Phone Number */}
         <div>
           <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 block">
             Phone Number
@@ -101,76 +88,13 @@ const InfoSection = ({ profileData, onEdit, loading = false }) => {
           </p>
         </div>
 
-        {/* Age - Requirement 2.3 */}
-        <div>
-          <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 block">
-            Age
-          </label>
-          <p className="text-on-surface font-medium">
-            {formatValue(profileData?.age)}
-          </p>
-        </div>
-
-        {/* Gender - Requirement 2.4 */}
-        <div>
-          <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 block">
-            Gender
-          </label>
-          <p className="text-on-surface font-medium">
-            {profileData?.gender ? capitalize(profileData.gender) : formatValue(null)}
-          </p>
-        </div>
-
-        {/* Location - Requirement 2.5 */}
-        <div className="md:col-span-2">
-          <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 block">
-            Location
-          </label>
-          <p className="text-on-surface font-medium flex items-start gap-2">
-            {profileData?.location && (
-              <Icon name="location_on" size={18} className="text-on-surface-variant flex-shrink-0 mt-0.5" aria-hidden="true" />
-            )}
-            <span>{formatValue(profileData?.location)}</span>
-          </p>
-        </div>
-
-        {/* Bio - Requirement 2.7 */}
+        {/* Bio */}
         <div className="md:col-span-2">
           <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 block">
             Bio
           </label>
           <p className="text-on-surface font-medium leading-relaxed">
             {formatValue(profileData?.bio, 'No bio added yet')}
-          </p>
-        </div>
-
-        {/* Work */}
-        <div>
-          <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 block">
-            Work
-          </label>
-          <p className="text-on-surface font-medium">
-            {formatValue(profileData?.work)}
-          </p>
-        </div>
-
-        {/* Job Title */}
-        <div>
-          <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 block">
-            Job Title
-          </label>
-          <p className="text-on-surface font-medium">
-            {formatValue(profileData?.jobTitle)}
-          </p>
-        </div>
-
-        {/* Education */}
-        <div className="md:col-span-2">
-          <label className="text-xs font-semibold text-on-surface-variant uppercase tracking-wide mb-1 block">
-            Education
-          </label>
-          <p className="text-on-surface font-medium">
-            {formatValue(profileData?.education)}
           </p>
         </div>
       </div>
@@ -184,6 +108,24 @@ const InfoSection = ({ profileData, onEdit, loading = false }) => {
               Member since {new Date(profileData.createdAt.toDate?.() || profileData.createdAt).toLocaleDateString('en-US', {
                 month: 'long',
                 year: 'numeric'
+              })}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Last Login */}
+      {profileData?.lastLogin && (
+        <div className="mt-2">
+          <div className="flex items-center gap-2 text-on-surface-variant text-sm">
+            <Icon name="schedule" size={16} aria-hidden="true" />
+            <span>
+              Last login: {new Date(profileData.lastLogin.toDate?.() || profileData.lastLogin).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
               })}
             </span>
           </div>

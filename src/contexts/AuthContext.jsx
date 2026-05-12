@@ -66,12 +66,17 @@ export const AuthProvider = ({ children }) => {
           const userProfile = await profileService.getCurrentUserProfile();
           
           const userData = {
+            // Firebase user data (always available)
             uid: firebaseUser.uid,
             email: firebaseUser.email,
-            displayName: firebaseUser.displayName || userProfile.displayName || userProfile.username,
-            photoURL: firebaseUser.photoURL,
             emailVerified: firebaseUser.emailVerified,
-            ...userProfile
+            photoURL: firebaseUser.photoURL,
+            // Backend profile data (merged with Firebase data)
+            ...userProfile,
+            // Ensure displayName is set (priority: backend > Firebase)
+            displayName: userProfile.displayName || firebaseUser.displayName || userProfile.username,
+            // Ensure uid is from Firebase (authoritative source)
+            uid: firebaseUser.uid
           };
           
           setUser(userData);
@@ -100,8 +105,7 @@ export const AuthProvider = ({ children }) => {
               displayName: firebaseUser.displayName,
               photoURL: firebaseUser.photoURL,
               emailVerified: firebaseUser.emailVerified,
-              username: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
-              fullName: firebaseUser.displayName || ''
+              username: firebaseUser.displayName || firebaseUser.email?.split('@')[0]
             };
             
             setUser(userData);

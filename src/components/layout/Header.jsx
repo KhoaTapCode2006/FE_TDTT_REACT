@@ -61,8 +61,8 @@ function Header({ hideNavigation = false }) {
 
   // Get user initials for avatar
   const getUserInitials = () => {
-    if (user?.fullName) {
-      const names = user.fullName.trim().split(' ');
+    if (user?.displayName) {
+      const names = user.displayName.trim().split(' ');
       if (names.length === 1) {
         return names[0].charAt(0).toUpperCase();
       }
@@ -182,7 +182,7 @@ function Header({ hideNavigation = false }) {
                   {getUserAvatar() ? (
                     <img 
                       src={getUserAvatar()} 
-                      alt={user?.fullName || 'User'} 
+                      alt={user?.displayName || 'User'} 
                       className="w-8 h-8 rounded-full object-cover"
                     />
                   ) : (
@@ -201,7 +201,7 @@ function Header({ hideNavigation = false }) {
                         {getUserAvatar() ? (
                           <img 
                             src={getUserAvatar()} 
-                            alt={user?.fullName || 'User'} 
+                            alt={user?.displayName || 'User'} 
                             className="w-12 h-12 rounded-full object-cover"
                           />
                         ) : (
@@ -211,16 +211,11 @@ function Header({ hideNavigation = false }) {
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-sm text-on-surface truncate">
-                            {user?.fullName || user?.email}
+                            {user?.displayName || user?.email}
                           </p>
                           <p className="text-xs text-on-surface-variant truncate">
                             {user?.email}
                           </p>
-                          {user?.memberTier && (
-                            <p className="text-xs text-secondary font-semibold mt-0.5">
-                              {user.memberTier} Member
-                            </p>
-                          )}
                         </div>
                       </div>
                     </div>

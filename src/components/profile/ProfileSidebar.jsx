@@ -88,7 +88,7 @@ const ProfileSidebar = ({ activeItem = 'mystays' }) => {
             {user?.photoURL || user?.avatar?.url ? (
               <img
                 src={user.photoURL || user.avatar.url}
-                alt={user.displayName || user.fullName || 'User'}
+                alt={user.displayName || user.username || 'User'}
                 className="w-full h-full object-cover"
               />
             ) : (
@@ -99,7 +99,7 @@ const ProfileSidebar = ({ activeItem = 'mystays' }) => {
           {/* User Info */}
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm text-on-surface truncate">
-              {user?.displayName || user?.fullName || user?.username || 'User'}
+              {user?.displayName || user?.username || 'User'}
             </p>
             <p className="text-xs text-on-surface-variant truncate">
               {user?.email}

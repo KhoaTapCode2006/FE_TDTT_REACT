@@ -543,13 +543,14 @@ export function transformUserProfile(backendUser) {
       );
     }
 
-    // Validate required fields
-    if (!backendUser.uid) {
-      throw new ValidationError(
-        'User ID (uid) is required',
-        'uid',
-        backendUser.uid
-      );
+    // Log backend response for debugging
+    console.log('🔄 transformUserProfile input:', backendUser);
+
+    // Validate required fields (uid might not be present in /me response)
+    // Backend might use different field names or not include uid
+    if (!backendUser.uid && !backendUser.user_id && !backendUser.id) {
+      console.warn('⚠️ User ID not found in backend response. Available fields:', Object.keys(backendUser));
+      // Don't throw error, let it continue - uid might be added from Firebase user
     }
 
     if (!backendUser.username) {
@@ -700,13 +701,29 @@ export function transformUserProfile(backendUser) {
     }
 
     // Validate transformed data has required fields
-    if (!transformed.uid || !transformed.username || !transformed.displayName || !transformed.email) {
+    // Note: uid might not be present in backend response, it will be added from Firebase user
+    if (!transformed.username || !transformed.displayName || !transformed.email) {
+      console.warn('⚠️ Missing required fields after transformation:', {
+        hasUsername: !!transformed.username,
+        hasDisplayName: !!transformed.displayName,
+        hasEmail: !!transformed.email,
+        hasUid: !!transformed.uid
+      });
       throw new SchemaTransformError(
-        'Transformation resulted in missing required fields',
+        'Transformation resulted in missing required fields (username, displayName, or email)',
         backendUser,
         'UserProfile'
       );
     }
+
+    // Normalize uid field (backend might use different field names)
+    if (!transformed.uid && transformed.userId) {
+      transformed.uid = transformed.userId;
+    } else if (!transformed.uid && transformed.id) {
+      transformed.uid = transformed.id;
+    }
+
+    console.log('✅ transformUserProfile output:', transformed);
 
     return transformed;
   } catch (error) {

@@ -49,7 +49,7 @@ const ProfileHeader = ({ user: propUser, showActions = true, onEdit }) => {
               {user?.photoURL || user?.avatar?.url ? (
                 <img
                   src={user.photoURL || user.avatar.url}
-                  alt={user.displayName || user.fullName || 'User'}
+                  alt={user.displayName || user.username || 'User'}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -68,7 +68,7 @@ const ProfileHeader = ({ user: propUser, showActions = true, onEdit }) => {
           {/* User Info */}
           <div className="flex-1 text-center md:text-left">
             <h1 className="font-headline font-bold text-2xl md:text-3xl text-on-surface mb-2">
-              {user?.displayName || user?.fullName || user?.username || 'User'}
+              {user?.displayName || user?.username || 'User'}
             </h1>
             
             <div className="flex flex-col md:flex-row items-center md:items-center gap-2 md:gap-4 text-on-surface-variant mb-4">
@@ -79,19 +79,10 @@ const ProfileHeader = ({ user: propUser, showActions = true, onEdit }) => {
                 </div>
               )}
               
-              {user?.location && (
+              {user?.phoneNumber && (
                 <div className="flex items-center gap-1.5">
-                  <Icon name="location_on" size={16} />
-                  <span className="text-sm">{user.location}</span>
-                </div>
-              )}
-              
-              {user?.memberTier && (
-                <div className="flex items-center gap-1.5">
-                  <Icon name="workspace_premium" size={16} className="text-primary" />
-                  <span className="text-sm font-semibold text-primary capitalize">
-                    {user.memberTier} Member
-                  </span>
+                  <Icon name="phone" size={16} />
+                  <span className="text-sm">{user.phoneNumber}</span>
                 </div>
               )}
             </div>

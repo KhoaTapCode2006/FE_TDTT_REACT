@@ -45,7 +45,7 @@ const ProfilePage = () => {
         try {
           const newProfile = await profileService.createProfile(user.uid, {
             email: user.email,
-            fullName: user.displayName || '',
+            displayName: user.displayName || '',
             username: user.displayName || user.email?.split('@')[0] || '',
             avatar: user.photoURL ? { url: user.photoURL, provider: 'auth' } : null
           });

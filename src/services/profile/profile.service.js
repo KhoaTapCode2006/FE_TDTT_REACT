@@ -36,6 +36,14 @@ class ProfileService {
       // Get current user's profile from backend
       const backendProfile = await apiClient.get('/me');
       
+      // Log response for debugging
+      console.log('📦 /me response:', backendProfile);
+      
+      // Check if response is valid
+      if (!backendProfile || typeof backendProfile !== 'object') {
+        throw new Error('Invalid response from backend');
+      }
+      
       // Transform backend response to frontend format
       return transformUserProfile(backendProfile);
     } catch (error) {
