@@ -7,9 +7,7 @@
     import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
     import ProfilePage from '../pages/profile/ProfilePage';
     import MyStaysPage from '../pages/profile/MyStaysPage';
-    import SavedListsPage from '../pages/profile/SavedListsPage';
     import LikedCollectionsPage from '../pages/profile/LikedCollectionsPage';
-    import AccountCollectionsPage from '../pages/profile/AccountCollectionsPage';
     import CollectionPage from '../pages/collection/CollectionPage';
     import CollectionsDashboard from '../pages/collection/CollectionsDashboard';
     import CollectionTest from '../components/test/CollectionTest';
@@ -44,20 +42,16 @@
           )
         },
         {
-          path: '/account/savedlist',
-          element: (
-            <RequireAuth>
-              <Navigate to="/account/liked-collections" replace />
-            </RequireAuth>
-          )
-        },
-        {
           path: '/account/liked-collections',
           element: (
             <RequireAuth>
               <LikedCollectionsPage />
             </RequireAuth>
           )
+        },
+        {
+          path: '/account/savedlist',
+          element: <Navigate to="/account/liked-collections" replace />
         }
         ]
     },
