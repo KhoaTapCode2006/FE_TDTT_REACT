@@ -1,5 +1,6 @@
 import {
   useTrip,
+  useGpsTracking,
   TripSidebar,
   TripCard,
   CreateTripModal,
@@ -15,6 +16,7 @@ export default function TripPage() {
   const {
     activeNav,
     setActiveNav,
+    trips,
     filteredTrips,
     loading,
     error,
@@ -35,6 +37,9 @@ export default function TripPage() {
     handleAddMember,
     handleRemoveMember,
   } = useTrip();
+
+  // Push GPS lên Firestore cho tất cả trips khi đang ở trang này
+  useGpsTracking(trips.map((t) => t.id));
 
   return (
     <div className="flex h-screen bg-gray-50 font-body overflow-hidden">

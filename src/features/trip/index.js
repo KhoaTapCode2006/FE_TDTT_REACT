@@ -2,6 +2,7 @@
 // Import mọi thứ liên quan đến trip qua file này để tránh import path dài.
 
 export { useTrip, NAV_ITEMS }          from "./hooks/useTrip";
+export { useGpsTracking }              from "./hooks/useGpsTracking";
 export { default as TripSidebar }      from "./components/TripSidebar";
 export { default as TripCard }         from "./components/TripCard";
 export { default as NewTripCard }      from "./components/NewTripCard";
