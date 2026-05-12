@@ -27,25 +27,19 @@ class ProfileService {
 
   /**
    * Get current user profile
+   * @param {string} firebaseUid - Firebase user ID (optional, for uid fallback)
    * @returns {Promise<Object>} User profile
    */
-  async getCurrentUserProfile() {
+  async getCurrentUserProfile(firebaseUid = null) {
     try {
       await this.ensureValidToken();
       
       // Get current user's profile from backend
       const backendProfile = await apiClient.get('/me');
       
-      // Log response for debugging
-      console.log('📦 /me response:', backendProfile);
-      
-      // Check if response is valid
-      if (!backendProfile || typeof backendProfile !== 'object') {
-        throw new Error('Invalid response from backend');
-      }
-      
       // Transform backend response to frontend format
-      return transformUserProfile(backendProfile);
+      // Pass firebaseUid as fallback if backend doesn't return uid
+      return transformUserProfile(backendProfile, firebaseUid);
     } catch (error) {
       console.error('Error getting current user profile:', error);
       
@@ -59,12 +53,12 @@ class ProfileService {
 
   /**
    * Get user profile by UID (current user)
-   * @param {string} uid - User ID (not used, kept for backward compatibility)
+   * @param {string} uid - User ID (Firebase UID, used as fallback)
    * @returns {Promise<Object>} User profile
    */
   async getProfile(uid) {
-    // Delegate to getCurrentUserProfile for backward compatibility
-    return this.getCurrentUserProfile();
+    // Delegate to getCurrentUserProfile with uid as fallback
+    return this.getCurrentUserProfile(uid);
   }
 
   /**
@@ -86,7 +80,8 @@ class ProfileService {
       const backendProfile = await apiClient.get(`/users/${username}`);
       
       // Transform backend response to frontend format
-      return transformUserProfile(backendProfile);
+      // Public profiles should have uid in response, but pass null as fallback
+      return transformUserProfile(backendProfile, null);
     } catch (error) {
       console.error('Error getting user profile:', error);
       
@@ -109,7 +104,7 @@ class ProfileService {
 
   /**
    * Update user profile
-   * @param {string} userId - User ID (not used, kept for backward compatibility)
+   * @param {string} userId - User ID (Firebase UID, used as fallback)
    * @param {Object} updateData - Profile data to update
    * @returns {Promise<Object>} Updated profile
    */
@@ -124,7 +119,8 @@ class ProfileService {
       const backendProfile = await apiClient.patch('/me', backendUpdateData);
       
       // Transform backend response to frontend format
-      return transformUserProfile(backendProfile);
+      // Pass userId as fallback if backend doesn't return uid
+      return transformUserProfile(backendProfile, userId);
     } catch (error) {
       console.error('Error updating profile:', error);
       
@@ -163,9 +159,10 @@ class ProfileService {
   /**
    * Add collection to liked collections
    * @param {string} placeId - Place/collection ID
+   * @param {string} firebaseUid - Firebase user ID (optional, for uid fallback)
    * @returns {Promise<Object>} Updated profile
    */
-  async addLikedCollection(placeId) {
+  async addLikedCollection(placeId, firebaseUid = null) {
     try {
       await this.ensureValidToken();
       
@@ -173,7 +170,7 @@ class ProfileService {
       const backendProfile = await apiClient.post(`/me/liked-collection?place_id=${placeId}`);
       
       // Transform backend response to frontend format
-      return transformUserProfile(backendProfile);
+      return transformUserProfile(backendProfile, firebaseUid);
     } catch (error) {
       console.error('Error adding liked collection:', error);
       throw new Error(error.message || 'Failed to add collection to favorites. Please try again.');
@@ -183,9 +180,10 @@ class ProfileService {
   /**
    * Remove collection from liked collections
    * @param {string} placeId - Place/collection ID
+   * @param {string} firebaseUid - Firebase user ID (optional, for uid fallback)
    * @returns {Promise<Object>} Updated profile
    */
-  async removeLikedCollection(placeId) {
+  async removeLikedCollection(placeId, firebaseUid = null) {
     try {
       await this.ensureValidToken();
       
@@ -193,7 +191,7 @@ class ProfileService {
       const backendProfile = await apiClient.delete(`/me/liked-collection?place_id=${placeId}`);
       
       // Transform backend response to frontend format
-      return transformUserProfile(backendProfile);
+      return transformUserProfile(backendProfile, firebaseUid);
     } catch (error) {
       console.error('Error removing liked collection:', error);
       throw new Error(error.message || 'Failed to remove collection from favorites. Please try again.');
