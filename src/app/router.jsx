@@ -1,4 +1,4 @@
-    import { createBrowserRouter } from 'react-router-dom';
+    import { createBrowserRouter, Navigate } from 'react-router-dom';
     import HomePage from '../pages/HomePage';
     import MainLayout from '../layouts/MainLayout';
     import AuthLayout from '../layouts/AuthLayout';
@@ -8,6 +8,7 @@
     import ProfilePage from '../pages/profile/ProfilePage';
     import MyStaysPage from '../pages/profile/MyStaysPage';
     import SavedListsPage from '../pages/profile/SavedListsPage';
+    import LikedCollectionsPage from '../pages/profile/LikedCollectionsPage';
     import AccountCollectionsPage from '../pages/profile/AccountCollectionsPage';
     import CollectionPage from '../pages/collection/CollectionPage';
     import CollectionsDashboard from '../pages/collection/CollectionsDashboard';
@@ -46,7 +47,15 @@
           path: '/account/savedlist',
           element: (
             <RequireAuth>
-              <SavedListsPage />
+              <Navigate to="/account/liked-collections" replace />
+            </RequireAuth>
+          )
+        },
+        {
+          path: '/account/liked-collections',
+          element: (
+            <RequireAuth>
+              <LikedCollectionsPage />
             </RequireAuth>
           )
         }

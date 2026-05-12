@@ -4,6 +4,7 @@ import Icon from '@/components/ui/Icon';
 import CollectionCard from '@/components/collection/CollectionCard';
 import { collectionService } from '@/services/backend/collection.service';
 import { viewsService } from '@/services/backend/views.service';
+import { likedCollectionsService } from '@/services/profile/likedCollections.service';
 import { useAuth } from '@/contexts/AuthContext';
 
 /**
@@ -24,10 +25,12 @@ function CollectionsDashboard() {
   const [myCollections, setMyCollections] = useState([]);
   const [globalCollections, setGlobalCollections] = useState([]);
   const [savedCollectionIds, setSavedCollectionIds] = useState(new Set());
+  const [likedCollectionIds, setLikedCollectionIds] = useState(new Set());
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [notification, setNotification] = useState(null);
 
   // Global tab filters
   const [topType, setTopType] = useState('all_time'); // 'weekly' or 'all_time'
@@ -37,6 +40,34 @@ function CollectionsDashboard() {
   
   // Track last load time to force refresh
   const [lastLoadTime, setLastLoadTime] = useState(Date.now());
+
+  // Auto-dismiss notifications after 5 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
+
+  // Load liked collections on mount
+  useEffect(() => {
+    const loadLikedCollections = async () => {
+      try {
+        const likedCollections = await likedCollectionsService.getLikedCollections();
+        const likedIds = new Set(likedCollections.map(c => c.id));
+        setLikedCollectionIds(likedIds);
+      } catch (err) {
+        console.error('Failed to load liked collections:', err);
+        // Don't show error to user, just log it
+      }
+    };
+
+    if (user?.uid) {
+      loadLikedCollections();
+    }
+  }, [user?.uid]);
 
   // Load My Collections
   const loadMyCollections = useCallback(async () => {
@@ -214,6 +245,50 @@ function CollectionsDashboard() {
     }
   };
 
+  // Handle like/unlike collection
+  const handleLikeCollection = async (collectionId, shouldLike) => {
+    // Store previous state for rollback
+    const previousLikedIds = new Set(likedCollectionIds);
+
+    // Optimistic update
+    if (shouldLike) {
+      setLikedCollectionIds(prev => new Set([...prev, collectionId]));
+    } else {
+      setLikedCollectionIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(collectionId);
+        return newSet;
+      });
+    }
+
+    try {
+      if (shouldLike) {
+        await likedCollectionsService.likeCollection(collectionId);
+        setNotification({
+          type: 'success',
+          message: 'Collection liked successfully!',
+        });
+      } else {
+        await likedCollectionsService.unlikeCollection(collectionId);
+        setNotification({
+          type: 'success',
+          message: 'Collection unliked successfully!',
+        });
+      }
+    } catch (err) {
+      console.error('Failed to like/unlike collection:', err);
+      
+      // Rollback on failure
+      setLikedCollectionIds(previousLikedIds);
+      
+      // Show error notification
+      setNotification({
+        type: 'error',
+        message: err.message || `Failed to ${shouldLike ? 'like' : 'unlike'} collection. Please try again.`,
+      });
+    }
+  };
+
   // Handle load more for global collections
   const handleLoadMore = () => {
     if (!loadingMore && hasMoreGlobal) {
@@ -351,6 +426,36 @@ function CollectionsDashboard() {
           </div>
         )}
 
+        {/* Notification */}
+        {notification && (
+          <div
+            className={`flex items-center gap-2 rounded-xl px-4 py-3 ${
+              notification.type === 'success'
+                ? 'bg-green-50 border border-green-200'
+                : 'bg-red-50 border border-red-200'
+            }`}
+          >
+            <Icon
+              name={notification.type === 'success' ? 'check_circle' : 'error_outline'}
+              size={18}
+              className={notification.type === 'success' ? 'text-green-500' : 'text-red-500'}
+            />
+            <p
+              className={`text-sm flex-1 ${
+                notification.type === 'success' ? 'text-green-600' : 'text-red-600'
+              }`}
+            >
+              {notification.message}
+            </p>
+            <button
+              onClick={() => setNotification(null)}
+              className={notification.type === 'success' ? 'text-green-600' : 'text-red-600'}
+            >
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+        )}
+
         {/* Collections Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -396,6 +501,9 @@ function CollectionsDashboard() {
                 showActions={true}
                 returnTab={activeTab}
                 currentUserId={user?.uid}
+                isLiked={likedCollectionIds.has(collection.id)}
+                onLike={handleLikeCollection}
+                showLikeButton={true}
               />
             ))}
           </div>

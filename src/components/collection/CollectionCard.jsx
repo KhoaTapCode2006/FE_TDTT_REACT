@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '@/components/ui/Icon';
+import LikeButton from '@/components/collection/LikeButton';
 
 /**
  * CollectionCard Component
@@ -15,6 +16,9 @@ import Icon from '@/components/ui/Icon';
  * @param {boolean} props.showActions - Whether to show action buttons
  * @param {string} props.returnTab - Tab to return to when navigating back from collection page
  * @param {string} props.currentUserId - Current user's UID for displaying "You"
+ * @param {boolean} props.isLiked - Whether collection is liked by current user
+ * @param {Function} props.onLike - Callback when like button is clicked (collectionId, shouldLike) => Promise<void>
+ * @param {boolean} props.showLikeButton - Whether to show like button
  */
 function CollectionCard({ 
   collection, 
@@ -24,7 +28,10 @@ function CollectionCard({
   isSaved = false,
   showActions = true,
   returnTab = 'my',
-  currentUserId = null
+  currentUserId = null,
+  isLiked = false,
+  onLike,
+  showLikeButton = false
 }) {
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -133,8 +140,20 @@ function CollectionCard({
           </span>
         </div>
 
-        {/* Save Button (for non-owners) */}
-        {!isOwner && showActions && (
+        {/* Like Button (new feature) */}
+        {showLikeButton && onLike && (
+          <div className="absolute top-3 right-3">
+            <LikeButton
+              collectionId={collection.id}
+              isLiked={isLiked}
+              onLike={onLike}
+              size="medium"
+            />
+          </div>
+        )}
+
+        {/* Save Button (for non-owners, legacy feature) */}
+        {!isOwner && showActions && !showLikeButton && (
           <button
             onClick={handleSave}
             disabled={isSaving}
