@@ -8,7 +8,15 @@
 
 import axios from 'axios';
 import { auth, db } from '@/config/firebase';
-import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  orderBy,
+  getDocs,
+  doc,
+  getDoc,
+  onSnapshot,
+} from 'firebase/firestore';
 
 // ============================================================================
 // TYPE DEFINITIONS (JSDoc)
@@ -101,46 +109,144 @@ chatClient.interceptors.response.use(
 );
 
 // ============================================================================
-// LOCAL STORAGE HELPERS
+// FIRESTORE — CONVERSATION LIST (READ-ONLY)
+// ============================================================================
+
+/**
+ * Fetch conversation IDs for the current user from Firestore.
+ * Reads from /users/{uid}/conversations (cache collection written by backend).
+ * Returns [] if user is not authenticated or collection is empty.
+ *
+ * @returns {Promise<string[]>}
+ */
+async function getConversationIdsFromFirestore() {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return [];
+
+  const snap = await getDocs(
+    collection(db, 'users', uid, 'conversations')
+  );
+  return snap.docs.map((d) => d.id);
+}
+
+/**
+ * Fetch a single conversation document from Firestore, including its members subcollection.
+ * Returns null if the document does not exist.
+ *
+ * @param {string} conversationId
+ * @returns {Promise<Object|null>}
+ */
+async function getConversationFromFirestore(conversationId) {
+  const [convSnap, membersSnap] = await Promise.all([
+    getDoc(doc(db, 'conversations', conversationId)),
+    getDocs(collection(db, 'conversations', conversationId, 'members')),
+  ]);
+
+  if (!convSnap.exists()) return null;
+
+  const data = convSnap.data();
+
+  // Normalize members từ subcollection
+  const members = membersSnap.docs.map((d) => {
+    const m = d.data();
+    return {
+      uid:          d.id,
+      role:         m.role         ?? '',
+      joined_at:    m.joined_at?.toDate?.()?.toISOString() ?? m.joined_at ?? '',
+      display_name: m.display_name ?? '',
+      username:     m.username     ?? '',
+      avatar_url:   m.avatar_url   ?? null,
+    };
+  });
+
+  return {
+    id: convSnap.id,
+    ...data,
+    members,
+    // Firestore Timestamps → ISO strings
+    created_at: data.created_at?.toDate?.()?.toISOString() ?? data.created_at ?? null,
+    updated_at: data.updated_at?.toDate?.()?.toISOString() ?? data.updated_at ?? null,
+  };
+}
+
+/**
+ * Fetch members for a conversation from Firestore subcollection.
+ * Used after add/remove member API calls to get the latest member list.
+ *
+ * @param {string} conversationId
+ * @returns {Promise<Member[]>}
+ */
+export async function getMembersFromFirestore(conversationId) {
+  const snap = await getDocs(
+    collection(db, 'conversations', conversationId, 'members')
+  );
+  return snap.docs.map((d) => {
+    const m = d.data();
+    return {
+      uid:          d.id,
+      role:         m.role         ?? '',
+      joined_at:    m.joined_at?.toDate?.()?.toISOString() ?? m.joined_at ?? '',
+      display_name: m.display_name ?? '',
+      username:     m.username     ?? '',
+      avatar_url:   m.avatar_url   ?? null,
+    };
+  });
+}
+
+/**
+ * Subscribe to real-time updates for the current user's conversation list.
+ * Calls `callback` with an array of conversation IDs whenever the list changes.
+ * Returns an unsubscribe function.
+ *
+ * @param {function(string[]): void} callback
+ * @returns {function} unsubscribe
+ */
+export function subscribeToConversationIds(callback) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) {
+    callback([]);
+    return () => {};
+  }
+
+  return onSnapshot(
+    collection(db, 'users', uid, 'conversations'),
+    (snap) => callback(snap.docs.map((d) => d.id)),
+    (err) => console.error('[subscribeToConversationIds]', err)
+  );
+}
+
+// ============================================================================
+// LOCAL STORAGE HELPERS (legacy — kept for addConversationId / removeConversationId)
 // ============================================================================
 
 const CONV_IDS_KEY = 'b4lu_conversation_ids';
 
 /**
- * Read conversation IDs from localStorage.
- * Returns [] on missing key, invalid JSON, or non-array value.
- * @returns {string[]}
- */
-function getConversationIds() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(CONV_IDS_KEY) || '[]');
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Append a conversation ID if not already present. Max 200 entries.
+ * Append a conversation ID to localStorage if not already present. Max 200 entries.
  * No-op if ID already exists.
  * @param {string} id
  */
 function addConversationId(id) {
-  const ids = getConversationIds();
-  if (ids.includes(id)) return;
-  const updated = [...ids, id].slice(-200);
-  localStorage.setItem(CONV_IDS_KEY, JSON.stringify(updated));
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CONV_IDS_KEY) || '[]');
+    const ids = Array.isArray(parsed) ? parsed : [];
+    if (ids.includes(id)) return;
+    localStorage.setItem(CONV_IDS_KEY, JSON.stringify([...ids, id].slice(-200)));
+  } catch { /* ignore */ }
 }
 
 /**
- * Remove a conversation ID from the store.
- * No-op if ID does not exist (no write performed).
+ * Remove a conversation ID from localStorage.
+ * No-op if ID does not exist.
  * @param {string} id
  */
 function removeConversationId(id) {
-  const ids = getConversationIds();
-  if (!ids.includes(id)) return;
-  localStorage.setItem(CONV_IDS_KEY, JSON.stringify(ids.filter((x) => x !== id)));
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CONV_IDS_KEY) || '[]');
+    const ids = Array.isArray(parsed) ? parsed : [];
+    if (!ids.includes(id)) return;
+    localStorage.setItem(CONV_IDS_KEY, JSON.stringify(ids.filter((x) => x !== id)));
+  } catch { /* ignore */ }
 }
 
 // ============================================================================
@@ -404,13 +510,71 @@ function validateUids(uids, paramName) {
 }
 
 // ============================================================================
+// CLIENT-SIDE MESSAGE CACHE (sessionStorage)
+// Dùng khi backend không có GET /messages và Firestore chỉ lưu document rỗng.
+// Messages được lưu trong sessionStorage theo key: `msgs_{conversationId}`
+// ============================================================================
+
+const MSG_CACHE_PREFIX = 'b4lu_msgs_';
+
+/**
+ * Load cached messages for a conversation from sessionStorage.
+ * @param {string} groupId
+ * @returns {Message[]}
+ */
+function loadCachedMessages(groupId) {
+  try {
+    const raw = sessionStorage.getItem(`${MSG_CACHE_PREFIX}${groupId}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Save messages for a conversation to sessionStorage.
+ * Keeps the latest 200 messages per conversation.
+ * @param {string} groupId
+ * @param {Message[]} messages
+ */
+function saveCachedMessages(groupId, messages) {
+  try {
+    const toSave = messages.slice(-200);
+    sessionStorage.setItem(`${MSG_CACHE_PREFIX}${groupId}`, JSON.stringify(toSave));
+  } catch { /* ignore quota errors */ }
+}
+
+/**
+ * Append a single message to the cache for a conversation.
+ * @param {string} groupId
+ * @param {Message} message
+ */
+export function appendCachedMessage(groupId, message) {
+  const existing = loadCachedMessages(groupId);
+  // Tránh duplicate (optimistic update đã có tempId)
+  const deduped = existing.filter((m) => m.id !== message.id);
+  saveCachedMessages(groupId, [...deduped, message]);
+}
+
+/**
+ * Remove a message from the cache.
+ * @param {string} groupId
+ * @param {string} msgId
+ */
+export function removeCachedMessage(groupId, msgId) {
+  const existing = loadCachedMessages(groupId);
+  saveCachedMessages(groupId, existing.filter((m) => m.id !== msgId));
+}
+
+// ============================================================================
 // FIRESTORE FALLBACK — READ-ONLY MESSAGES
 // ============================================================================
 
 /**
- * Fetch messages for a conversation from Firestore.
- * Internal use only — not exported.
- * Used as fallback while backend has no GET /conversations/{id}/messages.
+ * Fetch messages for a conversation from Firestore subcollection.
+ * Message schema: { content, id, sender_uid, sent_at, attachments? }
  *
  * @param {string} groupId
  * @returns {Promise<Message[]>}
@@ -418,17 +582,52 @@ function validateUids(uids, paramName) {
 async function getMessages(groupId) {
   const q = query(
     collection(db, 'conversations', groupId, 'messages'),
-    orderBy('created_at', 'asc')
+    orderBy('sent_at', 'asc')
   );
-  const snap = await getDocs(q);
-  return snap.docs.map((docSnap) => {
+  let snap;
+  try {
+    snap = await getDocs(q);
+  } catch (err) {
+    console.warn('[getMessages] orderBy sent_at failed, retrying without sort:', err.message);
+    try {
+      snap = await getDocs(collection(db, 'conversations', groupId, 'messages'));
+    } catch (err2) {
+      console.error('[getMessages] failed:', err2.message);
+      return loadCachedMessages(groupId);
+    }
+  }
+
+  const rawList = snap.docs.map((docSnap) => {
     const d = docSnap.data();
-    return normalizeMessage({
-      id: docSnap.id,
-      ...d,
-      created_at: d.created_at?.toDate?.()?.toISOString(),
-    });
+    const sentAtMs = d.sent_at?.toMillis?.() ?? (d.sent_at?.seconds ?? 0) * 1000;
+    return {
+      raw: {
+        id:         docSnap.id,
+        sender_uid: d.sender_uid ?? '',
+        content:    d.content    ?? '',
+        type:       d.type       ?? 'text',
+        url:        d.url        ?? null,
+        file_name:  d.file_name  ?? null,
+        place_id:   d.place_id   ?? null,
+        // normalize sent_at → created_at cho normalizeMessage
+        created_at: d.sent_at?.toDate?.()?.toISOString() ?? null,
+      },
+      sentAtMs,
+    };
   });
+
+  // Sort theo timestamp gốc ở client (phòng khi orderBy không hoạt động)
+  rawList.sort((a, b) => a.sentAtMs - b.sentAtMs);
+
+  const messages = rawList.map(({ raw }) => normalizeMessage(raw));
+  console.debug(`[getMessages] ${groupId}: loaded ${messages.length} messages from Firestore`);
+
+  // Merge với cache (giữ lại optimistic messages chưa có trong Firestore)
+  const cached = loadCachedMessages(groupId);
+  const firestoreIds = new Set(messages.map((m) => m.id));
+  const onlyInCache = cached.filter((m) => !firestoreIds.has(m.id) && m.id.startsWith('temp_'));
+
+  return [...messages, ...onlyInCache];
 }
 
 // ─── PUBLIC EXPORTS (Tasks 2-6) ───
@@ -437,37 +636,72 @@ async function getMessages(groupId) {
 
 /**
  * Fetch all groups the user belongs to.
- * Reads conversation IDs from localStorage, fetches each in parallel,
- * prunes IDs that no longer exist (404, network error, etc.).
+ *
+ * Strategy:
+ * 1. Đọc danh sách conversation IDs từ Firestore (/users/{uid}/conversations).
+ *    Nếu Firestore trả về danh sách → dùng Firestore để fetch từng conversation.
+ * 2. Fallback về localStorage nếu Firestore không trả về ID nào
+ *    (user chưa có cache hoặc lỗi Firestore).
+ * 3. Với mỗi conversation, ưu tiên đọc từ Firestore trước;
+ *    nếu Firestore không có document → gọi REST API.
  *
  * @returns {Promise<Group[]>}
  */
 export async function getGroups() {
-  const ids = getConversationIds();
+  // ── Bước 1: Lấy danh sách IDs từ Firestore ──────────────────────────────
+  let ids = [];
+  try {
+    ids = await getConversationIdsFromFirestore();
+  } catch (err) {
+    console.warn('[getGroups] Firestore IDs fetch failed, falling back to localStorage:', err);
+  }
+
+  // ── Fallback: localStorage ───────────────────────────────────────────────
+  if (ids.length === 0) {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(CONV_IDS_KEY) || '[]');
+      ids = Array.isArray(parsed) ? parsed : [];
+    } catch { /* ignore */ }
+  }
+
   if (ids.length === 0) return [];
-  const results = await Promise.allSettled(ids.map(id => chatClient.get(`/conversations/${id}`)));
+
+  // ── Bước 2: Fetch từng conversation (Firestore → REST fallback) ──────────
+  const results = await Promise.allSettled(
+    ids.map(async (id) => {
+      // Thử Firestore trước
+      try {
+        const fsData = await getConversationFromFirestore(id);
+        if (fsData) {
+          console.debug('[getGroups] Firestore hit:', id);
+          return normalizeConversation(fsData);
+        }
+      } catch (err) {
+        console.warn('[getGroups] Firestore read failed for', id, err);
+      }
+
+      // Fallback: REST API
+      console.debug('[getGroups] REST fallback:', id);
+      const response = await chatClient.get(`/conversations/${id}`);
+      return extractConversation(response);
+    })
+  );
+
   const groups = [];
-  const validIds = [];
   results.forEach((result, i) => {
     if (result.status === 'fulfilled') {
-      try {
-        const group = extractConversation(result.value);
-        groups.push(group);
-        validIds.push(ids[i]);
-      } catch { /* skip malformed response */ }
+      groups.push(result.value);
     } else {
       const err = result.reason;
-      // Chỉ prune nếu backend xác nhận không tồn tại (404)
-      // Giữ lại ID nếu lỗi là network, auth, timeout, hoặc server error khác
       if (err?.code === 'NOT_FOUND' || err?.statusCode === 404) {
-        console.log(`[getGroups] pruning deleted conversation: ${ids[i]}`);
+        console.log('[getGroups] pruning deleted conversation:', ids[i]);
+        removeConversationId(ids[i]);
       } else {
-        console.warn(`[getGroups] keeping conversation ${ids[i]} despite error:`, err?.code, err?.message);
-        validIds.push(ids[i]);
+        console.warn('[getGroups] keeping conversation despite error:', ids[i], err?.code, err?.message);
       }
     }
   });
-  localStorage.setItem('b4lu_conversation_ids', JSON.stringify(validIds));
+
   return groups;
 }
 

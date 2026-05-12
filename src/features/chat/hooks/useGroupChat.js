@@ -9,6 +9,9 @@ import {
   getGroups,
   getMembersByGroup,
   getMessagesByGroup,
+  getMembersFromFirestore,
+  appendCachedMessage,
+  removeCachedMessage,
   createConversation,
   updateConversation,
   deleteConversation,
@@ -166,6 +169,8 @@ export function useGroupChat() {
           file_name: attachment.fileName ?? undefined,
           place_id: attachment.placeId ?? undefined,
         });
+        // Cache attachment message sau khi gửi thành công
+        appendCachedMessage(activeGroup, { ...optimisticMsg });
       } catch (err) {
         console.error("sendMessage (attachment) error:", err);
         // Rollback optimistic update nếu lỗi
@@ -199,7 +204,14 @@ export function useGroupChat() {
 
     try {
       // Gửi tin nhắn lên backend
-      await sendMessage(activeGroup, { type: "text", content: text });
+      const sentMsg = await sendMessage(activeGroup, { type: "text", content: text });
+      // Thay tempId bằng ID thực từ backend, đánh dấu seen: true và cache lại
+      const finalMsg = { ...optimisticMsg, id: sentMsg.id ?? tempId, seen: true };
+      appendCachedMessage(activeGroup, finalMsg);
+      setMessagesByGroup((prev) => ({
+        ...prev,
+        [activeGroup]: prev[activeGroup].map((m) => m.id === tempId ? finalMsg : m),
+      }));
 
       // Gọi AI — lỗi AI không ảnh hưởng đến tin nhắn đã gửi
       try {
@@ -244,18 +256,20 @@ export function useGroupChat() {
       ...prev,
       [activeGroup]: prev[activeGroup].filter((m) => m.id !== msgId),
     }));
+    removeCachedMessage(activeGroup, msgId);
     try {
       await deleteMessage(activeGroup, msgId);
     } catch (err) {
       console.error("handleDeleteMessage error:", err);
-      // Không rollback vì khó lấy lại message đã xóa — reload nếu cần
     }
   };
 
   const handleAddMember = async (uid) => {
     try {
-      const updated = await addMembers(activeGroup, [uid]);
-      setMembersByGroup((prev) => ({ ...prev, [activeGroup]: updated.members }));
+      await addMembers(activeGroup, [uid]);
+      // Re-fetch từ Firestore subcollection vì backend response không trả về members
+      const freshMembers = await getMembersFromFirestore(activeGroup);
+      setMembersByGroup((prev) => ({ ...prev, [activeGroup]: freshMembers }));
     } catch (err) {
       console.error("handleAddMember error:", err);
     }
@@ -263,8 +277,10 @@ export function useGroupChat() {
 
   const handleRemoveMember = async (uid) => {
     try {
-      const updated = await removeMembers(activeGroup, [uid]);
-      setMembersByGroup((prev) => ({ ...prev, [activeGroup]: updated.members }));
+      await removeMembers(activeGroup, [uid]);
+      // Re-fetch từ Firestore subcollection vì backend response không trả về members
+      const freshMembers = await getMembersFromFirestore(activeGroup);
+      setMembersByGroup((prev) => ({ ...prev, [activeGroup]: freshMembers }));
     } catch (err) {
       console.error("handleRemoveMember error:", err);
     }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { uploadFile } from "../../../services/backend/upload.service";
 
 // ─── GroupForm ─────────────────────────────────────────────────────────────────
 //Form dùng chung cho cả tạo mới lẫn cập nhật nhóm. 
@@ -9,21 +10,40 @@ function GroupForm({ initialName = "", initialDescription = "", submitLabel = "L
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
   const [thumbnailPreview, setThumbnailPreview] = useState(null);
-  const [thumbnailUrl, setThumbnailUrl] = useState("");
+  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
 
   const nameValid = name.trim().length >= 3 && name.trim().length <= 32;
 
   const handleThumbnailChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const url = URL.createObjectURL(file);
-    setThumbnailPreview(url);
-    setThumbnailUrl(url);
+    setThumbnailFile(file);
+    setThumbnailPreview(URL.createObjectURL(file));
+    setUploadError(null);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!nameValid) return;
+
+    let thumbnailUrl = undefined;
+
+    if (thumbnailFile) {
+      try {
+        setUploading(true);
+        setUploadError(null);
+        thumbnailUrl = await uploadFile(thumbnailFile, 'avatar');
+      } catch (err) {
+        setUploadError("Upload ảnh thất bại, thử lại.");
+        setUploading(false);
+        return;
+      } finally {
+        setUploading(false);
+      }
+    }
+
     onSubmit({ name: name.trim(), description: description.trim(), thumbnailUrl });
     onClose();
   };
@@ -99,18 +119,30 @@ function GroupForm({ initialName = "", initialDescription = "", submitLabel = "L
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+            disabled={uploading}
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40"
           >
             Hủy
           </button>
           <button
             type="submit"
-            disabled={!nameValid}
-            className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={!nameValid || uploading}
+            className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {submitLabel}
+            {uploading ? (
+              <>
+                <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+                Đang upload...
+              </>
+            ) : submitLabel}
           </button>
         </div>
+        {uploadError && (
+          <p className="text-xs text-red-500 text-center -mt-2">{uploadError}</p>
+        )}
       </form>
     </>
   );
