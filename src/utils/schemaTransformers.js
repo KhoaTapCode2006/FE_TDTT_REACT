@@ -532,7 +532,7 @@ export function transformAuthRequest(frontendAuth) {
  * const frontendUser = transformUserProfile(backendUser);
  * // Returns: { uid: 'user123', username: 'johndoe', displayName: 'John Doe', ... }
  */
-export function transformUserProfile(backendUser) {
+export function transformUserProfile(backendUser, firebaseUid = null) {
   try {
     // Validate input
     if (!backendUser || typeof backendUser !== 'object') {
@@ -545,12 +545,13 @@ export function transformUserProfile(backendUser) {
 
     // Log backend response for debugging
     console.log('🔄 transformUserProfile input:', backendUser);
+    console.log('🔑 Firebase UID provided:', firebaseUid);
 
     // Validate required fields (uid might not be present in /me response)
     // Backend might use different field names or not include uid
-    if (!backendUser.uid && !backendUser.user_id && !backendUser.id) {
-      console.warn('⚠️ User ID not found in backend response. Available fields:', Object.keys(backendUser));
-      // Don't throw error, let it continue - uid might be added from Firebase user
+    if (!backendUser.uid && !backendUser.user_id && !backendUser.id && !firebaseUid) {
+      console.warn('⚠️ User ID not found in backend response and no Firebase UID provided. Available fields:', Object.keys(backendUser));
+      // Don't throw error if firebaseUid is provided - we'll use that
     }
 
     if (!backendUser.username) {
@@ -700,8 +701,20 @@ export function transformUserProfile(backendUser) {
       });
     }
 
-    // Validate transformed data has required fields
-    // Note: uid might not be present in backend response, it will be added from Firebase user
+    // Normalize uid field (backend might use different field names or not include it)
+    if (!transformed.uid) {
+      if (transformed.userId) {
+        transformed.uid = transformed.userId;
+      } else if (transformed.id) {
+        transformed.uid = transformed.id;
+      } else if (firebaseUid) {
+        // Use Firebase UID if backend doesn't provide one
+        transformed.uid = firebaseUid;
+        console.log('✅ Using Firebase UID:', firebaseUid);
+      }
+    }
+
+    // Validate transformed data has required fields (uid is now optional if firebaseUid provided)
     if (!transformed.username || !transformed.displayName || !transformed.email) {
       console.warn('⚠️ Missing required fields after transformation:', {
         hasUsername: !!transformed.username,
@@ -716,13 +729,6 @@ export function transformUserProfile(backendUser) {
       );
     }
 
-    // Normalize uid field (backend might use different field names)
-    if (!transformed.uid && transformed.userId) {
-      transformed.uid = transformed.userId;
-    } else if (!transformed.uid && transformed.id) {
-      transformed.uid = transformed.id;
-    }
-
     console.log('✅ transformUserProfile output:', transformed);
 
     return transformed;
@@ -731,7 +737,7 @@ export function transformUserProfile(backendUser) {
     logSchemaError(error, {
       operation: 'transformUserProfile',
       endpoint: '/me',
-      userId: backendUser?.uid
+      userId: backendUser?.uid || firebaseUid
     });
 
     // Re-throw for caller to handle
