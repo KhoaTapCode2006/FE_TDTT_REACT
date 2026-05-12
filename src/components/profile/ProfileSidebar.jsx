@@ -47,10 +47,10 @@ const ProfileSidebar = ({ activeItem = 'mystays' }) => {
       path: '/account/mystay',
     },
     {
-      id: 'savedlists',
-      label: 'Saved Lists',
-      icon: 'bookmark',
-      path: '/account/savedlist',
+      id: 'likedcollections',
+      label: 'Liked Collections',
+      icon: 'favorite',
+      path: '/account/liked-collections',
     },
     {
       id: 'reviews',
