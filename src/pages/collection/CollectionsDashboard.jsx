@@ -6,11 +6,61 @@ import { collectionService } from '@/services/backend/collection.service';
 import { viewsService } from '@/services/backend/views.service';
 import { useAuth } from '@/contexts/AuthContext';
 
+// Mock data for Saved Collections (temporary until backend API is ready)
+const MOCK_SAVED_COLLECTIONS = [
+  {
+    id: 'saved-mock-1',
+    name: 'Khách sạn 5 sao Hà Nội',
+    description: 'Tuyển tập các khách sạn 5 sao sang trọng nhất tại trung tâm Hà Nội, phù hợp cho chuyến công tác hoặc nghỉ dưỡng cao cấp.',
+    thumbnail_url: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800',
+    visibility: 'public',
+    owner_uid: 'user-123',
+    saved_count: 245,
+    created_at: new Date('2024-01-15'),
+    updated_at: new Date('2024-01-20'),
+    tags: ['luxury', 'hanoi', '5-star'],
+    places: [],
+    collaborators: [],
+    savers: []
+  },
+  {
+    id: 'saved-mock-2',
+    name: 'Resort biển Đà Nẵng',
+    description: 'Những resort view biển tuyệt đẹp tại Đà Nẵng, lý tưởng cho kỳ nghỉ gia đình hoặc tuần trăng mật.',
+    thumbnail_url: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800',
+    visibility: 'public',
+    owner_uid: 'user-456',
+    saved_count: 189,
+    created_at: new Date('2024-02-01'),
+    updated_at: new Date('2024-02-10'),
+    tags: ['beach', 'danang', 'resort'],
+    places: [],
+    collaborators: [],
+    savers: []
+  },
+  {
+    id: 'saved-mock-3',
+    name: 'Homestay Đà Lạt',
+    description: 'Các homestay ấm cúng và độc đáo tại Đà Lạt, mang đến trải nghiệm gần gũi với thiên nhiên và văn hóa địa phương.',
+    thumbnail_url: 'https://images.unsplash.com/photo-1587061949409-02df41d5e562?w=800',
+    visibility: 'public',
+    owner_uid: 'user-789',
+    saved_count: 312,
+    created_at: new Date('2024-01-25'),
+    updated_at: new Date('2024-02-05'),
+    tags: ['homestay', 'dalat', 'nature'],
+    places: [],
+    collaborators: [],
+    savers: []
+  }
+];
+
 /**
  * CollectionsDashboard Component
- * Main dashboard for managing collections with two tabs:
+ * Main dashboard for managing collections with three tabs:
  * - My Collections: User's own collections
  * - Global Collections: Public collections from other users
+ * - Saved Collections: Collections saved/bookmarked by the user
  */
 function CollectionsDashboard() {
   const navigate = useNavigate();
@@ -20,9 +70,10 @@ function CollectionsDashboard() {
   
   // Get initial tab from URL or default to 'my'
   const initialTab = searchParams.get('tab') || 'my';
-  const [activeTab, setActiveTab] = useState(initialTab); // 'my' or 'global'
+  const [activeTab, setActiveTab] = useState(initialTab); // 'my', 'global', or 'saved'
   const [myCollections, setMyCollections] = useState([]);
   const [globalCollections, setGlobalCollections] = useState([]);
+  const [savedCollections, setSavedCollections] = useState(MOCK_SAVED_COLLECTIONS); // Mock data for now
   const [savedCollectionIds, setSavedCollectionIds] = useState(new Set());
   
   const [loading, setLoading] = useState(true);
@@ -35,8 +86,7 @@ function CollectionsDashboard() {
   const [hasMoreGlobal, setHasMoreGlobal] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   
-  // Track last load time to force refresh
-  const [lastLoadTime, setLastLoadTime] = useState(Date.now());
+
 
   // Load My Collections
   const loadMyCollections = useCallback(async () => {
@@ -125,28 +175,31 @@ function CollectionsDashboard() {
   useEffect(() => {
     if (activeTab === 'my') {
       loadMyCollections();
-    } else {
+    } else if (activeTab === 'global') {
       loadGlobalCollections(1, false);
     }
+    // For 'saved' tab, we use mock data (no API call needed yet)
   }, [activeTab, loadMyCollections, loadGlobalCollections]);
 
-  // Force reload when navigating back to this page
+  // Task 5.4: Force reload when navigating back from CollectionPage
+  // Requirements: 5.1, 5.2, 5.3, 5.4
   useEffect(() => {
-    // Check if we're coming back from another page (location state will be set)
-    const shouldReload = location.state?.fromCollection || location.key;
+    // Detect navigation back from CollectionPage using location.state?.fromCollection
+    // or detect any navigation change via location.key
+    const isNavigatingBack = location.state?.fromCollection || location.key;
     
-    if (shouldReload) {
+    if (isNavigatingBack) {
       console.log('Detected navigation back - force reloading collections');
-      setLastLoadTime(Date.now());
       
-      // Reload based on active tab
+      // Reload appropriate tab data based on activeTab state
       if (activeTab === 'my') {
         loadMyCollections();
-      } else {
+      } else if (activeTab === 'global') {
         loadGlobalCollections(1, false);
       }
+      // For 'saved' tab, mock data doesn't need reloading
     }
-  }, [location.key]); // Trigger on location change
+  }, [location.key, activeTab, loadMyCollections, loadGlobalCollections]); // Listen to location.key changes
 
   // Reload global collections when topType changes
   useEffect(() => {
@@ -184,6 +237,12 @@ function CollectionsDashboard() {
 
   // Handle save/unsave collection
   const handleSaveCollection = async (collectionId, shouldSave) => {
+    // Authentication check
+    if (!user) {
+      alert('Vui lòng đăng nhập để lưu collection.');
+      return;
+    }
+
     setActionLoading(true);
     try {
       if (shouldSave) {
@@ -207,8 +266,21 @@ function CollectionsDashboard() {
         )
       );
     } catch (err) {
+      // Task 8.2: Enhanced error handling with specific messages
       console.error('Failed to save/unsave collection:', err);
-      alert(`Failed to ${shouldSave ? 'save' : 'unsave'} collection: ${err.message}`);
+      
+      // Handle different error types with specific messages
+      if (err.statusCode === 400) {
+        alert(err.message || 'Thao tác không thành công.');
+      } else if (err.statusCode === 403) {
+        alert(err.message || 'Bạn không có quyền thực hiện thao tác này.');
+      } else if (err.statusCode === 404) {
+        alert('Collection không tồn tại.');
+      } else if (err.code === 'NETWORK_ERROR' || err.message?.includes('network') || err.message?.includes('Network')) {
+        alert('Không thể kết nối. Vui lòng thử lại.');
+      } else {
+        alert(`Không thể ${shouldSave ? 'lưu' : 'bỏ lưu'} collection. Vui lòng thử lại.`);
+      }
     } finally {
       setActionLoading(false);
     }
@@ -233,7 +305,7 @@ function CollectionsDashboard() {
   };
 
   // Render loading state
-  if (loading && (myCollections.length === 0 && globalCollections.length === 0)) {
+  if (loading && (myCollections.length === 0 && globalCollections.length === 0 && activeTab !== 'saved')) {
     return (
       <div className="min-h-[calc(100vh-80px)] flex items-center justify-center bg-background">
         <div className="inline-flex items-center gap-3 rounded-3xl border border-outline-variant/40 bg-surface-container-low px-6 py-5 shadow-xl">
@@ -244,7 +316,11 @@ function CollectionsDashboard() {
     );
   }
 
-  const currentCollections = activeTab === 'my' ? myCollections : globalCollections;
+  const currentCollections = activeTab === 'my' 
+    ? myCollections 
+    : activeTab === 'global' 
+      ? globalCollections 
+      : savedCollections;
 
   return (
     <div className="min-h-[calc(100vh-80px)] bg-background px-4 py-8 sm:px-6 lg:px-10">
@@ -256,7 +332,9 @@ function CollectionsDashboard() {
             <p className="mt-2 text-sm text-on-surface-variant">
               {activeTab === 'my' 
                 ? 'Manage your personal collections of favorite places' 
-                : 'Discover and save collections from the community'}
+                : activeTab === 'global'
+                  ? 'Discover and save collections from the community'
+                  : 'Your saved collections from other users'}
             </p>
           </div>
 
@@ -303,6 +381,23 @@ function CollectionsDashboard() {
               Global Collections
             </div>
             {activeTab === 'global' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
+            )}
+          </button>
+
+          <button
+            onClick={() => handleTabChange('saved')}
+            className={`relative px-6 py-3 text-sm font-semibold transition-colors ${
+              activeTab === 'saved'
+                ? 'text-primary'
+                : 'text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Icon name="bookmark" size={20} />
+              Đã lưu
+            </div>
+            {activeTab === 'saved' && (
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
             )}
           </button>
@@ -360,18 +455,24 @@ function CollectionsDashboard() {
           <div className="flex flex-col items-center justify-center py-16 px-4">
             <div className="rounded-full bg-surface-container p-6 mb-4">
               <Icon 
-                name={activeTab === 'my' ? 'collections_bookmark' : 'public'} 
+                name={activeTab === 'my' ? 'collections_bookmark' : activeTab === 'global' ? 'public' : 'bookmark'} 
                 size={48} 
                 className="text-on-surface-variant" 
               />
             </div>
             <h3 className="text-xl font-semibold text-on-surface mb-2">
-              {activeTab === 'my' ? 'No collections yet' : 'No public collections available'}
+              {activeTab === 'my' 
+                ? 'No collections yet' 
+                : activeTab === 'global' 
+                  ? 'No public collections available'
+                  : 'No saved collections yet'}
             </h3>
             <p className="text-sm text-on-surface-variant text-center max-w-md mb-6">
               {activeTab === 'my' 
                 ? 'Create your first collection to start organizing your favorite places' 
-                : 'Check back later for community collections'}
+                : activeTab === 'global'
+                  ? 'Check back later for community collections'
+                  : 'Save collections from the Global tab to see them here'}
             </p>
             {activeTab === 'my' && (
               <button
@@ -391,8 +492,14 @@ function CollectionsDashboard() {
                 collection={collection}
                 isOwner={activeTab === 'my'}
                 onDelete={handleDeleteCollection}
-                onSave={handleSaveCollection}
-                isSaved={savedCollectionIds.has(collection.id)}
+                {...(activeTab === 'global' && {
+                  onSave: handleSaveCollection,
+                  isSaved: savedCollectionIds.has(collection.id)
+                })}
+                {...(activeTab === 'saved' && {
+                  onSave: handleSaveCollection,
+                  isSaved: true // All items in saved tab are saved by definition
+                })}
                 showActions={true}
                 returnTab={activeTab}
                 currentUserId={user?.uid}

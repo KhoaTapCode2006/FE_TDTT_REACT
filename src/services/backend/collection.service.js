@@ -512,12 +512,14 @@ export const collectionService = {
    * Endpoint: POST /collections/{collection_id}/save
    * 
    * @param {string} collectionId - Collection ID to save
-   * @returns {Promise<CollectionData>} Updated collection
+   * @returns {Promise<boolean>} Success status
    * @throws {Error} Network error
    */
   async saveCollection(collectionId) {
     const response = await collectionClient.post(`/collections/${collectionId}/save`);
-    return extractCollectionData(response);
+    // Backend returns success message, not full collection data
+    // Just verify status code and return true on success
+    return response.status === 200 || response.status === 201;
   },
 
   /**
@@ -525,12 +527,14 @@ export const collectionService = {
    * Endpoint: DELETE /collections/{collection_id}/save
    * 
    * @param {string} collectionId - Collection ID to unsave
-   * @returns {Promise<CollectionData>} Updated collection
+   * @returns {Promise<boolean>} Success status
    * @throws {Error} Network error
    */
   async unsaveCollection(collectionId) {
     const response = await collectionClient.delete(`/collections/${collectionId}/save`);
-    return extractCollectionData(response);
+    // Backend returns success message, not full collection data
+    // Just verify status code and return true on success
+    return response.status === 200 || response.status === 201;
   },
 };
 

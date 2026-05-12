@@ -30,7 +30,12 @@ function Toast({ toast }) {
 
   return (
     <div className="fixed right-4 top-4 z-50 max-w-sm">
-      <div className={`rounded-2xl px-4 py-3 shadow-2xl shadow-slate-900/20 ${STATUS_TYPES[toast.type] || STATUS_TYPES.info}`}>
+      <div 
+        role="alert" 
+        aria-live="polite" 
+        aria-atomic="true"
+        className={`toast-fade-in rounded-2xl px-4 py-3 shadow-2xl shadow-slate-900/20 ${STATUS_TYPES[toast.type] || STATUS_TYPES.info}`}
+      >
         <p className="text-sm font-semibold">{toast.title}</p>
         <p className="mt-1 text-xs leading-5 text-white/90">{toast.message}</p>
       </div>
@@ -137,10 +142,103 @@ function CollectionPage() {
     );
   }, [collection, user]);
 
+  // Computed value: Check if current user has saved this collection
+  // Requirements: 1.1, 1.2, 1.3
+  const isSaved = useMemo(() => {
+    if (!user || !collection) return false;
+    return collection.savers?.some(saver => saver.uid === user.uid) || false;
+  }, [user, collection]);
+
+  // Computed value: Determine if save button should be shown
+  // Requirements: 1.1, 1.2, 1.3
+  const showSaveButton = useMemo(() => {
+    if (!user || !collection) return false;
+    return collection.owner_uid !== user.uid; // Don't show for owned collections
+  }, [user, collection]);
+
   const showToast = useCallback((title, message, type = "info") => {
     setToast({ title, message, type });
     window.setTimeout(() => setToast(null), 3300);
   }, []);
+
+  // Task 2.2: Save/Unsave handler with optimistic updates
+  // Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 3.1, 3.2, 3.3, 3.4, 3.5, 8.4
+  // Task 8.2: Enhanced error handling with specific messages
+  // Task 8.3: Optimistic update rollback on error
+  const handleSaveToggle = useCallback(async () => {
+    // Authentication check (Requirement 8.4, Task 8.4)
+    if (!user) {
+      showToast("Lỗi", "Vui lòng đăng nhập để lưu collection.", "error");
+      return;
+    }
+
+    // Prevent action if no collection loaded
+    if (!collection) {
+      return;
+    }
+
+    // Task 8.3: Store previous state before optimistic update
+    const previousSavedState = isSaved;
+    const newSavedState = !isSaved;
+    const previousSavedCount = collection.saved_count || 0;
+    const previousSavers = collection.savers || [];
+
+    try {
+      // Optimistic update (Requirements 2.2, 2.3, 3.1, 3.2)
+      // Update saved_count display optimistically (+1 for save, -1 for unsave)
+      setCollection(prev => ({
+        ...prev,
+        saved_count: previousSavedCount + (newSavedState ? 1 : -1),
+        savers: newSavedState 
+          ? [...(prev.savers || []), { uid: user.uid, saved_at: new Date() }]
+          : (prev.savers || []).filter(s => s.uid !== user.uid)
+      }));
+
+      // API call (Requirements 2.1, 3.1)
+      if (newSavedState) {
+        await collectionService.saveCollection(collection.id);
+        showToast("Thành công", "Đã lưu collection.", "success");
+      } else {
+        await collectionService.unsaveCollection(collection.id);
+        showToast("Thành công", "Đã bỏ lưu collection.", "success");
+      }
+    } catch (error) {
+      // Task 8.3: Revert optimistic update on error (Requirements 2.4, 2.5, 2.6, 3.3, 3.4, 3.5)
+      setCollection(prev => ({
+        ...prev,
+        saved_count: previousSavedCount,
+        savers: previousSavers
+      }));
+
+      // Task 8.2: Enhanced error handling with specific messages (Requirements 8.1, 8.2, 8.3, 8.5)
+      console.error('Save/unsave failed:', error);
+      
+      // Handle 400 errors (already saved/unsaved) with info toast showing backend message
+      if (error.statusCode === 400) {
+        showToast("Thông báo", error.message || "Thao tác không thành công.", "info");
+      } 
+      // Handle 403 error (permission denied) with error toast showing backend message
+      else if (error.statusCode === 403) {
+        showToast("Lỗi", error.message || "Bạn không có quyền thực hiện thao tác này.", "error");
+      }
+      // Handle 404 error (collection not found)
+      else if (error.statusCode === 404) {
+        showToast("Lỗi", "Collection không tồn tại.", "error");
+      }
+      // Handle network errors
+      else if (error.code === 'NETWORK_ERROR' || error.message?.includes('network') || error.message?.includes('Network')) {
+        showToast("Lỗi", "Không thể kết nối. Vui lòng thử lại.", "error");
+      }
+      // Generic error handling for other errors
+      else {
+        showToast(
+          "Lỗi",
+          newSavedState ? "Không thể lưu collection. Vui lòng thử lại." : "Không thể bỏ lưu collection. Vui lòng thử lại.",
+          "error"
+        );
+      }
+    }
+  }, [user, collection, isSaved, showToast]);
 
   const loadCollection = useCallback(async () => {
     // Skip loading if in create mode
@@ -528,19 +626,21 @@ function CollectionPage() {
       <Toast toast={toast} />
 
       {/* Login Warning Banner */}
+      {/* Task 8.4: Enhanced login prompt for unauthenticated users */}
       {showLoginWarning && (
         <div className="mx-auto w-full max-w-7xl mb-6">
-          <div className="rounded-3xl border border-orange-400/20 bg-orange-50 p-4">
+          <div className="rounded-3xl border border-orange-400/20 bg-orange-50 p-4 shadow-lg">
             <div className="flex items-center gap-3">
-              <Icon name="warning" size={24} className="text-orange-600" />
+              <Icon name="warning" size={24} className="text-orange-600 flex-shrink-0" />
               <div className="flex-1">
                 <p className="text-sm font-semibold text-orange-800">Bạn chưa đăng nhập</p>
-                <p className="text-xs text-orange-600 mt-1">Vui lòng đăng nhập để chỉnh sửa collection này.</p>
+                <p className="text-xs text-orange-600 mt-1">Vui lòng đăng nhập để lưu collection này và truy cập đầy đủ tính năng.</p>
               </div>
               <Link 
                 to="/auth/login" 
-                className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700"
+                className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition-all duration-300 hover:bg-orange-700 hover:scale-105 shadow-md"
               >
+                <Icon name="login" size={18} />
                 Đăng nhập
               </Link>
             </div>
@@ -556,9 +656,9 @@ function CollectionPage() {
             // If we have returnTab in location state, navigate to dashboard with that tab
             const returnTab = location.state?.returnTab;
             if (returnTab) {
-              navigate(`/collections?tab=${returnTab}`);
+              navigate(`/collections?tab=${returnTab}`, { state: { fromCollection: true } });
             } else {
-              navigate(-1);
+              navigate(-1, { state: { fromCollection: true } });
             }
           }}
           className="inline-flex items-center gap-2 text-sm font-medium text-on-surface-variant transition-colors hover:text-on-surface"
@@ -625,6 +725,35 @@ function CollectionPage() {
 
             <div className="flex flex-wrap items-center gap-3 justify-end">
               {!isCreateMode && <span className="text-sm text-on-surface-variant">Owner: {collection.owner_uid}</span>}
+              
+              {/* Save button - only show for non-owners when not editing (Requirements 1.1, 1.2, 6.1, 6.2, 6.3, 6.4, 9.1, 9.2, 9.3, 9.4, 9.5) */}
+              {/* Task 8.1: Added hover animation and transitions */}
+              {/* Task 8.4: Enhanced disabled state with tooltip for unauthenticated users */}
+              {!isEditing && showSaveButton && !isCreateMode && (
+                <button
+                  type="button"
+                  onClick={handleSaveToggle}
+                  disabled={!user || actionBusy}
+                  className="save-button-focus save-button-hover touch-target-min inline-flex items-center gap-2 rounded-full border border-outline-variant/70 bg-surface-container px-4 py-2 text-sm font-semibold text-on-surface transition-all duration-300 hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                  title={!user ? 'Please login to save collections' : (isSaved ? 'Unsave collection' : 'Save collection')}
+                  aria-label={isSaved ? 'Unsave collection' : 'Save collection'}
+                  aria-pressed={isSaved}
+                  aria-busy={actionBusy}
+                >
+                  {actionBusy ? (
+                    <>
+                      <Icon name="hourglass_top" size={18} className="animate-spin" />
+                      <span>Đang xử lý...</span>
+                      <span className="sr-only">Đang lưu collection...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Icon name={isSaved ? 'favorite' : 'favorite_border'} size={18} className={isSaved ? 'text-red-500 transition-all duration-300' : 'transition-all duration-300'} />
+                      <span>{isSaved ? 'Đã lưu' : 'Lưu'}</span>
+                    </>
+                  )}
+                </button>
+              )}
               
               {/* Edit button - only show for owner when not editing and not in create mode */}
               {!isEditing && isOwner && !isCreateMode && (

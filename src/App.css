@@ -182,3 +182,75 @@
     border-right-color: var(--border);
   }
 }
+
+/* Accessibility: Focus indicators for save buttons */
+/* Ensures WCAG 2.1 AA compliance with 3:1 contrast ratio for focus rings */
+.save-button-focus:focus-visible {
+  outline: 3px solid #1976d2; /* Primary color with high contrast */
+  outline-offset: 2px;
+  border-radius: 9999px; /* Match rounded-full */
+}
+
+/* Alternative focus style for buttons with different backgrounds */
+.save-button-focus:focus {
+  outline: none; /* Remove default outline */
+}
+
+.save-button-focus:focus-visible {
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.5); /* Visible focus ring */
+}
+
+/* Ensure minimum touch target size of 44x44px for mobile accessibility */
+.touch-target-min {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Task 8.1: Loading animations and transitions */
+/* Spinner animation for save/unsave operations */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Scale animation on save button hover */
+.save-button-hover {
+  transition: transform 0.3s ease, background-color 0.3s ease, color 0.3s ease;
+}
+
+.save-button-hover:hover:not(:disabled) {
+  transform: scale(1.1);
+}
+
+/* Color transition on state change */
+.transition-all {
+  transition: all 0.3s ease;
+}
+
+.duration-300 {
+  transition-duration: 300ms;
+}
+
+/* Fade-in animation for toast notifications */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.toast-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}

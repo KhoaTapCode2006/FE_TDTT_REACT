@@ -546,10 +546,9 @@ export function transformUserProfile(backendUser) {
     // Log backend response for debugging
     console.log('🔄 transformUserProfile input:', backendUser);
 
-    // Validate required fields (uid might not be present in /me response)
-    // Backend might use different field names or not include uid
-    if (!backendUser.uid && !backendUser.user_id && !backendUser.id) {
-      console.warn('⚠️ User ID not found in backend response. Available fields:', Object.keys(backendUser));
+    // Validate required fields - uid should now be present in backend response
+    if (!backendUser.uid) {
+      console.warn('⚠️ User ID (uid) not found in backend response. Available fields:', Object.keys(backendUser));
       // Don't throw error, let it continue - uid might be added from Firebase user
     }
 
@@ -701,26 +700,18 @@ export function transformUserProfile(backendUser) {
     }
 
     // Validate transformed data has required fields
-    // Note: uid might not be present in backend response, it will be added from Firebase user
-    if (!transformed.username || !transformed.displayName || !transformed.email) {
+    if (!transformed.uid || !transformed.username || !transformed.displayName || !transformed.email) {
       console.warn('⚠️ Missing required fields after transformation:', {
+        hasUid: !!transformed.uid,
         hasUsername: !!transformed.username,
         hasDisplayName: !!transformed.displayName,
-        hasEmail: !!transformed.email,
-        hasUid: !!transformed.uid
+        hasEmail: !!transformed.email
       });
       throw new SchemaTransformError(
-        'Transformation resulted in missing required fields (username, displayName, or email)',
+        'Transformation resulted in missing required fields (uid, username, displayName, or email)',
         backendUser,
         'UserProfile'
       );
-    }
-
-    // Normalize uid field (backend might use different field names)
-    if (!transformed.uid && transformed.userId) {
-      transformed.uid = transformed.userId;
-    } else if (!transformed.uid && transformed.id) {
-      transformed.uid = transformed.id;
     }
 
     console.log('✅ transformUserProfile output:', transformed);

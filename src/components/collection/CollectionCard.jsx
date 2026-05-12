@@ -7,14 +7,14 @@ import Icon from '@/components/ui/Icon';
  * Displays a collection card with thumbnail, name, description, tags, and actions
  * 
  * @param {Object} props
- * @param {Object} props.collection - Collection data
- * @param {boolean} props.isOwner - Whether current user owns this collection
- * @param {Function} props.onDelete - Callback when delete button is clicked
- * @param {Function} props.onSave - Callback when save button is clicked
- * @param {boolean} props.isSaved - Whether collection is saved by current user
- * @param {boolean} props.showActions - Whether to show action buttons
- * @param {string} props.returnTab - Tab to return to when navigating back from collection page
- * @param {string} props.currentUserId - Current user's UID for displaying "You"
+ * @param {Object} props.collection - Collection data object containing id, name, description, thumbnail_url, tags, places, visibility, saved_count, owner_uid, collaborators, and views
+ * @param {boolean} props.isOwner - Whether current user owns this collection. If true, shows edit/delete actions instead of save button
+ * @param {Function} props.onDelete - Callback when delete button is clicked. Signature: (collectionId: string) => Promise<void>
+ * @param {Function} props.onSave - Callback when save/unsave button is clicked. Signature: (collectionId: string, shouldSave: boolean) => Promise<void>. The shouldSave parameter indicates the desired state (true to save, false to unsave)
+ * @param {boolean} props.isSaved - Whether collection is currently saved by the current user. Used to display the correct icon state (filled heart if saved, outline heart if not saved)
+ * @param {boolean} props.showActions - Whether to show action buttons (edit/delete for owners, save for non-owners)
+ * @param {string} props.returnTab - Tab to return to when navigating back from collection page ('my' or 'global')
+ * @param {string} props.currentUserId - Current user's UID for displaying "You" in contributors list
  */
 function CollectionCard({ 
   collection, 
@@ -58,6 +58,7 @@ function CollectionCard({
     try {
       await onSave?.(collection.id, !isSaved);
     } catch (error) {
+      // Task 8.2: Enhanced error logging for debugging
       console.error('Save failed:', error);
     } finally {
       setIsSaving(false);
@@ -134,18 +135,29 @@ function CollectionCard({
         </div>
 
         {/* Save Button (for non-owners) */}
+        {/* Task 8.1: Added hover animation, scale transition, and loading spinner */}
         {!isOwner && showActions && (
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="absolute top-3 right-3 rounded-full bg-white/90 backdrop-blur-sm p-2 shadow-lg transition-all hover:bg-white hover:scale-110 disabled:opacity-50"
+            className="save-button-focus save-button-hover touch-target-min absolute top-3 right-3 rounded-full bg-white/90 backdrop-blur-sm p-2 shadow-lg transition-all duration-300 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
             title={isSaved ? 'Unsave collection' : 'Save collection'}
+            aria-label={isSaved ? 'Unsave collection' : 'Save collection'}
+            aria-pressed={isSaved}
+            aria-busy={isSaving}
           >
-            <Icon 
-              name={isSaved ? 'favorite' : 'favorite_border'} 
-              size={20} 
-              className={isSaved ? 'text-red-500' : 'text-on-surface-variant'}
-            />
+            {isSaving ? (
+              <div className="animate-spin">
+                <Icon name="refresh" size={20} className="text-on-surface-variant" />
+              </div>
+            ) : (
+              <Icon 
+                name={isSaved ? 'favorite' : 'favorite_border'} 
+                size={20} 
+                className={`transition-all duration-300 ${isSaved ? 'text-red-500' : 'text-on-surface-variant'}`}
+              />
+            )}
+            {isSaving && <span className="sr-only">Saving collection...</span>}
           </button>
         )}
       </div>
