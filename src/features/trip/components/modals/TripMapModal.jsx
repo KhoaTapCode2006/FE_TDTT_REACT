@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import { useApp } from "@/app/AppContext";
+import { auth } from "@/config/firebase";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -7,17 +9,17 @@ export const MEMBER_COLORS = [
   "#1abc9c", "#e67e22", "#e91e63", "#00bcd4", "#ff5722",
 ];
 
-// Tọa độ điểm đến mặc định (HCMC)
-const DEST = { lat: 10.7719, lng: 106.6983 };
+// Tọa độ điểm đến mặc định — HCMUS (227 Nguyễn Văn Cừ, Q5, TP.HCM)
+const DEFAULT_DEST = { lat: 10.7626, lng: 106.6822 };
 
-function generateLocations(members) {
+function generateLocations(members, centerLat, centerLng) {
   return members.map((m, i) => {
     const angle = (i / members.length) * 2 * Math.PI;
     const r     = 0.008 + (i % 3) * 0.005;
     return {
       ...m,
-      lat:   DEST.lat + Math.sin(angle) * r,
-      lng:   DEST.lng + Math.cos(angle) * r,
+      lat:   centerLat + Math.sin(angle) * r,
+      lng:   centerLng + Math.cos(angle) * r,
       color: MEMBER_COLORS[i % MEMBER_COLORS.length],
     };
   });
@@ -27,6 +29,7 @@ function generateLocations(members) {
 // Modal bản đồ hiển thị vị trí các thành viên và tuyến đường đến điểm đến.
 // Click vào member để vẽ route từ vị trí của họ đến điểm đến.
 function TripMapModal({ trip, onClose }) {
+  const { userLoc } = useApp();
   const mapRef    = useRef(null);
   const mapObjRef = useRef(null);
   const markersRef = useRef([]);
@@ -35,13 +38,35 @@ function TripMapModal({ trip, onClose }) {
   const [selectedMember, setSelectedMember] = useState(null);
   const [routeInfo, setRouteInfo]         = useState(null);
   const [loadingRoute, setLoadingRoute]   = useState(false);
+  // GPS thực của user hiện tại (lấy fresh khi modal mở)
+  const [myGps, setMyGps] = useState(userLoc || DEFAULT_DEST);
+
+  // Lấy GPS thực khi modal mở
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setMyGps({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => { /* giữ fallback */ },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+  }, []);
+
+  // Điểm đến = HCMUS (hardcode)
+  const DEST = DEFAULT_DEST;
+
+  const currentUid = auth.currentUser?.uid;
 
   const rawMembers = (trip.member_uids || []).map((uid, i) => ({
     id:     i + 1,
     name:   uid,
     avatar: uid.slice(0, 2).toUpperCase(),
+    isMe:   uid === currentUid,
   }));
-  const members = generateLocations(rawMembers);
+
+  // User hiện tại dùng GPS thực, các member khác dùng vị trí giả xung quanh DEST
+  const members = generateLocations(rawMembers, DEST.lat, DEST.lng).map((m) =>
+    m.isMe ? { ...m, lat: myGps.lat, lng: myGps.lng } : m
+  );
 
   // ── Init map ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -106,7 +131,7 @@ function TripMapModal({ trip, onClose }) {
       [[Math.min(...lngs) - 0.01, Math.min(...lats) - 0.01], [Math.max(...lngs) + 0.01, Math.max(...lats) + 0.01]],
       { padding: 50, duration: 800 }
     );
-  }, [mapReady]);
+  }, [mapReady, myGps]);
 
   // ── Route ─────────────────────────────────────────────────────────────────────
   const handleMemberClick = async (member) => {
