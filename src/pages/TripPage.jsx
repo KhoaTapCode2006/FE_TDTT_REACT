@@ -9,10 +9,14 @@ import {
   TripMapModal,
   AddMemberModal,
 } from "../features/trip";
+import { useAuth } from "../contexts/AuthContext";
 
 // ─── TripPage ─────────────────────────────────────────────────────────────────
 
 export default function TripPage() {
+  const { user } = useAuth();
+  const currentUid = user?.uid ?? null;
+
   const {
     activeNav,
     setActiveNav,
@@ -36,6 +40,9 @@ export default function TripPage() {
     handleSaveEdit,
     handleAddMember,
     handleRemoveMember,
+    handleLeaveTrip,
+    handleUpdateStatus,
+    handleScheduleStatus,
   } = useTrip();
 
   // Push GPS lên Firestore cho tất cả trips khi đang ở trang này
@@ -79,11 +86,14 @@ export default function TripPage() {
                 <TripCard
                   key={trip.id}
                   trip={trip}
+                  currentUid={currentUid}
                   onDelete={handleDelete}
+                  onLeave={handleLeaveTrip}
                   onEdit={setEditingTrip}
                   onView={setViewingTrip}
                   onInfo={(t) => setInfoTripId(t.id)}
                   onAddMember={setAddMemberTrip}
+                  onScheduleStatus={handleScheduleStatus}
                 />
               ))}
               {filteredTrips.length === 0 && (

@@ -207,10 +207,13 @@ export function normalizeTripData(t) {
 
   // Backend trả về members: [{ uid, joined_at }] hoặc member_uids: [string]
   let uids = [];
+  let memberDetails = []; // [{ uid, joined_at }]
   if (Array.isArray(t.members) && t.members.length > 0 && typeof t.members[0] === 'object') {
-    uids = t.members.map((m) => m.uid).filter(Boolean);
+    memberDetails = t.members.filter((m) => m.uid).map((m) => ({ uid: m.uid, joined_at: m.joined_at || null }));
+    uids = memberDetails.map((m) => m.uid);
   } else if (Array.isArray(t.member_uids)) {
     uids = t.member_uids;
+    memberDetails = uids.map((uid) => ({ uid, joined_at: null }));
   }
 
   const avatars = uids.slice(0, 2).map((uid) => uid.slice(0, 2).toUpperCase());
@@ -228,6 +231,7 @@ export function normalizeTripData(t) {
     dateTo: t.end_at || '',
     members: uids.length,
     member_uids: uids,
+    member_details: memberDetails,
     avatars,
     extra: Math.max(0, uids.length - 2),
     created_at: t.created_at ? new Date(t.created_at) : null,

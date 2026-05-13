@@ -54,6 +54,15 @@ export function useTrip() {
     fetchTrips();
   }, [authLoading, isAuthenticated, fetchTrips]);
 
+  // Polling: refetch mỗi 10s để tự động nhận trip mới khi được add làm member
+  useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+    const interval = setInterval(() => {
+      fetchTrips();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [authLoading, isAuthenticated, fetchTrips]);
+
   // ── Derived ─────────────────────────────────────────────────────────────────
   const infoTrip = infoTripId ? trips.find((t) => t.id === infoTripId) ?? null : null;
 
@@ -130,6 +139,42 @@ export function useTrip() {
     }
   };
 
+  const handleUpdateStatus = async (tripId, newStatus) => {
+    try {
+      const savedTrip = await tripService.updateTrip(tripId, { status: newStatus });
+      setTrips((prev) => prev.map((t) => (t.id === savedTrip.id ? savedTrip : t)));
+    } catch (err) {
+      console.error("Failed to update trip status:", err);
+      setError(err.message || "Không thể cập nhật trạng thái chuyến đi");
+    }
+  };
+
+  // Lên lịch đổi status: scheduledAt=null → thực hiện ngay, scheduledAt=Date → setTimeout
+  const handleScheduleStatus = (tripId, newStatus, scheduledAt) => {
+    if (!scheduledAt) {
+      handleUpdateStatus(tripId, newStatus);
+      return;
+    }
+    const delay = scheduledAt.getTime() - Date.now();
+    if (delay <= 0) {
+      handleUpdateStatus(tripId, newStatus);
+      return;
+    }
+    setTimeout(() => handleUpdateStatus(tripId, newStatus), delay);
+  };
+
+  const handleLeaveTrip = async (tripId) => {
+    try {
+      const currentUid = (await import("../../../config/firebase")).auth.currentUser?.uid;
+      if (!currentUid) return;
+      const updatedTrip = await tripService.removeMembersFromTrip(tripId, [currentUid]);
+      setTrips((prev) => prev.map((t) => (t.id === updatedTrip.id ? updatedTrip : t)));
+    } catch (err) {
+      console.error("Failed to leave trip:", err);
+      setError(err.message || "Không thể rời chuyến đi");
+    }
+  };
+
   return {
     // State
     activeNav,
@@ -156,6 +201,9 @@ export function useTrip() {
     handleSaveEdit,
     handleAddMember,
     handleRemoveMember,
+    handleLeaveTrip,
+    handleUpdateStatus,
+    handleScheduleStatus,
     // Refresh
     refetch: fetchTrips,
   };

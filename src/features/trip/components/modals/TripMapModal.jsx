@@ -25,8 +25,9 @@ function TripMapModal({ trip, onClose }) {
 
   const [mapReady, setMapReady]             = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
-  const [routeInfo, setRouteInfo]           = useState(null);
-  const [loadingRoute, setLoadingRoute]     = useState(false);
+  // routeInfoMap: { [uid]: { distKm, timeMin, memberName, hasRealGps } }
+  const [routeInfoMap, setRouteInfoMap]     = useState({});
+  const [loadingRoutes, setLoadingRoutes]   = useState(false);
   // memberTracking: { [uid]: { lat, lng, status, updated_at } }
   const [memberTracking, setMemberTracking] = useState({});
 
@@ -200,16 +201,16 @@ function TripMapModal({ trip, onClose }) {
     );
   }, [mapReady, memberTracking]);
 
-  // ── 6. Route ──────────────────────────────────────────────────────────────
-  const handleMemberClick = async (member) => {
-    if (!mapObjRef.current || !mapReady) return;
-    setSelectedMember(member);
-    setLoadingRoute(true);
-    setRouteInfo(null);
+  // ── 6. Route helpers ──────────────────────────────────────────────────────
 
-    const map = mapObjRef.current;
-    if (map.getLayer("route-line")) map.removeLayer("route-line");
-    if (map.getSource("route"))     map.removeSource("route");
+  // Fetch & vẽ route cho 1 member, trả về routeInfo hoặc null
+  const fetchAndDrawRoute = useCallback(async (map, member) => {
+    const layerId  = `route-line-${member.id}`;
+    const sourceId = `route-${member.id}`;
+
+    // Xóa layer cũ nếu có (khi tracking thay đổi)
+    if (map.getLayer(layerId))  map.removeLayer(layerId);
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
 
     try {
       const res = await fetch(
@@ -221,31 +222,62 @@ function TripMapModal({ trip, onClose }) {
       const coords = route?.geometry?.coordinates;
       if (!coords?.length) throw new Error();
 
-      map.addSource("route", { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: coords } } });
-      map.addLayer({ id: "route-line", type: "line", source: "route", layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": member.color, "line-width": 4, "line-opacity": 0.85 } });
-      setRouteInfo({ distKm: (route.distance / 1000).toFixed(1), timeMin: Math.round(route.duration / 60), memberName: member.name, hasRealGps: member.hasRealGps });
-
-      const lngs = coords.map((c) => c[0]);
-      const lats  = coords.map((c) => c[1]);
-      map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: 60, duration: 800 });
+      map.addSource(sourceId, { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: coords } } });
+      map.addLayer({
+        id: layerId, type: "line", source: sourceId,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": member.color, "line-width": 4, "line-opacity": 0.85 },
+      });
+      return { distKm: (route.distance / 1000).toFixed(1), timeMin: Math.round(route.duration / 60), memberName: member.name, hasRealGps: member.hasRealGps };
     } catch {
-      // Fallback: đường thẳng
-      if (!map.getSource("route")) {
-        map.addSource("route", { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: [[member.lng, member.lat], [DEST.lng, DEST.lat]] } } });
-        map.addLayer({ id: "route-line", type: "line", source: "route", layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": member.color, "line-width": 3, "line-dasharray": [2, 2] } });
-      }
+      // Fallback: đường thẳng nét đứt
+      map.addSource(sourceId, { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: [[member.lng, member.lat], [DEST.lng, DEST.lat]] } } });
+      map.addLayer({
+        id: layerId, type: "line", source: sourceId,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": member.color, "line-width": 3, "line-dasharray": [2, 2] },
+      });
       const R      = 6371;
       const dLat   = (DEST.lat - member.lat) * Math.PI / 180;
       const dLng   = (DEST.lng - member.lng) * Math.PI / 180;
       const a      = Math.sin(dLat / 2) ** 2 + Math.cos(member.lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
       const distKm = (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1);
-      setRouteInfo({ distKm, timeMin: Math.round(distKm / 0.5), memberName: member.name, hasRealGps: member.hasRealGps });
-    } finally {
-      setLoadingRoute(false);
+      return { distKm, timeMin: Math.round(distKm / 0.5), memberName: member.name, hasRealGps: member.hasRealGps };
     }
-  };
+  }, []);
 
-  // ── Status badge ──────────────────────────────────────────────────────────
+  // Load route cho tất cả members song song
+  const loadAllRoutes = useCallback(async (currentMembers) => {
+    if (!mapObjRef.current || !mapReady) return;
+    const map = mapObjRef.current;
+    setLoadingRoutes(true);
+    try {
+      const results = await Promise.all(
+        currentMembers.map((m) => fetchAndDrawRoute(map, m).then((info) => [m.id, info]))
+      );
+      const infoMap = Object.fromEntries(results.filter(([, info]) => info));
+      setRouteInfoMap(infoMap);
+    } finally {
+      setLoadingRoutes(false);
+    }
+  }, [mapReady, fetchAndDrawRoute]);
+
+  // Click member: chỉ highlight + focus, route đã có sẵn
+  const handleMemberClick = useCallback((member) => {
+    if (!mapObjRef.current || !mapReady) return;
+    setSelectedMember((prev) => prev?.id === member.id ? null : member);
+
+    if (mapObjRef.current) {
+      mapObjRef.current.flyTo({ center: [member.lng, member.lat], zoom: 14, duration: 800 });
+    }
+  }, [mapReady]);
+
+  // ── 6b. Auto-load routes khi map ready hoặc tracking thay đổi ───────────
+  useEffect(() => {
+    if (!mapReady || members.length === 0) return;
+    loadAllRoutes(members);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, memberTracking]);
   const statusLabel = {
     active:            { text: "Đang di chuyển", color: "text-green-600" },
     lost_signal:       { text: "Mất tín hiệu",   color: "text-yellow-600" },
@@ -309,25 +341,22 @@ function TripMapModal({ trip, onClose }) {
                 })}
               </div>
 
-              {/* Route info */}
-              {(routeInfo || loadingRoute) && (
-                <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
-                  {loadingRoute ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      <span className="text-xs text-gray-500">Đang tính...</span>
-                    </div>
-                  ) : routeInfo && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-700 truncate">
-                        {routeInfo.memberName === currentUid ? "Bạn" : routeInfo.memberName.slice(0, 12) + "..."}
-                      </p>
-                      <p className="text-xs text-gray-500">📍 {routeInfo.distKm} km</p>
-                      <p className="text-xs text-gray-500">⏱ ~{routeInfo.timeMin} phút</p>
-                      {!routeInfo.hasRealGps && (
-                        <p className="text-[10px] text-yellow-500">⚠ Vị trí ước tính</p>
-                      )}
-                    </div>
+              {/* Route info — hiện member được chọn, hoặc loading indicator */}
+              {loadingRoutes && (
+                <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs text-gray-500">Đang tải tuyến đường...</span>
+                </div>
+              )}
+              {!loadingRoutes && selectedMember && routeInfoMap[selectedMember.id] && (
+                <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 space-y-1">
+                  <p className="text-xs font-semibold text-gray-700 truncate" style={{ color: selectedMember.color }}>
+                    {selectedMember.isMe ? "Bạn" : selectedMember.name.slice(0, 12) + "..."}
+                  </p>
+                  <p className="text-xs text-gray-500">📍 {routeInfoMap[selectedMember.id].distKm} km</p>
+                  <p className="text-xs text-gray-500">⏱ ~{routeInfoMap[selectedMember.id].timeMin} phút</p>
+                  {!routeInfoMap[selectedMember.id].hasRealGps && (
+                    <p className="text-[10px] text-yellow-500">⚠ Vị trí ước tính</p>
                   )}
                 </div>
               )}
@@ -341,9 +370,15 @@ function TripMapModal({ trip, onClose }) {
                   <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               )}
-              {mapReady && !selectedMember && (
+              {mapReady && loadingRoutes && (
+                <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow text-xs text-gray-600 flex items-center gap-1.5">
+                  <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  Đang tải tuyến đường...
+                </div>
+              )}
+              {mapReady && !selectedMember && !loadingRoutes && (
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow text-xs text-gray-600 font-medium">
-                  Chọn thành viên để xem tuyến đường
+                  Nhấn vào thành viên để focus tuyến đường
                 </div>
               )}
             </div>
