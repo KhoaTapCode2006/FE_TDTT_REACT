@@ -21,6 +21,8 @@ import {
   deleteMessage,
   markAsRead,
   sendConversation,
+  subscribeToMessages,
+  subscribeToMembers,
 } from "../../../services/backend/chat.service";
 import { uploadFile } from "../../../services/backend/upload.service";
 
@@ -88,6 +90,24 @@ export function useGroupChat() {
   const currentGroup = groups.find((g) => g.id === activeGroup) ?? groups[0];
   const currentMembers = membersByGroup[activeGroup] ?? [];
 
+  // ── Real-time listener cho messages của activeGroup ─────────────────────────
+  useEffect(() => {
+    if (!activeGroup) return;
+
+    const unsubMessages = subscribeToMessages(activeGroup, (newMessages) => {
+      setMessagesByGroup((prev) => ({ ...prev, [activeGroup]: newMessages }));
+    });
+
+    const unsubMembers = subscribeToMembers(activeGroup, (newMembers) => {
+      setMembersByGroup((prev) => ({ ...prev, [activeGroup]: newMembers }));
+    });
+
+    return () => {
+      unsubMessages();
+      unsubMembers();
+    };
+  }, [activeGroup]);
+
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   const setActiveGroup = async (id) => {
@@ -149,7 +169,8 @@ export function useGroupChat() {
     if (!file || !activeGroup) return;
     setImageUploading(true);
     try {
-      const url = await uploadFile(file, 'chat');
+      const url = await uploadFile(file, 'avatar');
+      console.log('[handlePickImage] uploaded url:', url);
       setPendingImage({ url, file });
     } catch (err) {
       console.error("uploadFile (chat image) error:", err);
@@ -162,8 +183,9 @@ export function useGroupChat() {
     if (!activeGroup) return;
 
     const text = input.trim();
-    // Không có gì để gửi
     if (!text && !pendingImage) return;
+
+    console.log('[handleSend] pendingImage:', pendingImage);
 
     const tempId = `temp_${Date.now()}`;
     const optimisticMsg = {
@@ -190,7 +212,6 @@ export function useGroupChat() {
 
     try {
       const apiPayload = {
-        type: imageToSend ? "image" : "text",
         content: text,
       };
       if (imageToSend) {

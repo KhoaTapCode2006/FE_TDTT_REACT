@@ -19,14 +19,29 @@ function DeleteBtn({ onDelete, msgId }) {
 function MessageContent({ msg }) {
   switch (msg.type) {
     case "image":
-      return msg.url ? (
-        <img src={msg.url} alt="ảnh" className="w-56 rounded-2xl object-cover shadow-card" />
-      ) : (
-        <div className="rounded-2xl overflow-hidden w-56 shadow-card">
-          <div
-            className="w-full h-36"
-            style={{ background: "linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%)" }}
-          />
+      return (
+        <div className="flex flex-col gap-1">
+          {msg.url ? (
+            <img src={msg.url} alt="ảnh" className="w-56 rounded-2xl object-cover shadow-card" />
+          ) : (
+            <div className="rounded-2xl overflow-hidden w-56 shadow-card">
+              <div
+                className="w-full h-36"
+                style={{ background: "linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%)" }}
+              />
+            </div>
+          )}
+          {msg.text && (
+            <div
+              className={`px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-card ${
+                msg.isMine
+                  ? "bg-primary text-white rounded-tr-sm"
+                  : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
+              }`}
+            >
+              {msg.text}
+            </div>
+          )}
         </div>
       );
 

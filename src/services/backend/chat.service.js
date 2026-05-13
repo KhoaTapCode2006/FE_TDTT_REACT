@@ -17,7 +17,6 @@ import {
   getDoc,
   onSnapshot,
 } from 'firebase/firestore';
-
 // ============================================================================
 // TYPE DEFINITIONS (JSDoc)
 // ============================================================================
@@ -611,15 +610,16 @@ async function getMessages(groupId) {
     const sentAtMs = d.sent_at?.toMillis?.() ?? (d.sent_at?.seconds ?? 0) * 1000;
     return {
       raw: {
-        id:         docSnap.id,
-        sender_uid: d.sender_uid ?? '',
-        content:    d.content    ?? '',
-        type:       d.type       ?? 'text',
-        url:        d.url        ?? null,
-        file_name:  d.file_name  ?? null,
-        place_id:   d.place_id   ?? null,
+        id:          docSnap.id,
+        sender_uid:  d.sender_uid ?? '',
+        content:     d.content    ?? '',
+        type:        d.type       ?? 'text',
+        url:         d.url        ?? null,
+        file_name:   d.file_name  ?? null,
+        place_id:    d.place_id   ?? null,
+        attachments: Array.isArray(d.attachments) ? d.attachments : [],
         // normalize sent_at → created_at cho normalizeMessage
-        created_at: d.sent_at?.toDate?.()?.toISOString() ?? null,
+        created_at:  d.sent_at?.toDate?.()?.toISOString() ?? null,
       },
       sentAtMs,
     };
@@ -876,30 +876,17 @@ export async function removeMembers(groupId, uids) {
 
 /**
  * Send a message to a group conversation.
- * Validates `type` before making the API call.
- * Builds payload with only non-undefined fields.
  *
- * @param {string} groupId - ID of the conversation to send the message to
- * @param {{ type: string, content?: string, url?: string, file_name?: string, place_id?: string, attachments?: Array<{type: string, value: string}> }} param1
- * @returns {Promise<Message>} Normalized Message object
- * @throws {Error} VALIDATION_ERROR if `type` is not one of the allowed values
- * @throws {Error} API error if POST fails (caller handles rollback)
+ * @param {string} groupId
+ * @param {{ content?: string, attachments?: Array<{type: string, value: string}> }} param1
+ * @returns {Promise<Message>}
  */
-export async function sendMessage(groupId, { type, content, url, file_name, place_id, attachments } = {}) {
-  const VALID_TYPES = ['text', 'image', 'video', 'file', 'place'];
-  if (!VALID_TYPES.includes(type)) {
-    const err = new Error(`type must be one of: ${VALID_TYPES.join(', ')}`);
-    err.code = 'VALIDATION_ERROR';
-    throw err;
-  }
-
+export async function sendMessage(groupId, { content, attachments } = {}) {
   const payload = {};
-  if (type !== undefined) payload.type = type;
   if (content !== undefined) payload.content = content;
-  if (url !== undefined) payload.url = url;
-  if (file_name !== undefined) payload.file_name = file_name;
-  if (place_id !== undefined) payload.place_id = place_id;
-  if (attachments !== undefined && attachments.length > 0) payload.attachments = attachments;
+  if (Array.isArray(attachments) && attachments.length > 0) payload.attachments = attachments;
+
+  console.log('[sendMessage] groupId:', groupId, 'payload:', JSON.stringify(payload));
 
   const response = await chatClient.post(`/conversations/${groupId}/messages`, payload);
   const raw = response.data?.data?.message ?? response.data?.data;
@@ -953,6 +940,88 @@ export async function markAsRead(groupId) {
     console.error('[markAsRead] failed:', error);
     return false;
   }
+}
+
+// ─── REAL-TIME LISTENERS ───
+
+/**
+ * Subscribe to real-time message updates for a conversation.
+ * Calls callback with normalized Message[] on every change.
+ * Returns unsubscribe function.
+ *
+ * @param {string} groupId
+ * @param {function(Message[]): void} callback
+ * @returns {function} unsubscribe
+ */
+export function subscribeToMessages(groupId, callback) {
+  const q = query(
+    collection(db, 'conversations', groupId, 'messages'),
+    orderBy('sent_at', 'asc')
+  );
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const messages = snapshot.docs.map((docSnap) => {
+        const d = docSnap.data();
+        const isMine = d.sender_uid === auth.currentUser?.uid;
+        const senderName = isMine ? 'Me' : (d.sender_name ?? d.sender_uid ?? 'Unknown');
+        const avatar = senderName.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase() || '??';
+
+        const attachments = Array.isArray(d.attachments) ? d.attachments : [];
+        const firstAttachment = attachments[0] ?? null;
+        const type = firstAttachment?.type ?? d.type ?? 'text';
+        const url = firstAttachment?.value ?? d.url ?? null;
+
+        return {
+          id:          docSnap.id,
+          sender:      senderName,
+          avatar,
+          time:        d.sent_at?.toDate?.()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) ?? '',
+          text:        d.content   ?? '',
+          isMine,
+          type,
+          seen:        isMine ? true : undefined,
+          url,
+          fileName:    d.file_name ?? null,
+          placeId:     d.place_id  ?? null,
+          attachments,
+        };
+      });
+      callback(messages);
+    },
+    (err) => console.error('[subscribeToMessages]', groupId, err)
+  );
+}
+
+/**
+ * Subscribe to real-time member updates for a conversation.
+ * Calls callback with Member[] on every change.
+ * Returns unsubscribe function.
+ *
+ * @param {string} groupId
+ * @param {function(Member[]): void} callback
+ * @returns {function} unsubscribe
+ */
+export function subscribeToMembers(groupId, callback) {
+  return onSnapshot(
+    collection(db, 'conversations', groupId, 'members'),
+    (snapshot) => {
+      const members = snapshot.docs.map((d) => {
+        const m = d.data();
+        return {
+          uid:          d.id,
+          role:         m.role         ?? '',
+          joined_at:    m.joined_at?.toDate?.()?.toISOString() ?? m.joined_at ?? '',
+          display_name: m.display_name ?? '',
+          username:     m.username     ?? '',
+          avatar_url:   m.avatar_url   ?? null,
+        };
+      });
+      callback(members);
+    },
+    (err) => console.error('[subscribeToMembers]', groupId, err)
+  );
 }
 
 // ─── AI CONVERSATION ───
