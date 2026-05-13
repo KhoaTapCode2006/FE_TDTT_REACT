@@ -52,7 +52,14 @@ function TripMapModal({ trip, onClose }) {
   }, [currentUid, tripId]);
 
   useEffect(() => {
-    if (!navigator.geolocation || !currentUid) return;
+    if (!currentUid || !tripId) return;
+
+    // Cập nhật status = active ngay khi mở modal (trước khi có tọa độ)
+    const ref = doc(db, "trips", tripId, "members", currentUid);
+    setDoc(ref, { tracking: { status: "active", updated_at: serverTimestamp() } }, { merge: true })
+      .catch((err) => console.warn("[TripMapModal] Failed to set active status on open:", err));
+
+    if (!navigator.geolocation) return;
 
     // Lấy ngay lần đầu
     navigator.geolocation.getCurrentPosition(
@@ -73,10 +80,8 @@ function TripMapModal({ trip, onClose }) {
         navigator.geolocation.clearWatch(watchIdRef.current);
       }
       // Đặt status = no_share khi đóng modal
-      if (currentUid && tripId) {
-        const ref = doc(db, "trips", tripId, "members", currentUid);
-        setDoc(ref, { tracking: { status: "no_share" } }, { merge: true }).catch(() => {});
-      }
+      setDoc(ref, { tracking: { status: "no_share", updated_at: serverTimestamp() } }, { merge: true })
+        .catch(() => {});
     };
   }, [currentUid, tripId, pushTracking]);
 
@@ -88,11 +93,12 @@ function TripMapModal({ trip, onClose }) {
       const tracking = {};
       snap.forEach((d) => {
         const data = d.data();
-        if (data.tracking?.lat != null && data.tracking?.lng != null) {
+        // Luôn lưu status nếu có, tọa độ là optional
+        if (data.tracking) {
           tracking[d.id] = {
-            lat:        data.tracking.lat,
-            lng:        data.tracking.lng,
-            status:     data.tracking.status || "active",
+            lat:        data.tracking.lat ?? null,
+            lng:        data.tracking.lng ?? null,
+            status:     data.tracking.status || "no_share",
             updated_at: data.tracking.updated_at,
           };
         }
@@ -107,6 +113,7 @@ function TripMapModal({ trip, onClose }) {
   // ── 3. Build members list với tọa độ thực hoặc fallback giả ──────────────
   const members = (trip.member_uids || []).map((uid, i) => {
     const t = memberTracking[uid];
+    const hasRealGps = !!(t?.lat != null && t?.lng != null);
     // Fallback: vị trí giả xung quanh DEST nếu chưa có tracking
     const angle = (i / (trip.member_uids?.length || 1)) * 2 * Math.PI;
     const r     = 0.008 + (i % 3) * 0.005;
@@ -115,9 +122,9 @@ function TripMapModal({ trip, onClose }) {
       name:   uid,
       avatar: uid.slice(0, 2).toUpperCase(),
       color:  MEMBER_COLORS[i % MEMBER_COLORS.length],
-      lat:    t ? t.lat : DEST.lat + Math.sin(angle) * r,
-      lng:    t ? t.lng : DEST.lng + Math.cos(angle) * r,
-      hasRealGps: !!t,
+      lat:    hasRealGps ? t.lat : DEST.lat + Math.sin(angle) * r,
+      lng:    hasRealGps ? t.lng : DEST.lng + Math.cos(angle) * r,
+      hasRealGps,
       status: t?.status || "no_share",
       isMe:   uid === currentUid,
     };

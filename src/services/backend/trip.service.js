@@ -46,26 +46,6 @@ import { auth } from '@/config/firebase';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_LOCAL_API || 'http://localhost:8000';
 
-// ============================================================================
-// LOCAL STORAGE HELPERS (workaround: backend has no GET /me/trips endpoint)
-// ============================================================================
-
-const TRIP_IDS_KEY = 'b4lu_trip_ids';
-
-function getTripIds() {
-  try {
-    return JSON.parse(localStorage.getItem(TRIP_IDS_KEY) || '[]');
-  } catch { return []; }
-}
-
-function addTripId(id) {
-  const ids = getTripIds();
-  if (!ids.includes(id)) localStorage.setItem(TRIP_IDS_KEY, JSON.stringify([...ids, id]));
-}
-
-function removeTripId(id) {
-  localStorage.setItem(TRIP_IDS_KEY, JSON.stringify(getTripIds().filter(t => t !== id)));
-}
 
 /**
  * Create configured axios instance for trip API
@@ -293,34 +273,38 @@ function extractBooleanResult(response) {
  */
 export const tripService = {
   /**
-   * Get all trips for the current user
-   * Endpoint: GET /me/trips
+   * Get current authenticated user info
+   * Endpoint: GET /me
    *
-   * @returns {Promise<TripData[]>} Array of normalized trips
+   * @returns {Promise<Object>} User data including current_trip
+   * @throws {Error} Network or authentication error
+   */
+  async getMe() {
+    const response = await tripClient.get('/me');
+    // Backend response format: { status_code, message, data: { user: {...} } }
+    // or: { status_code, message, data: {...} }
+    const user = response.data?.data?.user ?? response.data?.data ?? response.data;
+    if (!user || typeof user !== 'object') {
+      throw new Error('Invalid response format from server');
+    }
+    return user;
+  },
+
+  /**
+   * Get all trips for the current user
+   * Fetches user via GET /me to get current_trip, then fetches that trip.
+   *
+   * @returns {Promise<TripData[]>} Array of normalized trips (empty if no current_trip)
    * @throws {Error} Network or authentication error
    */
   async getMyTrips() {
-    const ids = getTripIds();
-    if (ids.length === 0) return [];
-    // Fetch each trip individually since backend has no GET /me/trips
-    const results = await Promise.allSettled(ids.map(id => tripClient.get(`/trips/${id}`)));
-    const trips = [];
-    const validIds = [];
-    results.forEach((result, i) => {
-      if (result.status === 'fulfilled') {
-        try {
-          const trip = result.value.data?.data?.trip ?? result.value.data?.data;
-          if (trip?.id) {
-            trips.push(normalizeTripData(trip));
-            validIds.push(ids[i]);
-          }
-        } catch { /* skip malformed */ }
-      }
-      // If 404, trip was deleted — don't add to validIds so it gets cleaned up
-    });
-    // Clean up IDs that no longer exist
-    localStorage.setItem(TRIP_IDS_KEY, JSON.stringify(validIds));
-    return trips;
+    const me = await this.getMe();
+    const currentTripId = me.current_trip ?? null;
+
+    if (!currentTripId) return [];
+
+    const trip = await this.getTrip(currentTripId);
+    return [trip];
   },
 
   /**
@@ -347,9 +331,7 @@ export const tripService = {
   async createTrip(tripData) {
     validateTripData(tripData);
     const response = await tripClient.post('/trips', tripData);
-    const trip = extractTripData(response);
-    addTripId(trip.id); // persist ID locally
-    return trip;
+    return extractTripData(response);
   },
 
   /**
@@ -377,7 +359,6 @@ export const tripService = {
    */
   async deleteTrip(tripId) {
     const response = await tripClient.delete(`/trips/${tripId}`);
-    removeTripId(tripId); // remove from local storage
     return extractBooleanResult(response);
   },
 
