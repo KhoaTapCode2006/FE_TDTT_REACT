@@ -12,31 +12,36 @@ export const MEMBER_COLORS = [
 // Điểm đến cố định — HCMUS (227 Nguyễn Văn Cừ, Q5, TP.HCM)
 const DEST = { lat: 10.7626, lng: 106.6822 };
 
-// GPS tracking interval (ms)
-const TRACKING_INTERVAL = 10000;
-
 // ─── TripMapModal ─────────────────────────────────────────────────────────────
 function TripMapModal({ trip, onClose }) {
-  const mapRef     = useRef(null);
-  const mapObjRef  = useRef(null);
-  const markersRef = useRef({}); // { uid: vietmapgl.Marker }
-  const watchIdRef = useRef(null);
-  const intervalRef = useRef(null);
+  const mapRef      = useRef(null);
+  const mapObjRef   = useRef(null);
+  const markersRef  = useRef({});
+  const watchIdRef  = useRef(null);
 
-  const [mapReady, setMapReady]             = useState(false);
+  const [mapReady, setMapReady]           = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
-  // routeInfoMap: { [uid]: { distKm, timeMin, memberName, hasRealGps } }
-  const [routeInfoMap, setRouteInfoMap]     = useState({});
-  const [loadingRoutes, setLoadingRoutes]   = useState(false);
-  // memberTracking: { [uid]: { lat, lng, status, updated_at } }
+  const [routeInfoMap, setRouteInfoMap]   = useState({});
+  const [loadingRoutes, setLoadingRoutes] = useState(false);
+  // memberTracking: { [uid]: { lat, lng, status, accident, updated_at } }
   const [memberTracking, setMemberTracking] = useState({});
 
   const currentUid = auth.currentUser?.uid;
   const tripId     = trip.id;
 
-  // ── 1. Push GPS của user hiện tại lên Firestore ───────────────────────────
+  // Khoảng cách (m) từ user đến DEST — dùng để enable nút Arrive
+  const [distToDestM, setDistToDestM] = useState(null);
+
+  // ── 1. Push GPS — status vẫn chạy bình thường, không liên quan accident ──
   const pushTracking = useCallback(async (lat, lng) => {
     if (!currentUid || !tripId) return;
+    // Tính khoảng cách đến DEST (Haversine, đơn vị mét)
+    const R = 6371000;
+    const dLat = (DEST.lat - lat) * Math.PI / 180;
+    const dLng = (DEST.lng - lng) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    setDistToDestM(dist);
     try {
       const ref = doc(db, "trips", tripId, "members", currentUid);
       await setDoc(ref, {
@@ -52,26 +57,28 @@ function TripMapModal({ trip, onClose }) {
     }
   }, [currentUid, tripId]);
 
+  // Ref để GPS effect luôn dùng version mới nhất mà không re-run effect
+  const pushTrackingRef = useRef(pushTracking);
+  useEffect(() => { pushTrackingRef.current = pushTracking; }, [pushTracking]);
+
+  // ── 2. GPS setup — chỉ chạy 1 lần khi mount ──────────────────────────────
   useEffect(() => {
     if (!currentUid || !tripId) return;
 
-    // Cập nhật status = active ngay khi mở modal (trước khi có tọa độ)
     const ref = doc(db, "trips", tripId, "members", currentUid);
     setDoc(ref, { tracking: { status: "active", updated_at: serverTimestamp() } }, { merge: true })
       .catch((err) => console.warn("[TripMapModal] Failed to set active status on open:", err));
 
     if (!navigator.geolocation) return;
 
-    // Lấy ngay lần đầu
     navigator.geolocation.getCurrentPosition(
-      (pos) => pushTracking(pos.coords.latitude, pos.coords.longitude),
+      (pos) => pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude),
       () => {},
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
 
-    // Watch liên tục
     watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => pushTracking(pos.coords.latitude, pos.coords.longitude),
+      (pos) => pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude),
       () => {},
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
@@ -80,13 +87,13 @@ function TripMapModal({ trip, onClose }) {
       if (watchIdRef.current != null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
       }
-      // Đặt status = no_share khi đóng modal
       setDoc(ref, { tracking: { status: "no_share", updated_at: serverTimestamp() } }, { merge: true })
         .catch(() => {});
     };
-  }, [currentUid, tripId, pushTracking]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUid, tripId]);
 
-  // ── 2. Subscribe realtime tracking của tất cả members ────────────────────
+  // ── 3. Subscribe realtime tracking ───────────────────────────────────────
   useEffect(() => {
     if (!tripId) return;
     const colRef = collection(db, "trips", tripId, "members");
@@ -94,12 +101,12 @@ function TripMapModal({ trip, onClose }) {
       const tracking = {};
       snap.forEach((d) => {
         const data = d.data();
-        // Luôn lưu status nếu có, tọa độ là optional
         if (data.tracking) {
           tracking[d.id] = {
             lat:        data.tracking.lat ?? null,
             lng:        data.tracking.lng ?? null,
             status:     data.tracking.status || "no_share",
+            accident:   data.tracking.accident === true,
             updated_at: data.tracking.updated_at,
           };
         }
@@ -111,27 +118,27 @@ function TripMapModal({ trip, onClose }) {
     return () => unsub();
   }, [tripId]);
 
-  // ── 3. Build members list với tọa độ thực hoặc fallback giả ──────────────
+  // ── 4. Build members list ─────────────────────────────────────────────────
   const members = (trip.member_uids || []).map((uid, i) => {
     const t = memberTracking[uid];
     const hasRealGps = !!(t?.lat != null && t?.lng != null);
-    // Fallback: vị trí giả xung quanh DEST nếu chưa có tracking
     const angle = (i / (trip.member_uids?.length || 1)) * 2 * Math.PI;
     const r     = 0.008 + (i % 3) * 0.005;
     return {
-      id:     uid,
-      name:   uid,
-      avatar: uid.slice(0, 2).toUpperCase(),
-      color:  MEMBER_COLORS[i % MEMBER_COLORS.length],
-      lat:    hasRealGps ? t.lat : DEST.lat + Math.sin(angle) * r,
-      lng:    hasRealGps ? t.lng : DEST.lng + Math.cos(angle) * r,
+      id:       uid,
+      name:     uid,
+      avatar:   uid.slice(0, 2).toUpperCase(),
+      color:    MEMBER_COLORS[i % MEMBER_COLORS.length],
+      lat:      hasRealGps ? t.lat : DEST.lat + Math.sin(angle) * r,
+      lng:      hasRealGps ? t.lng : DEST.lng + Math.cos(angle) * r,
       hasRealGps,
-      status: t?.status || "no_share",
-      isMe:   uid === currentUid,
+      status:   t?.status || "no_share",
+      accident: t?.accident === true,
+      isMe:     uid === currentUid,
     };
   });
 
-  // ── 4. Init map ───────────────────────────────────────────────────────────
+  // ── 5. Init map ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current || mapObjRef.current) return;
     const init = () => {
@@ -154,12 +161,11 @@ function TripMapModal({ trip, onClose }) {
     };
   }, []);
 
-  // ── 5. Update markers khi tracking thay đổi ───────────────────────────────
+  // ── 6. Update markers ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapObjRef.current || !window.vietmapgl) return;
     const map = mapObjRef.current;
 
-    // Đặt/cập nhật marker điểm đến (chỉ 1 lần)
     if (!markersRef.current["__dest__"]) {
       const destEl = document.createElement("div");
       destEl.style.cssText = `width:40px;height:40px;border-radius:50%;background:#255dad;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:20px;`;
@@ -170,17 +176,21 @@ function TripMapModal({ trip, onClose }) {
         .addTo(map);
     }
 
-    // Cập nhật marker từng member
     members.forEach((m) => {
       if (markersRef.current[m.id]) {
-        // Di chuyển marker đến vị trí mới
         markersRef.current[m.id].setLngLat([m.lng, m.lat]);
+        // Cập nhật màu marker nếu accident thay đổi
+        const el = markersRef.current[m.id].getElement();
+        if (el) {
+          el.style.background = m.accident ? "#dc2626" : m.color;
+          el.innerHTML = m.accident ? "🚨" : m.avatar;
+        }
       } else {
-        // Tạo marker mới
         const el = document.createElement("div");
+        const bg = m.accident ? "#dc2626" : m.color;
         const pulse = m.isMe ? `box-shadow:0 0 0 4px ${m.color}44,0 2px 8px rgba(0,0,0,0.3);` : `box-shadow:0 2px 8px rgba(0,0,0,0.3);`;
-        el.style.cssText = `width:36px;height:36px;border-radius:50%;background:${m.color};border:3px solid white;${pulse}display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;cursor:pointer;transition:transform 0.2s;`;
-        el.innerHTML = m.avatar;
+        el.style.cssText = `width:36px;height:36px;border-radius:50%;background:${bg};border:3px solid white;${pulse}display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;cursor:pointer;transition:transform 0.2s;`;
+        el.innerHTML = m.accident ? "🚨" : m.avatar;
         el.title = m.isMe ? `${m.name} (bạn)` : m.name;
         el.addEventListener("mouseenter", () => { el.style.transform = "scale(1.2)"; });
         el.addEventListener("mouseleave", () => { el.style.transform = "scale(1)"; });
@@ -191,7 +201,6 @@ function TripMapModal({ trip, onClose }) {
       }
     });
 
-    // Fit bounds bao gồm tất cả markers
     const all  = [[DEST.lng, DEST.lat], ...members.map((m) => [m.lng, m.lat])];
     const lngs = all.map((p) => p[0]);
     const lats  = all.map((p) => p[1]);
@@ -201,15 +210,12 @@ function TripMapModal({ trip, onClose }) {
     );
   }, [mapReady, memberTracking]);
 
-  // ── 6. Route helpers ──────────────────────────────────────────────────────
-
-  // Fetch & vẽ route cho 1 member, trả về routeInfo hoặc null
+  // ── 7. Route helpers ──────────────────────────────────────────────────────
   const fetchAndDrawRoute = useCallback(async (map, member) => {
     const layerId  = `route-line-${member.id}`;
     const sourceId = `route-${member.id}`;
 
-    // Xóa layer cũ nếu có (khi tracking thay đổi)
-    if (map.getLayer(layerId))  map.removeLayer(layerId);
+    if (map.getLayer(layerId))   map.removeLayer(layerId);
     if (map.getSource(sourceId)) map.removeSource(sourceId);
 
     try {
@@ -230,7 +236,6 @@ function TripMapModal({ trip, onClose }) {
       });
       return { distKm: (route.distance / 1000).toFixed(1), timeMin: Math.round(route.duration / 60), memberName: member.name, hasRealGps: member.hasRealGps };
     } catch {
-      // Fallback: đường thẳng nét đứt
       map.addSource(sourceId, { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: [[member.lng, member.lat], [DEST.lng, DEST.lat]] } } });
       map.addLayer({
         id: layerId, type: "line", source: sourceId,
@@ -246,7 +251,6 @@ function TripMapModal({ trip, onClose }) {
     }
   }, []);
 
-  // Load route cho tất cả members song song
   const loadAllRoutes = useCallback(async (currentMembers) => {
     if (!mapObjRef.current || !mapReady) return;
     const map = mapObjRef.current;
@@ -255,37 +259,69 @@ function TripMapModal({ trip, onClose }) {
       const results = await Promise.all(
         currentMembers.map((m) => fetchAndDrawRoute(map, m).then((info) => [m.id, info]))
       );
-      const infoMap = Object.fromEntries(results.filter(([, info]) => info));
-      setRouteInfoMap(infoMap);
+      setRouteInfoMap(Object.fromEntries(results.filter(([, info]) => info)));
     } finally {
       setLoadingRoutes(false);
     }
   }, [mapReady, fetchAndDrawRoute]);
 
-  // Click member: chỉ highlight + focus, route đã có sẵn
   const handleMemberClick = useCallback((member) => {
     if (!mapObjRef.current || !mapReady) return;
     setSelectedMember((prev) => prev?.id === member.id ? null : member);
-
-    if (mapObjRef.current) {
-      mapObjRef.current.flyTo({ center: [member.lng, member.lat], zoom: 14, duration: 800 });
-    }
+    mapObjRef.current.flyTo({ center: [member.lng, member.lat], zoom: 14, duration: 800 });
   }, [mapReady]);
 
-  // ── 6b. Auto-load routes khi map ready hoặc tracking thay đổi ───────────
   useEffect(() => {
     if (!mapReady || members.length === 0) return;
     loadAllRoutes(members);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, memberTracking]);
+
+  // ── 8. Accident handler — chỉ ghi field accident, không đụng status ──────
+  const handleAccident = useCallback(async () => {
+    if (!currentUid || !tripId) return;
+    try {
+      const ref = doc(db, "trips", tripId, "members", currentUid);
+      await setDoc(ref, {
+        tracking: {
+          accident:    true,
+          updated_at:  serverTimestamp(),
+        },
+      }, { merge: true });
+    } catch (err) {
+      console.warn("[TripMapModal] handleAccident failed:", err);
+    }
+  }, [currentUid, tripId]);
+
+  // ── 9. Arrive handler ─────────────────────────────────────────────────────
+  const handleArrive = useCallback(async () => {
+    if (!currentUid || !tripId) return;
+    try {
+      const ref = doc(db, "trips", tripId, "members", currentUid);
+      await setDoc(ref, {
+        tracking: {
+          status:     "arrived",
+          updated_at: serverTimestamp(),
+        },
+      }, { merge: true });
+    } catch (err) {
+      console.warn("[TripMapModal] handleArrive failed:", err);
+    }
+  }, [currentUid, tripId]);
+
+  // ── UI helpers ────────────────────────────────────────────────────────────
   const statusLabel = {
-    active:            { text: "Đang di chuyển", color: "text-green-600" },
-    lost_signal:       { text: "Mất tín hiệu",   color: "text-yellow-600" },
-    wrong_direction:   { text: "Sai hướng",       color: "text-red-500" },
-    arrived:           { text: "Đã đến",          color: "text-blue-600" },
-    left:              { text: "Đã rời",           color: "text-gray-400" },
-    no_share:          { text: "Không chia sẻ",   color: "text-gray-400" },
+    active:          { text: "Đang di chuyển", color: "text-green-600" },
+    lost_signal:     { text: "Mất tín hiệu",   color: "text-yellow-600" },
+    wrong_direction: { text: "Sai hướng",       color: "text-red-500" },
+    arrived:         { text: "Đã đến",          color: "text-blue-600" },
+    left:            { text: "Đã rời",           color: "text-gray-400" },
+    no_share:        { text: "Không chia sẻ",   color: "text-gray-400" },
   };
+
+  const meAccident = members.find((m) => m.isMe)?.accident === true;
+  const meArrived  = members.find((m) => m.isMe)?.status === "arrived";
+  const canArrive  = distToDestM !== null && distToDestM < 5;
 
   return (
     <>
@@ -300,7 +336,39 @@ function TripMapModal({ trip, onClose }) {
                 {trip.title} · Điểm đến: <span className="text-primary font-semibold">HCMUS</span>
               </p>
             </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg text-gray-400 hover:bg-gray-100 flex items-center justify-center transition-colors">✕</button>
+            <div className="flex items-center gap-2">
+              {/* Nút Accident — chỉ hiện cho user hiện tại */}
+              {members.some((m) => m.isMe) && (
+                <>
+                  <button
+                    onClick={handleAccident}
+                    disabled={meAccident}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      meAccident
+                        ? "bg-red-100 text-red-400 cursor-not-allowed"
+                        : "bg-red-500 hover:bg-red-600 text-white"
+                    }`}
+                  >
+                    🚨 Accident
+                  </button>
+                  <button
+                    onClick={handleArrive}
+                    disabled={!canArrive || meArrived}
+                    title={!canArrive ? `Cần đến gần hơn (hiện ${distToDestM != null ? Math.round(distToDestM) + "m" : "?"})` : ""}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      meArrived
+                        ? "bg-blue-100 text-blue-400 cursor-not-allowed"
+                        : canArrive
+                          ? "bg-blue-500 hover:bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    }`}
+                  >
+                    🏁 Arrive
+                  </button>
+                </>
+              )}
+              <button onClick={onClose} className="w-8 h-8 rounded-lg text-gray-400 hover:bg-gray-100 flex items-center justify-center transition-colors">✕</button>
+            </div>
           </div>
 
           <div className="flex flex-1 min-h-0">
@@ -318,30 +386,37 @@ function TripMapModal({ trip, onClose }) {
                       onClick={() => handleMemberClick(m)}
                       className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
                         selectedMember?.id === m.id ? "bg-primary/10" : "hover:bg-gray-50"
-                      }`}
+                      } ${m.accident ? "bg-red-50" : ""}`}
                     >
                       <div
                         className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 relative"
-                        style={{ background: m.color }}
+                        style={{ background: m.accident ? "#dc2626" : m.color }}
                       >
-                        {m.avatar}
-                        {/* Dot GPS thực */}
-                        {m.hasRealGps && (
+                        {m.accident ? "🚨" : m.avatar}
+                        {m.hasRealGps && !m.accident && (
                           <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full" />
+                        )}
+                        {m.accident && (
+                          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-600 border-2 border-white rounded-full animate-pulse" />
                         )}
                       </div>
                       <div className="flex flex-col min-w-0">
-                        <span className={`text-sm truncate ${selectedMember?.id === m.id ? "font-semibold text-primary" : "text-gray-700"}`}>
+                        <span className={`text-sm truncate ${
+                          selectedMember?.id === m.id ? "font-semibold text-primary"
+                          : m.accident ? "font-semibold text-red-600"
+                          : "text-gray-700"
+                        }`}>
                           {m.isMe ? "Bạn" : m.name.slice(0, 10) + "..."}
                         </span>
-                        <span className={`text-[10px] ${sl.color}`}>{sl.text}</span>
+                        <span className={`text-[10px] ${m.accident ? "text-red-500" : sl.color}`}>
+                          {m.accident ? "Tai nạn" : sl.text}
+                        </span>
                       </div>
                     </button>
                   );
                 })}
               </div>
 
-              {/* Route info — hiện member được chọn, hoặc loading indicator */}
               {loadingRoutes && (
                 <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
