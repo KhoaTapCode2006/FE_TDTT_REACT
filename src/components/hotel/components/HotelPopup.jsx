@@ -1,7 +1,10 @@
 ﻿import { useEffect, useState } from "react";
 import { usePopup } from "../hooks/usePopup";
 import { useApp } from "@/app/AppContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { fmtPrice, fmtDate } from "@/utils/format";
+import SaveToListModal from "@/components/profile/SaveToListModal";
 import styles from "./HotelPopup.module.css";
 
 const IconClose = () => (
@@ -191,10 +194,25 @@ const TAB_ITEMS = [
   { id: "amenities", label: "Tiện nghi & Gần đây" },
 ];
 
-export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, embedded = false }) {
+/**
+ * HotelPopup component displays detailed hotel information in a modal
+ * @param {Object} props - Component props
+ * @param {Object} props.hotel - Hotel data object (propHotel)
+ * @param {Function} props.onClose - Close handler (propOnClose)
+ * @param {boolean} [props.embedded=false] - Embedded mode flag
+ * @param {Object} [props.bookingDates] - Optional booking dates
+ * @param {Date} props.bookingDates.checkIn - Check-in date
+ * @param {Date} props.bookingDates.checkOut - Check-out date
+ */
+export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, embedded = false, bookingDates }) {
   // Use either prop-based or hook-based approach
   const hookData = usePopup();
   const { dates } = useApp();
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  
+  // Use bookingDates if provided, otherwise fall back to dates from AppContext
+  const displayDates = bookingDates || dates;
   
   const isOpen = propHotel ? true : hookData.isOpen;
   const hotel = propHotel || hookData.hotel;
@@ -209,6 +227,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [showSaveModal, setShowSaveModal] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -219,6 +238,20 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
   }, [isOpen, hotel?.name]);
 
   if (!isOpen || !hotel) return null;
+
+  const handleSaveClick = (e) => {
+    e.stopPropagation(); // Prevent event bubbling
+    console.log('Save button clicked!', { isAuthenticated, hotel: hotel?.name });
+    
+    if (!isAuthenticated) {
+      console.log('Not authenticated, redirecting to login');
+      navigate('/auth/login');
+      return;
+    }
+    
+    console.log('Opening SaveToListModal');
+    setShowSaveModal(true);
+  };
 
   // Ensure images array exists
   const images = hotel.images?.length ? hotel.images : ["https://via.placeholder.com/640x480?text=No+Image"];
@@ -332,18 +365,34 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
         <div className={styles.stickyTop}>
           {/* Header */}
           <div className={styles.header}>
-            <h2 className={styles.hotelName}>{hotel.name}</h2>
-            <div className={styles.ratingRow}>
-              <div className={styles.stars}>{renderStars(hotel.rating)}</div>
-              <span className={styles.ratingNum}>{hotel.rating}</span>
-            </div>
-            {(hotel.ai_score !== undefined && hotel.ai_score !== null) && (
-              <div className={styles.aiScoreRow}>
-                <span className={styles.aiScore}>AI Score: {Number(hotel.ai_score).toFixed(1)}</span>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <h2 className={styles.hotelName}>{hotel.name}</h2>
+                <div className={styles.ratingRow}>
+                  <div className={styles.stars}>{renderStars(hotel.rating)}</div>
+                  <span className={styles.ratingNum}>{hotel.rating}</span>
+                </div>
+                {(hotel.ai_score !== undefined && hotel.ai_score !== null) && (
+                  <div className={styles.aiScoreRow}>
+                    <span className={styles.aiScore}>AI Score: {Number(hotel.ai_score).toFixed(1)}</span>
+                  </div>
+                )}
+                <div className={styles.address}>
+                  <IconLocation /><span>{hotel.address}</span>
+                </div>
               </div>
-            )}
-            <div className={styles.address}>
-              <IconLocation /><span>{hotel.address}</span>
+              
+              {/* Save Button */}
+              <button
+                type="button"
+                onClick={handleSaveClick}
+                className="flex-none p-3 rounded-full hover:bg-surface-container transition-colors group"
+                title="Lưu vào danh sách"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary group-hover:scale-110 transition-transform">
+                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -369,16 +418,35 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                 {hotel.description ??
                   `${hotel.name} nằm tại vị trí thuận tiện, phù hợp cho cả du lịch và công tác. Khách sạn có không gian sạch sẽ, dịch vụ thân thiện và dễ dàng di chuyển đến các điểm tham quan.`}
               </p>
+              
+              {/* Book Now Button */}
+              <button
+                className="w-full mt-4 px-6 py-3 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                onClick={() => {
+                  // TODO: Navigate to booking page or open booking modal
+                  console.log('Booking hotel:', hotel.id);
+                  alert('Tính năng đặt phòng đang được phát triển');
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                Đặt Phòng
+              </button>
+              
               <div className={styles.bookingBox}>
                 <p className={styles.bookingTitle}>Check Availability</p>
                 <div className={styles.dateRow}>
                   <div className={styles.dateBox}>
                     <span className={styles.dateLabel}>Check In</span>
-                    <span className={styles.dateValue}>{dates.checkIn ? fmtDate(dates.checkIn) : "Select date"}</span>
+                    <span className={styles.dateValue}>{displayDates.checkIn ? fmtDate(displayDates.checkIn) : "Select date"}</span>
                   </div>
                   <div className={styles.dateBox}>
                     <span className={styles.dateLabel}>Check Out</span>
-                    <span className={styles.dateValue}>{dates.checkOut ? fmtDate(dates.checkOut) : "Select date"}</span>
+                    <span className={styles.dateValue}>{displayDates.checkOut ? fmtDate(displayDates.checkOut) : "Select date"}</span>
                   </div>
                 </div>
               </div>
@@ -520,6 +588,13 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
           </div>
         </div>
       )}
+
+      {/* Save to List Modal */}
+      <SaveToListModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        hotel={hotel}
+      />
     </>
   );
 }

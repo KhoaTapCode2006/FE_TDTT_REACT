@@ -158,6 +158,32 @@ html, body, #root {
     to   { transform: translateY(0);    opacity: 1; }
   }
 
+  /* Toast notification animation */
+  .animate-slide-up {
+    animation: slideUp 0.22s ease;
+  }
+
+  /* Fade in animation for overlay */
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease;
+  }
+
+  /* Scale in animation for centered notification */
+  .animate-scale-in {
+    animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes scaleIn {
+    from { 
+      transform: translate(-50%, -50%) scale(0.8);
+      opacity: 0;
+    }
+    to { 
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+    }
+  }
+
   /* Modal animation for FilterModal */
   .modal-anim {
     animation: modalSlideUp 0.25s ease-out;
