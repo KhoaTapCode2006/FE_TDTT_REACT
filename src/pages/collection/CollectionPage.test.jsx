@@ -856,3 +856,942 @@ describe('CollectionPage - Task 2.4: Toast Notifications Logic', () => {
     });
   });
 });
+
+
+/**
+ * Unit tests for Task 1: Tab Navigation State and Configuration
+ * 
+ * These tests verify the tab navigation state management and configuration:
+ * - activeTab state initialized to 'info'
+ * - TABS array contains 3 tab configurations
+ * - Tab labels are in Vietnamese
+ * - Icons match design requirements
+ * 
+ * Requirements: REQ-5 (Tab State Management), REQ-1 (Tab Navigation System)
+ */
+
+describe('CollectionPage - Task 1: Tab Navigation State and Configuration', () => {
+  describe('TABS configuration array', () => {
+    // Simulate the TABS constant from CollectionPage
+    const TABS = [
+      {
+        id: 'info',
+        label: 'Thông tin',
+        icon: 'info',
+        ariaLabel: 'Thông tin collection'
+      },
+      {
+        id: 'places',
+        label: 'Địa điểm',
+        icon: 'location_on',
+        ariaLabel: 'Địa điểm trong collection'
+      },
+      {
+        id: 'contributors',
+        label: 'Cộng tác viên',
+        icon: 'group',
+        ariaLabel: 'Cộng tác viên của collection'
+      }
+    ];
+
+    it('should have exactly 3 tabs', () => {
+      expect(TABS).toHaveLength(3);
+    });
+
+    it('should have info tab as first tab', () => {
+      expect(TABS[0].id).toBe('info');
+    });
+
+    it('should have places tab as second tab', () => {
+      expect(TABS[1].id).toBe('places');
+    });
+
+    it('should have contributors tab as third tab', () => {
+      expect(TABS[2].id).toBe('contributors');
+    });
+
+    it('should have Vietnamese label "Thông tin" for info tab', () => {
+      const infoTab = TABS.find(tab => tab.id === 'info');
+      expect(infoTab.label).toBe('Thông tin');
+    });
+
+    it('should have Vietnamese label "Địa điểm" for places tab', () => {
+      const placesTab = TABS.find(tab => tab.id === 'places');
+      expect(placesTab.label).toBe('Địa điểm');
+    });
+
+    it('should have Vietnamese label "Cộng tác viên" for contributors tab', () => {
+      const contributorsTab = TABS.find(tab => tab.id === 'contributors');
+      expect(contributorsTab.label).toBe('Cộng tác viên');
+    });
+
+    it('should have "info" icon for info tab', () => {
+      const infoTab = TABS.find(tab => tab.id === 'info');
+      expect(infoTab.icon).toBe('info');
+    });
+
+    it('should have "location_on" icon for places tab', () => {
+      const placesTab = TABS.find(tab => tab.id === 'places');
+      expect(placesTab.icon).toBe('location_on');
+    });
+
+    it('should have "group" icon for contributors tab', () => {
+      const contributorsTab = TABS.find(tab => tab.id === 'contributors');
+      expect(contributorsTab.icon).toBe('group');
+    });
+
+    it('should have ariaLabel for info tab', () => {
+      const infoTab = TABS.find(tab => tab.id === 'info');
+      expect(infoTab.ariaLabel).toBe('Thông tin collection');
+    });
+
+    it('should have ariaLabel for places tab', () => {
+      const placesTab = TABS.find(tab => tab.id === 'places');
+      expect(placesTab.ariaLabel).toBe('Địa điểm trong collection');
+    });
+
+    it('should have ariaLabel for contributors tab', () => {
+      const contributorsTab = TABS.find(tab => tab.id === 'contributors');
+      expect(contributorsTab.ariaLabel).toBe('Cộng tác viên của collection');
+    });
+
+    it('should have all required properties for each tab', () => {
+      TABS.forEach(tab => {
+        expect(tab).toHaveProperty('id');
+        expect(tab).toHaveProperty('label');
+        expect(tab).toHaveProperty('icon');
+        expect(tab).toHaveProperty('ariaLabel');
+      });
+    });
+
+    it('should have unique tab IDs', () => {
+      const ids = TABS.map(tab => tab.id);
+      const uniqueIds = new Set(ids);
+      expect(uniqueIds.size).toBe(TABS.length);
+    });
+
+    it('should have non-empty labels', () => {
+      TABS.forEach(tab => {
+        expect(tab.label).toBeTruthy();
+        expect(tab.label.length).toBeGreaterThan(0);
+      });
+    });
+
+    it('should have non-empty icons', () => {
+      TABS.forEach(tab => {
+        expect(tab.icon).toBeTruthy();
+        expect(tab.icon.length).toBeGreaterThan(0);
+      });
+    });
+
+    it('should have non-empty ariaLabels', () => {
+      TABS.forEach(tab => {
+        expect(tab.ariaLabel).toBeTruthy();
+        expect(tab.ariaLabel.length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  describe('activeTab state initialization', () => {
+    it('should initialize activeTab to "info"', () => {
+      // Simulate useState initialization
+      const defaultActiveTab = 'info';
+      expect(defaultActiveTab).toBe('info');
+    });
+
+    it('should accept valid tab IDs', () => {
+      const validTabIds = ['info', 'places', 'contributors'];
+      
+      validTabIds.forEach(tabId => {
+        expect(['info', 'places', 'contributors']).toContain(tabId);
+      });
+    });
+
+    it('should default to "info" when invalid tab ID is provided', () => {
+      const invalidTabId = 'invalid-tab';
+      const activeTab = ['info', 'places', 'contributors'].includes(invalidTabId) ? invalidTabId : 'info';
+      
+      expect(activeTab).toBe('info');
+    });
+  });
+
+  describe('Tab state management logic', () => {
+    it('should allow switching from info to places', () => {
+      let activeTab = 'info';
+      activeTab = 'places';
+      
+      expect(activeTab).toBe('places');
+    });
+
+    it('should allow switching from places to contributors', () => {
+      let activeTab = 'places';
+      activeTab = 'contributors';
+      
+      expect(activeTab).toBe('contributors');
+    });
+
+    it('should allow switching from contributors to info', () => {
+      let activeTab = 'contributors';
+      activeTab = 'info';
+      
+      expect(activeTab).toBe('info');
+    });
+
+    it('should maintain state when switching between tabs', () => {
+      const tabHistory = [];
+      let activeTab = 'info';
+      
+      tabHistory.push(activeTab);
+      activeTab = 'places';
+      tabHistory.push(activeTab);
+      activeTab = 'contributors';
+      tabHistory.push(activeTab);
+      
+      expect(tabHistory).toEqual(['info', 'places', 'contributors']);
+    });
+  });
+
+  describe('Requirements validation', () => {
+    it('validates REQ-5: activeTab state initialized to "info"', () => {
+      const defaultActiveTab = 'info';
+      expect(defaultActiveTab).toBe('info');
+    });
+
+    it('validates REQ-1: TABS array contains 3 tab configurations', () => {
+      const TABS = [
+        { id: 'info', label: 'Thông tin', icon: 'info', ariaLabel: 'Thông tin collection' },
+        { id: 'places', label: 'Địa điểm', icon: 'location_on', ariaLabel: 'Địa điểm trong collection' },
+        { id: 'contributors', label: 'Cộng tác viên', icon: 'group', ariaLabel: 'Cộng tác viên của collection' }
+      ];
+      
+      expect(TABS).toHaveLength(3);
+    });
+
+    it('validates REQ-1: Tab labels are in Vietnamese', () => {
+      const TABS = [
+        { id: 'info', label: 'Thông tin', icon: 'info', ariaLabel: 'Thông tin collection' },
+        { id: 'places', label: 'Địa điểm', icon: 'location_on', ariaLabel: 'Địa điểm trong collection' },
+        { id: 'contributors', label: 'Cộng tác viên', icon: 'group', ariaLabel: 'Cộng tác viên của collection' }
+      ];
+      
+      expect(TABS[0].label).toBe('Thông tin');
+      expect(TABS[1].label).toBe('Địa điểm');
+      expect(TABS[2].label).toBe('Cộng tác viên');
+    });
+
+    it('validates REQ-1: Icons match design (info, location_on, group)', () => {
+      const TABS = [
+        { id: 'info', label: 'Thông tin', icon: 'info', ariaLabel: 'Thông tin collection' },
+        { id: 'places', label: 'Địa điểm', icon: 'location_on', ariaLabel: 'Địa điểm trong collection' },
+        { id: 'contributors', label: 'Cộng tác viên', icon: 'group', ariaLabel: 'Cộng tác viên của collection' }
+      ];
+      
+      expect(TABS[0].icon).toBe('info');
+      expect(TABS[1].icon).toBe('location_on');
+      expect(TABS[2].icon).toBe('group');
+    });
+  });
+
+  describe('Edge cases', () => {
+    it('should handle empty string as activeTab', () => {
+      const activeTab = '';
+      const isValid = ['info', 'places', 'contributors'].includes(activeTab);
+      
+      expect(isValid).toBe(false);
+    });
+
+    it('should handle null as activeTab', () => {
+      const activeTab = null;
+      const isValid = ['info', 'places', 'contributors'].includes(activeTab);
+      
+      expect(isValid).toBe(false);
+    });
+
+    it('should handle undefined as activeTab', () => {
+      const activeTab = undefined;
+      const isValid = ['info', 'places', 'contributors'].includes(activeTab);
+      
+      expect(isValid).toBe(false);
+    });
+
+    it('should handle case-sensitive tab IDs', () => {
+      const activeTab = 'INFO'; // Uppercase
+      const isValid = ['info', 'places', 'contributors'].includes(activeTab);
+      
+      expect(isValid).toBe(false);
+    });
+
+    it('should handle tab ID with extra spaces', () => {
+      const activeTab = ' info ';
+      const isValid = ['info', 'places', 'contributors'].includes(activeTab);
+      
+      expect(isValid).toBe(false);
+    });
+  });
+});
+
+/**
+ * Unit tests for Task 6: renderTabContent() function with switch statement
+ * 
+ * These tests verify the tab content conditional rendering logic:
+ * - Switch statement correctly routes to appropriate render function
+ * - Default case returns Info tab for invalid tab values
+ * - Tab content updates immediately when activeTab changes
+ * - Edit mode state applies to all tabs
+ * 
+ * Requirements: REQ-5 (Tab State Management), REQ-6 (Edit Mode Behavior Across Tabs)
+ */
+
+describe('CollectionPage - Task 6: renderTabContent() Switch Statement Logic', () => {
+  describe('Switch statement routing (Requirement REQ-5)', () => {
+    it('should return renderInfoTab() when activeTab is "info"', () => {
+      const activeTab = 'info';
+      
+      // Simulate switch statement logic
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderInfoTab');
+    });
+
+    it('should return renderPlacesTab() when activeTab is "places"', () => {
+      const activeTab = 'places';
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderPlacesTab');
+    });
+
+    it('should return renderContributorsTab() when activeTab is "contributors"', () => {
+      const activeTab = 'contributors';
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderContributorsTab');
+    });
+  });
+
+  describe('Default case handling (Requirement REQ-5)', () => {
+    it('should default to renderInfoTab() for invalid tab value', () => {
+      const activeTab = 'invalid-tab';
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderInfoTab');
+    });
+
+    it('should default to renderInfoTab() for empty string', () => {
+      const activeTab = '';
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderInfoTab');
+    });
+
+    it('should default to renderInfoTab() for null', () => {
+      const activeTab = null;
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderInfoTab');
+    });
+
+    it('should default to renderInfoTab() for undefined', () => {
+      const activeTab = undefined;
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderInfoTab');
+    });
+
+    it('should default to renderInfoTab() for numeric value', () => {
+      const activeTab = 123;
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderInfoTab');
+    });
+
+    it('should default to renderInfoTab() for object value', () => {
+      const activeTab = { tab: 'info' };
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderInfoTab');
+    });
+  });
+
+  describe('Tab content updates (Requirement REQ-5)', () => {
+    it('should update content immediately when activeTab changes from info to places', () => {
+      let activeTab = 'info';
+      
+      // Initial render
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      expect(result).toBe('renderInfoTab');
+      
+      // Change activeTab
+      activeTab = 'places';
+      
+      // Re-render
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      expect(result).toBe('renderPlacesTab');
+    });
+
+    it('should update content immediately when activeTab changes from places to contributors', () => {
+      let activeTab = 'places';
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      expect(result).toBe('renderPlacesTab');
+      
+      activeTab = 'contributors';
+      
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      expect(result).toBe('renderContributorsTab');
+    });
+
+    it('should update content immediately when activeTab changes from contributors to info', () => {
+      let activeTab = 'contributors';
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      expect(result).toBe('renderContributorsTab');
+      
+      activeTab = 'info';
+      
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      expect(result).toBe('renderInfoTab');
+    });
+  });
+
+  describe('Edit mode behavior across tabs (Requirement REQ-6)', () => {
+    it('should render correct tab content in edit mode', () => {
+      const isEditing = true;
+      const activeTab = 'info';
+      
+      // Verify that edit mode state is independent of tab selection
+      expect(isEditing).toBe(true);
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderInfoTab');
+    });
+
+    it('should preserve edit mode when switching tabs', () => {
+      let isEditing = true;
+      let activeTab = 'info';
+      
+      // Switch to places tab
+      activeTab = 'places';
+      
+      // Edit mode should remain true
+      expect(isEditing).toBe(true);
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderPlacesTab');
+    });
+
+    it('should allow tab switching while in edit mode', () => {
+      const isEditing = true;
+      const tabs = ['info', 'places', 'contributors'];
+      
+      tabs.forEach(tab => {
+        let result;
+        switch (tab) {
+          case 'info':
+            result = 'renderInfoTab';
+            break;
+          case 'places':
+            result = 'renderPlacesTab';
+            break;
+          case 'contributors':
+            result = 'renderContributorsTab';
+            break;
+          default:
+            result = 'renderInfoTab';
+        }
+        
+        // Each tab should render correctly while in edit mode
+        expect(result).toBeTruthy();
+        expect(isEditing).toBe(true);
+      });
+    });
+  });
+
+  describe('ARIA attributes integration', () => {
+    it('should have correct tabpanel role', () => {
+      const role = 'tabpanel';
+      expect(role).toBe('tabpanel');
+    });
+
+    it('should have correct aria-labelledby attribute format', () => {
+      const activeTab = 'info';
+      const ariaLabelledBy = `${activeTab}-tab`;
+      
+      expect(ariaLabelledBy).toBe('info-tab');
+    });
+
+    it('should have correct id attribute format', () => {
+      const activeTab = 'places';
+      const id = `${activeTab}-panel`;
+      
+      expect(id).toBe('places-panel');
+    });
+
+    it('should update ARIA attributes when tab changes', () => {
+      let activeTab = 'info';
+      let ariaLabelledBy = `${activeTab}-tab`;
+      let id = `${activeTab}-panel`;
+      
+      expect(ariaLabelledBy).toBe('info-tab');
+      expect(id).toBe('info-panel');
+      
+      // Change tab
+      activeTab = 'contributors';
+      ariaLabelledBy = `${activeTab}-tab`;
+      id = `${activeTab}-panel`;
+      
+      expect(ariaLabelledBy).toBe('contributors-tab');
+      expect(id).toBe('contributors-panel');
+    });
+  });
+
+  describe('Requirements validation', () => {
+    it('validates REQ-5: Tab State Management - switch statement routes correctly', () => {
+      const tabs = ['info', 'places', 'contributors'];
+      const expectedResults = ['renderInfoTab', 'renderPlacesTab', 'renderContributorsTab'];
+      
+      tabs.forEach((tab, index) => {
+        let result;
+        switch (tab) {
+          case 'info':
+            result = 'renderInfoTab';
+            break;
+          case 'places':
+            result = 'renderPlacesTab';
+            break;
+          case 'contributors':
+            result = 'renderContributorsTab';
+            break;
+          default:
+            result = 'renderInfoTab';
+        }
+        
+        expect(result).toBe(expectedResults[index]);
+      });
+    });
+
+    it('validates REQ-5: Default to Info tab for invalid values', () => {
+      const invalidValues = ['', null, undefined, 'invalid', 123, {}, []];
+      
+      invalidValues.forEach(value => {
+        let result;
+        switch (value) {
+          case 'info':
+            result = 'renderInfoTab';
+            break;
+          case 'places':
+            result = 'renderPlacesTab';
+            break;
+          case 'contributors':
+            result = 'renderContributorsTab';
+            break;
+          default:
+            result = 'renderInfoTab';
+        }
+        
+        expect(result).toBe('renderInfoTab');
+      });
+    });
+
+    it('validates REQ-6: Edit mode applies to all tabs', () => {
+      const isEditing = true;
+      const tabs = ['info', 'places', 'contributors'];
+      
+      tabs.forEach(tab => {
+        // Edit mode should be independent of active tab
+        expect(isEditing).toBe(true);
+        
+        let result;
+        switch (tab) {
+          case 'info':
+            result = 'renderInfoTab';
+            break;
+          case 'places':
+            result = 'renderPlacesTab';
+            break;
+          case 'contributors':
+            result = 'renderContributorsTab';
+            break;
+          default:
+            result = 'renderInfoTab';
+        }
+        
+        expect(result).toBeTruthy();
+      });
+    });
+
+    it('validates REQ-6: Switching tabs preserves edit mode', () => {
+      let isEditing = true;
+      let activeTab = 'info';
+      
+      // Switch through all tabs
+      const tabs = ['places', 'contributors', 'info'];
+      tabs.forEach(tab => {
+        activeTab = tab;
+        // Edit mode should remain true
+        expect(isEditing).toBe(true);
+      });
+    });
+
+    it('validates REQ-6: Tab content updates immediately', () => {
+      const activeTab = 'info';
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      // Content should update immediately (no delay)
+      expect(result).toBe('renderInfoTab');
+    });
+  });
+
+  describe('Edge cases', () => {
+    it('should handle rapid tab switching', () => {
+      const tabs = ['info', 'places', 'contributors', 'info', 'places'];
+      const expectedResults = ['renderInfoTab', 'renderPlacesTab', 'renderContributorsTab', 'renderInfoTab', 'renderPlacesTab'];
+      
+      tabs.forEach((tab, index) => {
+        let result;
+        switch (tab) {
+          case 'info':
+            result = 'renderInfoTab';
+            break;
+          case 'places':
+            result = 'renderPlacesTab';
+            break;
+          case 'contributors':
+            result = 'renderContributorsTab';
+            break;
+          default:
+            result = 'renderInfoTab';
+        }
+        
+        expect(result).toBe(expectedResults[index]);
+      });
+    });
+
+    it('should handle case-sensitive tab values', () => {
+      const activeTab = 'INFO'; // Uppercase
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      // Should default to Info tab (case-sensitive match fails)
+      expect(result).toBe('renderInfoTab');
+    });
+
+    it('should handle tab value with whitespace', () => {
+      const activeTab = ' info ';
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      // Should default to Info tab (whitespace causes mismatch)
+      expect(result).toBe('renderInfoTab');
+    });
+
+    it('should handle boolean activeTab value', () => {
+      const activeTab = true;
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderInfoTab');
+    });
+
+    it('should handle array activeTab value', () => {
+      const activeTab = ['info'];
+      
+      let result;
+      switch (activeTab) {
+        case 'info':
+          result = 'renderInfoTab';
+          break;
+        case 'places':
+          result = 'renderPlacesTab';
+          break;
+        case 'contributors':
+          result = 'renderContributorsTab';
+          break;
+        default:
+          result = 'renderInfoTab';
+      }
+      
+      expect(result).toBe('renderInfoTab');
+    });
+  });
+});

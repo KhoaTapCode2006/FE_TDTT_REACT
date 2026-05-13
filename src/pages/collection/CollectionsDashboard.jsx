@@ -115,13 +115,26 @@ const MOCK_SAVED_COLLECTIONS = [
  */
 function CollectionsDashboard() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   
   // Get initial tab from URL or default to 'my'
   const initialTab = searchParams.get('tab') || 'my';
   const [activeTab, setActiveTab] = useState(initialTab); // 'my', 'global', or 'saved'
+  // Hàm tạo tiêu đề động dựa vào tab
+  const getPageTitle = () => {
+    switch (activeTab) {
+      case 'my':
+        return 'My Collections';
+      case 'global':
+        return 'Global Collections';
+      case 'saved':
+        return 'Saved Collections';
+      default:
+        return 'Collections';
+    }
+  };
   const [myCollections, setMyCollections] = useState([]);
   const [globalCollections, setGlobalCollections] = useState([]);
   const [savedCollections, setSavedCollections] = useState(MOCK_SAVED_COLLECTIONS); // Mock data for now
@@ -136,8 +149,6 @@ function CollectionsDashboard() {
   const [globalPage, setGlobalPage] = useState(1);
   const [hasMoreGlobal, setHasMoreGlobal] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  
-
 
   // Load My Collections
   const loadMyCollections = useCallback(async () => {
@@ -222,42 +233,29 @@ function CollectionsDashboard() {
     }
   }, [topType, user]);
 
-  // Initial load based on active tab
+  // Consolidated useEffect: Handle all collection loading scenarios
+  // - Initial load based on active tab
+  // - Reload when navigating back from CollectionPage (location.key changes)
+  // - Reload global collections when topType filter changes
   useEffect(() => {
-    if (activeTab === 'my') {
-      loadMyCollections();
-    } else if (activeTab === 'global') {
-      loadGlobalCollections(1, false);
-    }
-    // For 'saved' tab, we use mock data (no API call needed yet)
-  }, [activeTab, loadMyCollections, loadGlobalCollections]);
+    // Debounce to prevent duplicate API requests from double-renders
+    const timer = setTimeout(() => {
+      // Skip loading for 'saved' tab (uses mock data)
+      if (activeTab === 'saved') {
+        return;
+      }
 
-  // Task 5.4: Force reload when navigating back from CollectionPage
-  // Requirements: 5.1, 5.2, 5.3, 5.4
-  useEffect(() => {
-    // Detect navigation back from CollectionPage using location.state?.fromCollection
-    // or detect any navigation change via location.key
-    const isNavigatingBack = location.state?.fromCollection || location.key;
-    
-    if (isNavigatingBack) {
-      console.log('Detected navigation back - force reloading collections');
-      
-      // Reload appropriate tab data based on activeTab state
+      // Load collections based on active tab
       if (activeTab === 'my') {
         loadMyCollections();
       } else if (activeTab === 'global') {
         loadGlobalCollections(1, false);
       }
-      // For 'saved' tab, mock data doesn't need reloading
-    }
-  }, [location.key, activeTab, loadMyCollections, loadGlobalCollections]); // Listen to location.key changes
+    }, 50);
 
-  // Reload global collections when topType changes
-  useEffect(() => {
-    if (activeTab === 'global') {
-      loadGlobalCollections(1, false);
-    }
-  }, [topType]); // Only depend on topType, not loadGlobalCollections
+    // Cleanup: cancel the timer if component re-renders within 50ms
+    return () => clearTimeout(timer);
+  }, [activeTab, topType, location.key]); // Combined dependency array
 
   // Handle tab change
   const handleTabChange = (tab) => {
@@ -355,6 +353,18 @@ function CollectionsDashboard() {
     navigate('/collections/new');
   };
 
+  // Early return if auth is still loading (AFTER all hooks are defined)
+  if (authLoading) {
+    return (
+      <div className="min-h-[calc(100vh-80px)] flex items-center justify-center bg-background">
+        <div className="inline-flex items-center gap-3 rounded-3xl border border-outline-variant/40 bg-surface-container-low px-6 py-5 shadow-xl">
+          <Icon name="hourglass_top" size={24} className="text-primary animate-spin" />
+          <span className="text-sm font-medium text-on-surface">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
   // Render loading state
   if (loading && (myCollections.length === 0 && globalCollections.length === 0 && activeTab !== 'saved')) {
     return (
@@ -374,12 +384,16 @@ function CollectionsDashboard() {
       : savedCollections;
 
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-background px-4 py-8 sm:px-6 lg:px-10">
+    <div className="min-h-[calc(100vh-80px)] bg-background px-4 py-8 sm:px-6 lg:px-10">      
       <div className="mx-auto max-w-7xl space-y-8">
         {/* Header */}
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-on-surface">Collections</h1>
+            <h1 className="text-3xl font-bold text-on-surface">
+              {activeTab === 'my' ? 'My Collections' : 
+               activeTab === 'global' ? 'Global Collections' : 
+               'Saved Collections'}
+            </h1>
             <p className="mt-2 text-sm text-on-surface-variant">
               {activeTab === 'my' 
                 ? 'Manage your personal collections of favorite places' 
