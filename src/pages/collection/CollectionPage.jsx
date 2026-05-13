@@ -1268,7 +1268,7 @@ function CollectionPage() {
             <div 
               role="tablist" 
               aria-label="Collection navigation"
-              className="flex gap-1 sm:gap-2 border-b border-outline-variant/40 overflow-x-auto scrollbar-hide -webkit-overflow-scrolling-touch"
+              className="flex gap-2 border-b border-outline-variant/30 overflow-x-auto scrollbar-hide -webkit-overflow-scrolling-touch"
               style={{ 
                 scrollbarWidth: 'none',
                 msOverflowStyle: 'none',
@@ -1288,27 +1288,33 @@ function CollectionPage() {
                   onClick={() => setActiveTab(tab.id)}
                   onKeyDown={(e) => handleTabKeyDown(e, tab.id)}
                   className={`
-                    inline-flex items-center justify-center gap-2 
-                    px-4 py-3
-                    text-sm font-medium
-                    transition-all duration-200 border-b-2 whitespace-nowrap
-                    min-w-[120px]
+                    relative inline-flex items-center justify-center gap-2 
+                    px-6 py-3
+                    text-sm font-semibold
+                    transition-colors
+                    bg-transparent border-0 outline-none 
+                    focus:outline-none focus:ring-0 focus:border-0 
+                    active:outline-none active:ring-0 active:border-0
+                    whitespace-nowrap
                     touch-manipulation
                     flex-shrink-0
-                    focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-surface-container-low
                     ${activeTab === tab.id 
-                      ? 'border-primary text-primary' 
-                      : 'border-transparent text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+                      ? 'text-primary' 
+                      : 'text-on-surface-variant hover:text-on-surface'
                     }
                   `}
                   style={{ 
                     minHeight: '44px', 
                     minWidth: '44px',
-                    touchAction: 'manipulation'
+                    touchAction: 'manipulation',
+                    boxShadow: 'none'
                   }}
                 >
                   <Icon name={tab.icon} size={20} aria-hidden="true" />
                   <span className="text-sm">{tab.label}</span>
+                  {activeTab === tab.id && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
+                  )}
                 </button>
               ))}
             </div>

@@ -418,11 +418,12 @@ function CollectionsDashboard() {
         <div className="flex gap-2 border-b border-outline-variant/30">
           <button
             onClick={() => handleTabChange('my')}
-            className={`relative px-6 py-3 text-sm font-semibold transition-colors ${
+            className={`relative px-6 py-3 text-sm font-semibold transition-colors bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus:border-0 active:outline-none active:ring-0 active:border-0 ${
               activeTab === 'my'
                 ? 'text-primary'
                 : 'text-on-surface-variant hover:text-on-surface'
             }`}
+            style={{ boxShadow: 'none' }}
           >
             <div className="flex items-center gap-2">
               <Icon name="person" size={20} />
@@ -435,11 +436,12 @@ function CollectionsDashboard() {
 
           <button
             onClick={() => handleTabChange('global')}
-            className={`relative px-6 py-3 text-sm font-semibold transition-colors ${
+            className={`relative px-6 py-3 text-sm font-semibold transition-colors bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus:border-0 active:outline-none active:ring-0 active:border-0 ${
               activeTab === 'global'
                 ? 'text-primary'
                 : 'text-on-surface-variant hover:text-on-surface'
             }`}
+            style={{ boxShadow: 'none' }}
           >
             <div className="flex items-center gap-2">
               <Icon name="public" size={20} />
@@ -452,11 +454,12 @@ function CollectionsDashboard() {
 
           <button
             onClick={() => handleTabChange('saved')}
-            className={`relative px-6 py-3 text-sm font-semibold transition-colors ${
+            className={`relative px-6 py-3 text-sm font-semibold transition-colors bg-transparent border-0 outline-none focus:outline-none focus:ring-0 focus:border-0 active:outline-none active:ring-0 active:border-0 ${
               activeTab === 'saved'
                 ? 'text-primary'
                 : 'text-on-surface-variant hover:text-on-surface'
             }`}
+            style={{ boxShadow: 'none' }}
           >
             <div className="flex items-center gap-2">
               <Icon name="bookmark" size={20} />
