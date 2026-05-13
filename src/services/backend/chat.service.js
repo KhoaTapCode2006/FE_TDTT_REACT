@@ -411,18 +411,27 @@ function normalizeMessage(data) {
     .slice(0, 2)
     .toUpperCase() || '??';
 
+  // Normalize attachments array từ Firestore: [{ type, value }]
+  const attachments = Array.isArray(data.attachments) ? data.attachments : [];
+  const firstAttachment = attachments[0] ?? null;
+
+  // Nếu message có attachment image → type = "image", url = value
+  const type = firstAttachment?.type ?? data.type ?? 'text';
+  const url  = firstAttachment?.value ?? data.url ?? null;
+
   return {
-    id:       data.id       ?? '',
-    sender:   senderName,
+    id:          data.id       ?? '',
+    sender:      senderName,
     avatar,
-    time:     formatTime(data.created_at),
-    text:     data.content  ?? '',
+    time:        formatTime(data.created_at),
+    text:        data.content  ?? '',
     isMine,
-    type:     data.type     ?? 'text',
-    seen:     isMine ? true : undefined,
-    url:      data.url      ?? null,
-    fileName: data.file_name ?? null,
-    placeId:  data.place_id  ?? null,
+    type,
+    seen:        isMine ? true : undefined,
+    url,
+    fileName:    data.file_name ?? null,
+    placeId:     data.place_id  ?? null,
+    attachments,
   };
 }
 
@@ -871,12 +880,12 @@ export async function removeMembers(groupId, uids) {
  * Builds payload with only non-undefined fields.
  *
  * @param {string} groupId - ID of the conversation to send the message to
- * @param {{ type: string, content?: string, url?: string, file_name?: string, place_id?: string }} param1
+ * @param {{ type: string, content?: string, url?: string, file_name?: string, place_id?: string, attachments?: Array<{type: string, value: string}> }} param1
  * @returns {Promise<Message>} Normalized Message object
  * @throws {Error} VALIDATION_ERROR if `type` is not one of the allowed values
  * @throws {Error} API error if POST fails (caller handles rollback)
  */
-export async function sendMessage(groupId, { type, content, url, file_name, place_id } = {}) {
+export async function sendMessage(groupId, { type, content, url, file_name, place_id, attachments } = {}) {
   const VALID_TYPES = ['text', 'image', 'video', 'file', 'place'];
   if (!VALID_TYPES.includes(type)) {
     const err = new Error(`type must be one of: ${VALID_TYPES.join(', ')}`);
@@ -890,6 +899,7 @@ export async function sendMessage(groupId, { type, content, url, file_name, plac
   if (url !== undefined) payload.url = url;
   if (file_name !== undefined) payload.file_name = file_name;
   if (place_id !== undefined) payload.place_id = place_id;
+  if (attachments !== undefined && attachments.length > 0) payload.attachments = attachments;
 
   const response = await chatClient.post(`/conversations/${groupId}/messages`, payload);
   const raw = response.data?.data?.message ?? response.data?.data;

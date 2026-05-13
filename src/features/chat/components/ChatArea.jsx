@@ -3,10 +3,9 @@ import ChatHeader from "./ChatHeader";
 import MessageBubble from "./MessageBubble";
 
 // ─── Attachment Menu ──────────────────────────────────────────────────────────
-// Vùng chat chính ở giữa màn hình.
-// Gồm 3 phần: ChatHeader ở trên, danh sách MessageBubble ở giữa (có auto-scroll xuống cuối), 
-// và input bar ở dưới kèm menu đính kèm file/ảnh/video/địa điểm.
-function AttachmentMenu({ onAttach, onClose }) {
+function AttachmentMenu({ onPickImage, onClose }) {
+  const fileInputRef = useRef(null);
+
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
@@ -20,47 +19,21 @@ function AttachmentMenu({ onAttach, onClose }) {
           </div>
           <span className="text-xs text-gray-500">Ảnh</span>
           <input
+            ref={fileInputRef}
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => { onAttach("image", e.target.files[0]); onClose(); }}
+            onChange={(e) => {
+              const file = e.target.files[0];
+              if (file) { onPickImage(file); onClose(); }
+              e.target.value = "";
+            }}
           />
         </label>
 
-        {/* Video */}
-        <label className="flex flex-col items-center gap-1 cursor-pointer group">
-          <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-500 group-hover:bg-purple-100 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
-            </svg>
-          </div>
-          <span className="text-xs text-gray-500">Video</span>
-          <input
-            type="file"
-            accept="video/*"
-            className="hidden"
-            onChange={(e) => { onAttach("video", e.target.files[0]); onClose(); }}
-          />
-        </label>
-
-        {/* File */}
-        <label className="flex flex-col items-center gap-1 cursor-pointer group">
-          <div className="w-11 h-11 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center text-orange-500 group-hover:bg-orange-100 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
-            </svg>
-          </div>
-          <span className="text-xs text-gray-500">File</span>
-          <input
-            type="file"
-            className="hidden"
-            onChange={(e) => { onAttach("file", e.target.files[0]); onClose(); }}
-          />
-        </label>
-
-        {/* Địa điểm */}
+        {/* Địa điểm — giữ nguyên, gửi ngay */}
         <button
-          onClick={() => { onAttach("place", null); onClose(); }}
+          onClick={onClose}
           className="flex flex-col items-center gap-1 group"
         >
           <div className="w-11 h-11 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center text-green-500 group-hover:bg-green-100 transition-colors">
@@ -75,6 +48,36 @@ function AttachmentMenu({ onAttach, onClose }) {
   );
 }
 
+// ─── Image Preview trong input bar ───────────────────────────────────────────
+function ImagePreview({ url, uploading, onRemove }) {
+  return (
+    <div className="relative inline-block mb-2 ml-1">
+      {uploading ? (
+        <div className="w-16 h-16 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center">
+          <svg className="w-5 h-5 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+        </div>
+      ) : (
+        <img
+          src={url}
+          alt="preview"
+          className="w-16 h-16 rounded-xl object-cover border border-gray-200 shadow-sm"
+        />
+      )}
+      {!uploading && (
+        <button
+          onClick={onRemove}
+          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 text-white rounded-full flex items-center justify-center text-xs leading-none hover:bg-red-500 transition-colors"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Chat Area ────────────────────────────────────────────────────────────────
 
 function ChatArea({
@@ -84,6 +87,7 @@ function ChatArea({
   input,
   setInput,
   onSend,
+  onPickImage,
   onDeleteMessage,
   showRightPanel,
   onToggleRightPanel,
@@ -92,6 +96,9 @@ function ChatArea({
   onAddMember,
   showAttach,
   setShowAttach,
+  pendingImage,
+  onRemovePendingImage,
+  imageUploading,
 }) {
   const messagesEndRef = useRef(null);
 
@@ -99,15 +106,7 @@ function ChatArea({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleAttach = (type, file) => {
-    if (type === "place") {
-      onSend({ type: "place", text: "📍 Vị trí hiện tại của tôi", placeId: "ChIJN1t_tDeuEmsRUsoyG83frY4" });
-      return;
-    }
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    onSend({ type, file, url, fileName: file.name });
-  };
+  const canSend = (input.trim().length > 0 || !!pendingImage) && !imageUploading;
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
@@ -139,10 +138,20 @@ function ChatArea({
 
       {/* Input bar */}
       <div className="px-4 py-3 bg-white border-t border-gray-100">
+        {/* Attachment menu */}
         {showAttach && (
           <AttachmentMenu
-            onAttach={handleAttach}
+            onPickImage={onPickImage}
             onClose={() => setShowAttach(false)}
+          />
+        )}
+
+        {/* Image preview */}
+        {(pendingImage || imageUploading) && (
+          <ImagePreview
+            url={pendingImage?.url}
+            uploading={imageUploading}
+            onRemove={onRemovePendingImage}
           />
         )}
 
@@ -157,13 +166,16 @@ function ChatArea({
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onSend()}
+            onKeyDown={(e) => e.key === "Enter" && canSend && onSend()}
             placeholder={`Message ${group.name}...`}
             className="flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none"
           />
           <button
-            onClick={() => onSend()}
-            className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center text-white hover:bg-primary-container transition-colors shrink-0"
+            onClick={() => canSend && onSend()}
+            disabled={!canSend}
+            className={`w-9 h-9 rounded-xl flex items-center justify-center text-white transition-colors shrink-0 ${
+              canSend ? "bg-primary hover:bg-primary-container" : "bg-gray-200 cursor-not-allowed"
+            }`}
           >
             ▶
           </button>

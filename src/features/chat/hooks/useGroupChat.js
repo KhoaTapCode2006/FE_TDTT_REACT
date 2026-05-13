@@ -22,6 +22,7 @@ import {
   markAsRead,
   sendConversation,
 } from "../../../services/backend/chat.service";
+import { uploadFile } from "../../../services/backend/upload.service";
 
 // ─── useGroupChat ──────────────────────────────────────────────────────────────
 
@@ -36,6 +37,9 @@ export function useGroupChat() {
   const [showRightPanel, setShowRightPanel] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
+  // Ảnh đã upload, chờ gửi cùng tin nhắn: { url: string, file: File } | null
+  const [pendingImage, setPendingImage] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
 
   // ── Load dữ liệu ban đầu ────────────────────────────────────────────────────
   useEffect(() => {
@@ -140,51 +144,26 @@ export function useGroupChat() {
     }
   };
 
-  const handleSend = async (attachment = null) => {
+  // ── Chọn ảnh → upload ngay, lưu pending ────────────────────────────────────
+  const handlePickImage = async (file) => {
+    if (!file || !activeGroup) return;
+    setImageUploading(true);
+    try {
+      const url = await uploadFile(file, 'chat');
+      setPendingImage({ url, file });
+    } catch (err) {
+      console.error("uploadFile (chat image) error:", err);
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const handleSend = async () => {
     if (!activeGroup) return;
 
-    // ── Gửi attachment (image / video / file / place) ──
-    if (attachment) {
-      // Optimistic update trước
-      const tempId = `temp_${Date.now()}`;
-      const optimisticMsg = {
-        id: tempId,
-        sender: "Me",
-        avatar: "ME",
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        isMine: true,
-        seen: false,
-        ...attachment,
-      };
-      setMessagesByGroup((prev) => ({
-        ...prev,
-        [activeGroup]: [...(prev[activeGroup] ?? []), optimisticMsg],
-      }));
-
-      try {
-        await sendMessage(activeGroup, {
-          type: attachment.type,
-          content: attachment.text ?? "",
-          url: attachment.url ?? undefined,
-          file_name: attachment.fileName ?? undefined,
-          place_id: attachment.placeId ?? undefined,
-        });
-        // Cache attachment message sau khi gửi thành công
-        appendCachedMessage(activeGroup, { ...optimisticMsg });
-      } catch (err) {
-        console.error("sendMessage (attachment) error:", err);
-        // Rollback optimistic update nếu lỗi
-        setMessagesByGroup((prev) => ({
-          ...prev,
-          [activeGroup]: prev[activeGroup].filter((m) => m.id !== tempId),
-        }));
-      }
-      return;
-    }
-
-    // ── Gửi text + nhận AI reply ──
     const text = input.trim();
-    if (!text) return;
+    // Không có gì để gửi
+    if (!text && !pendingImage) return;
 
     const tempId = `temp_${Date.now()}`;
     const optimisticMsg = {
@@ -192,20 +171,33 @@ export function useGroupChat() {
       sender: "Me",
       avatar: "ME",
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      text,
       isMine: true,
-      type: "text",
       seen: false,
+      type: pendingImage ? "image" : "text",
+      text: text || "",
+      url: pendingImage?.url ?? null,
+      attachments: pendingImage ? [{ type: "image", value: pendingImage.url }] : [],
     };
 
+    // Snapshot pending trước khi clear
+    const imageToSend = pendingImage;
+
+    // Optimistic update + clear input
     const updatedMessages = [...messages, optimisticMsg];
     setMessagesByGroup((prev) => ({ ...prev, [activeGroup]: updatedMessages }));
     setInput("");
+    setPendingImage(null);
 
     try {
-      // Gửi tin nhắn lên backend
-      const sentMsg = await sendMessage(activeGroup, { type: "text", content: text });
-      // Thay tempId bằng ID thực từ backend, đánh dấu seen: true và cache lại
+      const apiPayload = {
+        type: imageToSend ? "image" : "text",
+        content: text,
+      };
+      if (imageToSend) {
+        apiPayload.attachments = [{ type: "image", value: imageToSend.url }];
+      }
+
+      const sentMsg = await sendMessage(activeGroup, apiPayload);
       const finalMsg = { ...optimisticMsg, id: sentMsg.id ?? tempId, seen: true };
       appendCachedMessage(activeGroup, finalMsg);
       setMessagesByGroup((prev) => ({
@@ -213,40 +205,41 @@ export function useGroupChat() {
         [activeGroup]: prev[activeGroup].map((m) => m.id === tempId ? finalMsg : m),
       }));
 
-      // Gọi AI — lỗi AI không ảnh hưởng đến tin nhắn đã gửi
-      try {
-        const payload = updatedMessages
-          .filter((m) => m.type === "text" && m.text)
-          .map((m) => ({ role: m.isMine ? "user" : "assistant", content: m.text }));
+      // Gọi AI chỉ khi là tin nhắn text thuần
+      if (!imageToSend && text) {
+        try {
+          const payload = updatedMessages
+            .filter((m) => m.type === "text" && m.text)
+            .map((m) => ({ role: m.isMine ? "user" : "assistant", content: m.text }));
 
-        const replyContent = await sendConversation(payload);
-
-        if (replyContent) {
-          const botMsg = {
-            id: Date.now() + 1,
-            sender: "AI",
-            avatar: "AI",
-            time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            text: replyContent,
-            isMine: false,
-            type: "text",
-          };
-          setMessagesByGroup((prev) => ({
-            ...prev,
-            [activeGroup]: [...(prev[activeGroup] ?? []), botMsg],
-          }));
+          const replyContent = await sendConversation(payload);
+          if (replyContent) {
+            const botMsg = {
+              id: Date.now() + 1,
+              sender: "AI",
+              avatar: "AI",
+              time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              text: replyContent,
+              isMine: false,
+              type: "text",
+            };
+            setMessagesByGroup((prev) => ({
+              ...prev,
+              [activeGroup]: [...(prev[activeGroup] ?? []), botMsg],
+            }));
+          }
+        } catch (aiErr) {
+          console.warn("AI reply failed (ignored):", aiErr.message);
         }
-      } catch (aiErr) {
-        // AI không phản hồi — bỏ qua, tin nhắn của user vẫn giữ nguyên
-        console.warn("AI reply failed (ignored):", aiErr.message);
       }
     } catch (err) {
       console.error("handleSend error:", err);
-      // Rollback chỉ khi gửi tin nhắn thất bại
       setMessagesByGroup((prev) => ({
         ...prev,
         [activeGroup]: prev[activeGroup].filter((m) => m.id !== tempId),
       }));
+      // Khôi phục pending image nếu gửi thất bại
+      if (imageToSend) setPendingImage(imageToSend);
     }
   };
 
@@ -303,12 +296,16 @@ export function useGroupChat() {
     setShowCreateModal,
     showAttach,
     setShowAttach,
+    pendingImage,
+    setPendingImage,
+    imageUploading,
     // Handlers
     setActiveGroup,
     handleCreateGroup,
     handleUpdateGroup,
     handleDeleteGroup,
     handleSend,
+    handlePickImage,
     handleDeleteMessage,
     handleAddMember,
     handleRemoveMember,

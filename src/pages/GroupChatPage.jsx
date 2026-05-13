@@ -21,11 +21,15 @@ export default function GroupChatPage() {
     setShowCreateModal,
     showAttach,
     setShowAttach,
+    pendingImage,
+    setPendingImage,
+    imageUploading,
     setActiveGroup,
     handleCreateGroup,
     handleUpdateGroup,
     handleDeleteGroup,
     handleSend,
+    handlePickImage,
     handleDeleteMessage,
     handleAddMember,
     handleRemoveMember,
@@ -111,6 +115,7 @@ export default function GroupChatPage() {
           input={input}
           setInput={setInput}
           onSend={handleSend}
+          onPickImage={handlePickImage}
           onDeleteMessage={handleDeleteMessage}
           showRightPanel={showRightPanel}
           onToggleRightPanel={() => setShowRightPanel((v) => !v)}
@@ -119,6 +124,9 @@ export default function GroupChatPage() {
           onAddMember={handleAddMember}
           showAttach={showAttach}
           setShowAttach={setShowAttach}
+          pendingImage={pendingImage}
+          onRemovePendingImage={() => setPendingImage(null)}
+          imageUploading={imageUploading}
         />
 
         {showRightPanel && (
