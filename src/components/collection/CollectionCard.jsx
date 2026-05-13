@@ -140,7 +140,7 @@ function CollectionCard({
           <button
             onClick={handleSave}
             disabled={isSaving}
-            className="save-button-focus save-button-hover touch-target-min absolute top-3 right-3 rounded-full bg-white/90 backdrop-blur-sm p-2 shadow-lg transition-all duration-300 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            className="save-button-focus save-button-hover touch-target-min absolute top-3 right-3 flex items-center justify-center w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-lg transition-all duration-300 hover:bg-white hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
             title={isSaved ? 'Unsave collection' : 'Save collection'}
             aria-label={isSaved ? 'Unsave collection' : 'Save collection'}
             aria-pressed={isSaved}
@@ -154,7 +154,7 @@ function CollectionCard({
               <Icon 
                 name={isSaved ? 'favorite' : 'favorite_border'} 
                 size={20} 
-                className={`transition-all duration-300 ${isSaved ? 'text-red-500' : 'text-on-surface-variant'}`}
+                className={`transition-all duration-300 ${isSaved ? 'text-red-500 scale-110' : 'text-on-surface-variant'}`}
               />
             )}
             {isSaving && <span className="sr-only">Saving collection...</span>}

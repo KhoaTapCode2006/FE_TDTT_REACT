@@ -1056,27 +1056,13 @@ function CollectionPage() {
                   title="Địa điểm trong collection"
                   description="Danh sách địa điểm đã lưu trong collection."
                 >
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="space-y-3">
                     {collection.places?.length ? (
                       collection.places.map((item) => (
-                        <div key={item.place_id} className="overflow-hidden rounded-3xl border border-outline-variant/50 bg-surface-container shadow-sm">
-                          <div className="h-44 w-full bg-slate-200">
-                            {item.image_url ? (
-                              <img src={item.image_url} alt={item.name || item.place_id} className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="flex h-full items-center justify-center text-sm text-on-surface-variant">Không có ảnh</div>
-                            )}
-                          </div>
-                          <div className="space-y-2 p-4">
-                            <div>
-                              <p className="text-sm font-semibold text-on-surface">{item.name || item.place_id}</p>
-                              <p className="text-xs text-on-surface-variant">{item.address || "Địa chỉ chưa có"}</p>
-                            </div>
-                            {item.rating ? (
-                              <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                                <Icon name="star" size={14} /> {item.rating}
-                              </div>
-                            ) : null}
+                        <div key={item.place_id} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-on-surface">{item.place_id}</p>
+                            <p className="text-xs text-on-surface-variant">Thêm bởi {item.added_by} · {formatDate(item.added_at)}</p>
                           </div>
                         </div>
                       ))

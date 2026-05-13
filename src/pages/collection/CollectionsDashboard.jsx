@@ -19,8 +19,25 @@ const MOCK_SAVED_COLLECTIONS = [
     created_at: new Date('2024-01-15'),
     updated_at: new Date('2024-01-20'),
     tags: ['luxury', 'hanoi', '5-star'],
-    places: [],
-    collaborators: [],
+    places: [
+      {
+        place_id: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
+        added_at: new Date('2024-01-16'),
+        added_by: 'user-123'
+      },
+      {
+        place_id: 'ChIJP3Sa8ziYEmsRUKgyFmh9AQM',
+        added_at: new Date('2024-01-17'),
+        added_by: 'user-123'
+      }
+    ],
+    collaborators: [
+      {
+        uid: 'user-123',
+        contributed_count: 2,
+        joined_at: new Date('2024-01-15')
+      }
+    ],
     savers: []
   },
   {
@@ -34,8 +51,30 @@ const MOCK_SAVED_COLLECTIONS = [
     created_at: new Date('2024-02-01'),
     updated_at: new Date('2024-02-10'),
     tags: ['beach', 'danang', 'resort'],
-    places: [],
-    collaborators: [],
+    places: [
+      {
+        place_id: 'ChIJQVrM2dYZQjERvCBnNvDkKhQ',
+        added_at: new Date('2024-02-02'),
+        added_by: 'user-456'
+      },
+      {
+        place_id: 'ChIJL_P_CXMZQjERDbmRav2mryg',
+        added_at: new Date('2024-02-03'),
+        added_by: 'user-456'
+      },
+      {
+        place_id: 'ChIJN5X_gHMZQjERjKmRav2mryg',
+        added_at: new Date('2024-02-04'),
+        added_by: 'user-456'
+      }
+    ],
+    collaborators: [
+      {
+        uid: 'user-456',
+        contributed_count: 3,
+        joined_at: new Date('2024-02-01')
+      }
+    ],
     savers: []
   },
   {
@@ -49,8 +88,20 @@ const MOCK_SAVED_COLLECTIONS = [
     created_at: new Date('2024-01-25'),
     updated_at: new Date('2024-02-05'),
     tags: ['homestay', 'dalat', 'nature'],
-    places: [],
-    collaborators: [],
+    places: [
+      {
+        place_id: 'ChIJtzKLloPZhqkZGgsvZy8xdGY1YjdmcxAB',
+        added_at: new Date('2024-01-26'),
+        added_by: 'user-789'
+      }
+    ],
+    collaborators: [
+      {
+        uid: 'user-789',
+        contributed_count: 1,
+        joined_at: new Date('2024-01-25')
+      }
+    ],
     savers: []
   }
 ];
