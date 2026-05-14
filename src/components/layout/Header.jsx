@@ -95,26 +95,6 @@ function Header({ hideNavigation = false }) {
                 Hotels
               </Link>
               <Link 
-                to="#" 
-                className={`text-sm font-semibold transition-colors pb-0.5 ${
-                  location.pathname === '/experiences' 
-                    ? 'text-primary border-b-2 border-secondary' 
-                    : 'text-on-surface-variant hover:text-primary'
-                }`}
-              >
-                Experiences
-              </Link>
-              <Link 
-                to="#" 
-                className={`text-sm font-semibold transition-colors pb-0.5 ${
-                  location.pathname === '/social' 
-                    ? 'text-primary border-b-2 border-secondary' 
-                    : 'text-on-surface-variant hover:text-primary'
-                }`}
-              >
-                Social
-              </Link>
-              <Link 
                 to="/collections" 
                 className={`text-sm font-semibold transition-colors pb-0.5 ${
                   location.pathname === '/collections' || location.pathname.startsWith('/collections/')

@@ -36,7 +36,7 @@ const LikeButton = ({
   const buttonSize = sizeMap[size] || sizeMap.medium;
 
   /**
-   * Handle like button click with optimistic update
+   * Handle like button click without optimistic update
    */
   const handleClick = async (e) => {
     // Prevent event bubbling to parent elements (e.g., card click)
@@ -45,22 +45,16 @@ const LikeButton = ({
 
     if (isLoading || !onLike) return;
 
-    // Store previous state for rollback
-    const previousState = liked;
-    
-    // Optimistic update
-    setLiked(!liked);
     setIsLoading(true);
 
     try {
-      // Call parent callback
+      // Call parent callback and wait for completion
       await onLike(collectionId, !liked);
       
-      // Success - state already updated optimistically
+      // Success - parent will update the prop which will update our local state
     } catch (error) {
-      // Rollback on failure
+      // Error already handled by parent
       console.error('Like/unlike failed:', error);
-      setLiked(previousState);
     } finally {
       setIsLoading(false);
     }

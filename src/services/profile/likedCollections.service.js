@@ -34,10 +34,12 @@ class LikedCollectionsService {
       await this.ensureValidToken();
       
       // Get liked collections from backend
-      const response = await apiClient.get('/me/liked-collection');
+      // Note: Backend doesn't have a dedicated endpoint for liked collections
+      // We need to get all collections and filter by savers
+      const response = await apiClient.get('/me/collections');
       
       // Log response for debugging
-      console.log('📦 /me/liked-collection response:', response);
+      console.log('📦 /me/collections response:', response);
       
       // Handle different response formats
       let backendCollections;
@@ -48,17 +50,13 @@ class LikedCollectionsService {
         // Response is an object with collections array
         backendCollections = response.collections;
       } else if (response && typeof response === 'object') {
-        // Response is an object, might be a single collection or empty
-        if (response.id || response.name || response.owner_uid) {
-          backendCollections = [response];
-        } else {
-          // Empty object or unexpected structure
-          console.warn('Unexpected response format from /me/liked-collection:', response);
-          backendCollections = [];
-        }
+        // Response might have owned and collaborated arrays
+        const owned = Array.isArray(response.owned) ? response.owned : [];
+        const collaborated = Array.isArray(response.collaborated) ? response.collaborated : [];
+        backendCollections = [...owned, ...collaborated];
       } else {
         // Unexpected format, return empty array
-        console.warn('Unexpected response format from /me/liked-collection:', response);
+        console.warn('Unexpected response format from /me/collections:', response);
         backendCollections = [];
       }
       
@@ -100,12 +98,11 @@ class LikedCollectionsService {
       }
       
       // Like collection via backend API
-      const response = await apiClient.post('/me/liked-collection', {
-        collection_id: collectionId
-      });
+      const url = `/collections/${collectionId}/save`;
+      const response = await apiClient.post(url);
       
       // Log response for debugging
-      console.log('📦 POST /me/liked-collection response:', response);
+      console.log('📦 POST /collections/{id}/save response:', response);
       
       // Handle response - might be collection object or success message
       if (response && response.collection) {
@@ -149,17 +146,12 @@ class LikedCollectionsService {
         throw new Error('Collection ID is required');
       }
       
-      // Unlike collection via backend API
-      // Note: DELETE with body requires special handling
-      const response = await apiClient.delete('/me/liked-collection', {
-        body: JSON.stringify({ collection_id: collectionId }),
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      // Unlike collection via backend API using unsave endpoint
+      const url = `/collections/${collectionId}/unsave`;
+      const response = await apiClient.post(url);
       
       // Log response for debugging
-      console.log('📦 DELETE /me/liked-collection response:', response);
+      console.log('📦 POST /collections/{id}/unsave response:', response);
       
       // Handle response - might be collection object or success message
       if (response && response.collection) {
