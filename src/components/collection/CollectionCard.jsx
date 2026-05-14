@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '@/components/ui/Icon';
+import LikeButton from '@/components/collection/LikeButton';
 
 /**
  * CollectionCard Component

@@ -532,7 +532,7 @@ export function transformAuthRequest(frontendAuth) {
  * const frontendUser = transformUserProfile(backendUser);
  * // Returns: { uid: 'user123', username: 'johndoe', displayName: 'John Doe', ... }
  */
-export function transformUserProfile(backendUser) {
+export function transformUserProfile(backendUser, firebaseUid = null) {
   try {
     // Validate input
     if (!backendUser || typeof backendUser !== 'object') {
@@ -545,6 +545,7 @@ export function transformUserProfile(backendUser) {
 
     // Log backend response for debugging
     console.log('🔄 transformUserProfile input:', backendUser);
+    console.log('🔑 Firebase UID provided:', firebaseUid);
 
     // Validate required fields - uid should now be present in backend response
     if (!backendUser.uid) {
@@ -713,8 +714,21 @@ export function transformUserProfile(backendUser) {
       });
     }
 
-    // Validate transformed data has required fields
-    if (!transformed.uid || !transformed.username || !transformed.displayName || !transformed.email) {
+    // Normalize uid field (backend might use different field names or not include it)
+    if (!transformed.uid) {
+      if (transformed.userId) {
+        transformed.uid = transformed.userId;
+      } else if (transformed.id) {
+        transformed.uid = transformed.id;
+      } else if (firebaseUid) {
+        // Use Firebase UID if backend doesn't provide one
+        transformed.uid = firebaseUid;
+        console.log('✅ Using Firebase UID:', firebaseUid);
+      }
+    }
+
+    // Validate transformed data has required fields (uid is now optional if firebaseUid provided)
+    if (!transformed.username || !transformed.displayName || !transformed.email) {
       console.warn('⚠️ Missing required fields after transformation:', {
         hasUid: !!transformed.uid,
         hasUsername: !!transformed.username,
@@ -736,7 +750,7 @@ export function transformUserProfile(backendUser) {
     logSchemaError(error, {
       operation: 'transformUserProfile',
       endpoint: '/me',
-      userId: backendUser?.uid
+      userId: backendUser?.uid || firebaseUid
     });
 
     // Re-throw for caller to handle

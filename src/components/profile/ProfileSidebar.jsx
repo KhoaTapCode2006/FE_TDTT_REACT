@@ -8,7 +8,7 @@ import Icon from '@/components/ui/Icon';
  * Shared navigation sidebar for all profile pages
  * 
  * @param {Object} props
- * @param {string} props.activeItem - Active navigation item ('mystays' | 'savedlists' | 'reviews' | 'friends')
+ * @param {string} props.activeItem - Active navigation item ('profile' | 'mystays' | 'likedcollections')
  */
 const ProfileSidebar = ({ activeItem = 'mystays' }) => {
   const { user, logout } = useAuth();
@@ -47,24 +47,10 @@ const ProfileSidebar = ({ activeItem = 'mystays' }) => {
       path: '/account/mystay',
     },
     {
-      id: 'savedlists',
-      label: 'Saved Lists',
-      icon: 'bookmark',
-      path: '/account/savedlist',
-    },
-    {
-      id: 'reviews',
-      label: 'Reviews',
-      icon: 'star',
-      path: '/account/reviews',
-      disabled: true,
-    },
-    {
-      id: 'friends',
-      label: 'Friends',
-      icon: 'group',
-      path: '/account/friends',
-      disabled: true,
+      id: 'likedcollections',
+      label: 'Liked Collections',
+      icon: 'favorite',
+      path: '/account/liked-collections',
     },
   ];
 
