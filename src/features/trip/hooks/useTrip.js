@@ -54,14 +54,14 @@ export function useTrip() {
     fetchTrips();
   }, [authLoading, isAuthenticated, fetchTrips]);
 
-  // Polling: refetch mỗi 10s để tự động nhận trip mới khi được add làm member
-  useEffect(() => {
-    if (authLoading || !isAuthenticated) return;
-    const interval = setInterval(() => {
-      fetchTrips();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [authLoading, isAuthenticated, fetchTrips]);
+  // Polling đã tắt — gây 429 Too Many Requests
+  // useEffect(() => {
+  //   if (authLoading || !isAuthenticated) return;
+  //   const interval = setInterval(() => {
+  //     fetchTrips();
+  //   }, 10000);
+  //   return () => clearInterval(interval);
+  // }, [authLoading, isAuthenticated, fetchTrips]);
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const infoTrip = infoTripId ? trips.find((t) => t.id === infoTripId) ?? null : null;

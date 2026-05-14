@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { collection, onSnapshot, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
+import { useTripMembers } from "../../hooks/useTripMembers";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -19,15 +20,36 @@ function TripMapModal({ trip, onClose }) {
   const markersRef  = useRef({});
   const watchIdRef  = useRef(null);
 
-  const [mapReady, setMapReady]           = useState(false);
+  const [mapReady, setMapReady]             = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
-  const [routeInfoMap, setRouteInfoMap]   = useState({});
-  const [loadingRoutes, setLoadingRoutes] = useState(false);
-  // memberTracking: { [uid]: { lat, lng, status, accident, updated_at } }
-  const [memberTracking, setMemberTracking] = useState({});
+  const [routeInfoMap, setRouteInfoMap]     = useState({});
+  const [loadingRoutes, setLoadingRoutes]   = useState(false);
 
   const currentUid = auth.currentUser?.uid;
   const tripId     = trip.id;
+
+  // Realtime members + tracking từ Firestore
+  const { members: firestoreMembers } = useTripMembers(tripId);
+
+  // memberTracking: { [uid]: { lat, lng, status, accident } } — derive từ firestoreMembers
+  const memberTracking = Object.fromEntries(
+    firestoreMembers
+      .filter((m) => m.tracking)
+      .map((m) => [m.uid, {
+        lat:      m.tracking.lat      ?? null,
+        lng:      m.tracking.lng      ?? null,
+        status:   m.tracking.status   || "no_share",
+        accident: m.tracking.accident === true,
+        updated_at: m.tracking.updated_at,
+      }])
+  );
+
+  // Điểm đến từ place của trip, fallback về HCMUS nếu không có
+  const DEST = {
+    lat:  trip.place?.gps_coordinates?.latitude  ?? 10.7626,
+    lng:  trip.place?.gps_coordinates?.longitude ?? 106.6822,
+    name: trip.place?.name ?? "Điểm đến",
+  };
 
   // Khoảng cách (m) từ user đến DEST — dùng để enable nút Arrive
   const [distToDestM, setDistToDestM] = useState(null);
@@ -93,48 +115,25 @@ function TripMapModal({ trip, onClose }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUid, tripId]);
 
-  // ── 3. Subscribe realtime tracking ───────────────────────────────────────
-  useEffect(() => {
-    if (!tripId) return;
-    const colRef = collection(db, "trips", tripId, "members");
-    const unsub = onSnapshot(colRef, (snap) => {
-      const tracking = {};
-      snap.forEach((d) => {
-        const data = d.data();
-        if (data.tracking) {
-          tracking[d.id] = {
-            lat:        data.tracking.lat ?? null,
-            lng:        data.tracking.lng ?? null,
-            status:     data.tracking.status || "no_share",
-            accident:   data.tracking.accident === true,
-            updated_at: data.tracking.updated_at,
-          };
-        }
-      });
-      setMemberTracking(tracking);
-    }, (err) => {
-      console.warn("[TripMapModal] onSnapshot error:", err);
-    });
-    return () => unsub();
-  }, [tripId]);
+  // ── 3. Subscribe realtime tracking — handled by useTripMembers hook ─────────
 
   // ── 4. Build members list ─────────────────────────────────────────────────
-  const members = (trip.member_uids || []).map((uid, i) => {
-    const t = memberTracking[uid];
+  const members = firestoreMembers.map((m, i) => {
+    const t = memberTracking[m.uid];
     const hasRealGps = !!(t?.lat != null && t?.lng != null);
-    const angle = (i / (trip.member_uids?.length || 1)) * 2 * Math.PI;
+    const angle = (i / (firestoreMembers.length || 1)) * 2 * Math.PI;
     const r     = 0.008 + (i % 3) * 0.005;
     return {
-      id:       uid,
-      name:     uid,
-      avatar:   uid.slice(0, 2).toUpperCase(),
+      id:       m.uid,
+      name:     m.uid,
+      avatar:   m.uid.slice(0, 2).toUpperCase(),
       color:    MEMBER_COLORS[i % MEMBER_COLORS.length],
       lat:      hasRealGps ? t.lat : DEST.lat + Math.sin(angle) * r,
       lng:      hasRealGps ? t.lng : DEST.lng + Math.cos(angle) * r,
       hasRealGps,
       status:   t?.status || "no_share",
       accident: t?.accident === true,
-      isMe:     uid === currentUid,
+      isMe:     m.uid === currentUid,
     };
   });
 
@@ -170,7 +169,7 @@ function TripMapModal({ trip, onClose }) {
       const destEl = document.createElement("div");
       destEl.style.cssText = `width:40px;height:40px;border-radius:50%;background:#255dad;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:20px;`;
       destEl.innerHTML = "🏁";
-      destEl.title = "HCMUS — Điểm đến";
+      destEl.title = `${DEST.name} — Điểm đến`;
       markersRef.current["__dest__"] = new window.vietmapgl.Marker({ element: destEl, anchor: "center" })
         .setLngLat([DEST.lng, DEST.lat])
         .addTo(map);
@@ -219,9 +218,13 @@ function TripMapModal({ trip, onClose }) {
     if (map.getSource(sourceId)) map.removeSource(sourceId);
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
       const res = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${member.lng},${member.lat};${DEST.lng},${DEST.lat}?overview=full&geometries=geojson`
+        `https://router.project-osrm.org/route/v1/driving/${member.lng},${member.lat};${DEST.lng},${DEST.lat}?overview=full&geometries=geojson`,
+        { signal: controller.signal }
       );
+      clearTimeout(timeoutId);
       if (!res.ok) throw new Error();
       const data   = await res.json();
       const route  = data?.routes?.[0];
@@ -271,11 +274,13 @@ function TripMapModal({ trip, onClose }) {
     mapObjRef.current.flyTo({ center: [member.lng, member.lat], zoom: 14, duration: 800 });
   }, [mapReady]);
 
+  // Load routes khi map ready hoặc member list thay đổi (không re-load mỗi lần GPS update)
+  const memberIdsKey = firestoreMembers.map((m) => m.uid).join(",");
   useEffect(() => {
     if (!mapReady || members.length === 0) return;
     loadAllRoutes(members);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady, memberTracking]);
+  }, [mapReady, memberIdsKey]);
 
   // ── 8. Accident handler — chỉ ghi field accident, không đụng status ──────
   const handleAccident = useCallback(async () => {
@@ -333,7 +338,7 @@ function TripMapModal({ trip, onClose }) {
             <div>
               <h3 className="text-base font-bold text-gray-900">Trip — Tuyến đường</h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                {trip.title} · Điểm đến: <span className="text-primary font-semibold">HCMUS</span>
+                {trip.title} · Điểm đến: <span className="text-primary font-semibold">{DEST.name}</span>
               </p>
             </div>
             <div className="flex items-center gap-2">

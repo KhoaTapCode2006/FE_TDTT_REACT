@@ -3,6 +3,7 @@
 
 export { useTrip, NAV_ITEMS }          from "./hooks/useTrip";
 export { useGpsTracking }              from "./hooks/useGpsTracking";
+export { useTripMembers }              from "./hooks/useTripMembers";
 export { default as TripSidebar }      from "./components/TripSidebar";
 export { default as TripCard }         from "./components/TripCard";
 export { default as NewTripCard }      from "./components/NewTripCard";

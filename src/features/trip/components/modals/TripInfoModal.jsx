@@ -1,10 +1,15 @@
 import { useState } from "react";
 import { MEMBER_COLORS } from "./TripMapModal";
+import { useTripMembers } from "../../hooks/useTripMembers";
 
 // ─── TripInfoModal ────────────────────────────────────────────────────────────
 // 2 tabs: Info | Members
 function TripInfoModal({ trip, onClose, onRemoveMember }) {
   const [activeTab, setActiveTab] = useState("info");
+
+  // Realtime members từ Firestore
+  const { members: firestoreMembers } = useTripMembers(trip.id);
+  const memberUids = firestoreMembers.map((m) => m.uid);
 
   const badgeStyle = {
     waiting: "bg-yellow-100 text-yellow-800",
@@ -12,8 +17,6 @@ function TripInfoModal({ trip, onClose, onRemoveMember }) {
     ended:   "bg-gray-200 text-gray-700",
   };
   const badgeLabel = { waiting: "Waiting", active: "Active", ended: "Ended" };
-
-  const memberUids = Array.isArray(trip.member_uids) ? trip.member_uids : [];
 
   const fmtDate = (iso) => {
     if (!iso) return "—";
@@ -76,10 +79,10 @@ function TripInfoModal({ trip, onClose, onRemoveMember }) {
             {activeTab === "info" && (
               <div className="px-6 py-4 flex flex-col gap-4">
 
-                {/* Owner, Place Id */}
+                {/* Owner, Place */}
                 {[
-                  { label: "Owner",    value: trip.owner_uid || "—" },
-                  { label: "Place Id", value: trip.place_id || "—" },
+                  { label: "Owner", value: trip.owner?.display_name || trip.owner?.username || trip.owner_uid || "—" },
+                  { label: "Place", value: trip.place?.name || trip.place_id || "—" },
                 ].map((row) => (
                   <div key={row.label} className="flex items-start gap-3">
                     <span className="text-xs font-semibold text-gray-400 w-20 shrink-0 pt-0.5">{row.label}</span>
@@ -120,9 +123,18 @@ function TripInfoModal({ trip, onClose, onRemoveMember }) {
                 {memberUids.length === 0 && (
                   <p className="text-xs text-gray-400 py-4 text-center">Chưa có thành viên</p>
                 )}
-                {(trip.member_details || memberUids.map((uid) => ({ uid, joined_at: null }))).map((m, i) => {
-                  const joinedStr = m.joined_at
-                    ? new Date(m.joined_at).toLocaleString("vi-VN", {
+                {(firestoreMembers.length > 0 ? firestoreMembers : memberUids.map((uid) => ({ uid, joined_at: null }))).map((m, i) => {
+                  // joined_at từ Firestore là Timestamp object { seconds, nanoseconds }
+                  // cần dùng .toDate() thay vì new Date()
+                  const toDate = (val) => {
+                    if (!val) return null;
+                    if (typeof val.toDate === "function") return val.toDate();
+                    const d = new Date(val);
+                    return isNaN(d.getTime()) ? null : d;
+                  };
+                  const joinedDate = toDate(m.joined_at);
+                  const joinedStr = joinedDate
+                    ? joinedDate.toLocaleString("vi-VN", {
                         day: "2-digit", month: "2-digit", year: "numeric",
                         hour: "2-digit", minute: "2-digit",
                       })

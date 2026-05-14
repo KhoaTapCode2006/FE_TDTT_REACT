@@ -1,7 +1,7 @@
 import {
   useTrip,
+  NAV_ITEMS,
   useGpsTracking,
-  TripSidebar,
   TripCard,
   CreateTripModal,
   EditTripModal,
@@ -49,12 +49,36 @@ export default function TripPage() {
   useGpsTracking(trips.map((t) => t.id));
 
   return (
-    <div className="flex h-screen bg-gray-50 font-body overflow-hidden">
-      <TripSidebar
-        activeNav={activeNav}
-        onNavChange={setActiveNav}
-        onOpenCreate={() => setShowCreate(true)}
-      />
+    <div className="flex flex-col h-screen bg-gray-50 font-body overflow-hidden">
+
+      {/* Tab bar */}
+      <div className="bg-white border-b border-gray-100 px-8">
+        <div className="flex items-center justify-between">
+          <nav className="flex gap-1">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveNav(item.id)}
+                className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium border-b-2 transition-colors ${
+                  activeNav === item.id
+                    ? "border-gray-900 text-gray-900"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <span>{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 bg-gray-900 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-gray-700 transition-colors"
+          >
+            <span className="text-lg leading-none">+</span>
+            Create New Trip
+          </button>
+        </div>
+      </div>
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">

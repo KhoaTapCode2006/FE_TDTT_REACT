@@ -205,9 +205,16 @@ export function normalizeTripData(t) {
     }
   };
 
-  // Backend trả về members: [{ uid, joined_at }] hoặc member_uids: [string]
+  // Hỗ trợ cả 2 format:
+  // Format cũ: owner_uid (string), member_uids (string[]), members ([{uid, joined_at}])
+  // Format mới: owner: { uid, ... }, member_count (number), không có member_uids
+
+  // owner_uid
+  const ownerUid = t.owner_uid ?? t.owner?.uid ?? '';
+
+  // member uids
   let uids = [];
-  let memberDetails = []; // [{ uid, joined_at }]
+  let memberDetails = [];
   if (Array.isArray(t.members) && t.members.length > 0 && typeof t.members[0] === 'object') {
     memberDetails = t.members.filter((m) => m.uid).map((m) => ({ uid: m.uid, joined_at: m.joined_at || null }));
     uids = memberDetails.map((m) => m.uid);
@@ -216,24 +223,34 @@ export function normalizeTripData(t) {
     memberDetails = uids.map((uid) => ({ uid, joined_at: null }));
   }
 
+  // member_count: ưu tiên field từ backend, fallback về độ dài mảng uids
+  const memberCount = t.member_count ?? (uids.length > 0 ? uids.length : 0);
+
+  // place_id: hỗ trợ cả string lẫn object
+  const placeId = typeof t.place === 'string'
+    ? t.place
+    : (t.place?.place_id ?? t.place_id ?? '');
+
   const avatars = uids.slice(0, 2).map((uid) => uid.slice(0, 2).toUpperCase());
   const s = fmt(t.start_at);
   const e = fmt(t.end_at);
 
   return {
     id: t.id,
-    owner_uid: t.owner_uid,
+    owner_uid: ownerUid,
+    owner: t.owner ?? null,
     title: t.name || 'Untitled Trip',
-    place_id: t.place_id || '',
+    place_id: placeId,
+    place: t.place ?? null,
     status: t.status || 'waiting',
     dateRange: s && e ? `${s} - ${e}` : 'TBD',
     dateFrom: t.start_at || '',
     dateTo: t.end_at || '',
-    members: uids.length,
+    members: memberCount,
     member_uids: uids,
     member_details: memberDetails,
     avatars,
-    extra: Math.max(0, uids.length - 2),
+    extra: Math.max(0, memberCount - 2),
     created_at: t.created_at ? new Date(t.created_at) : null,
     updated_at: t.updated_at ? new Date(t.updated_at) : null,
   };
@@ -246,9 +263,9 @@ export function normalizeTripData(t) {
  */
 function extractTripData(response) {
   // Backend response format: { status_code, message, data: { trip: {...} } }
-  // or: { status_code, message, data: {...} }
-  console.log('[extractTripData] raw response.data:', JSON.stringify(response.data));
-  const trip = response.data?.data?.trip ?? response.data?.data;
+  // or: { status_code, message, data: {...} }  (create/update trả về data trực tiếp)
+  const raw = response.data?.data;
+  const trip = raw?.trip ?? raw;
   if (!trip || typeof trip !== 'object' || !trip.id) {
     console.error('extractTripData: unexpected response shape', response.data);
     throw new Error('Invalid response format from server');

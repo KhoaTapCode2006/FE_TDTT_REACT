@@ -1,6 +1,9 @@
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/config/firebase';
 
+//theo dõi vị trí địa lý theo thời gian thực cho một ứng dụng du lịch nhóm
+// lưu dữ liệu lên Firebase Firestore.
+
 /**
  * @typedef {'sharing'|'no_share'} TrackingStatus
  */

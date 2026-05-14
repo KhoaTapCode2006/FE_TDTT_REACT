@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
 import TripScheduleModal from "./modals/TripScheduleModal";
+import { useTripMembers } from "../hooks/useTripMembers";
 
 // ─── TripCard ─────────────────────────────────────────────────────────────────
 // currentUid: uid của user đang đăng nhập — dùng để phân biệt owner vs member
@@ -13,8 +14,9 @@ function TripCard({ trip, currentUid, onDelete, onLeave, onEdit, onView, onInfo,
   // { action: "start"|"end" } | null
   const [scheduleAction, setScheduleAction] = useState(null);
 
-  const memberUids  = Array.isArray(trip.member_uids) ? trip.member_uids : [];
-  const memberCount = memberUids.length;
+  // Realtime members từ Firestore
+  const { memberUids } = useTripMembers(trip.id);
+  const memberCount = memberUids.length > 0 ? memberUids.length : (trip.members ?? 0);
   const showMax     = 3;
   const visibleUids = memberUids.slice(0, showMax);
   const extraCount  = Math.max(0, memberCount - showMax);
