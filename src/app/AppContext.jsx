@@ -93,33 +93,34 @@ const AppContextProvider = ({ children }) => {
   }, [filters]);
 
   // Load mock backend data on mount for demo purposes
-  useEffect(() => {
-    // Load mock data for initial demo
-    const loadMockData = async () => {
-      try {
-        // Dynamic import để tránh circular dependency
-        const module = await import('@/constants/mock-backend-data');
-        const MOCK_BACKEND_DATA = module.MOCK_BACKEND_DATA;
-        
-        if (MOCK_BACKEND_DATA && MOCK_BACKEND_DATA.data) {
-          // Use the normalizeHotelResult function from utils/format.js
-          const { normalizeHotelResult } = await import('@/utils/format');
-          const transformedHotels = MOCK_BACKEND_DATA.data.map((hotel, index) => 
-            normalizeHotelResult(hotel, location)
-          ).filter(Boolean);
-          
-          console.log('✅ Loaded mock backend data, hotels count:', transformedHotels.length);
-          setHotels(transformedHotels);
-        }
-      } catch (err) {
-        console.warn('Note: Using MOCK_HOTELS from constants as fallback');
-        // Fallback to MOCK_HOTELS
-        setHotels(MOCK_HOTELS);
-      }
-    };
-
-    loadMockData();
-  }, [location]);
+  // DISABLED: HomePage now loads data from sample_output_2.json via loadMockHotels()
+  // useEffect(() => {
+  //   // Load mock data for initial demo
+  //   const loadMockData = async () => {
+  //     try {
+  //       // Dynamic import để tránh circular dependency
+  //       const module = await import('@/constants/mock-backend-data');
+  //       const MOCK_BACKEND_DATA = module.MOCK_BACKEND_DATA;
+  //       
+  //       if (MOCK_BACKEND_DATA && MOCK_BACKEND_DATA.data) {
+  //         // Use the normalizeHotelResult function from utils/format.js
+  //         const { normalizeHotelResult } = await import('@/utils/format');
+  //         const transformedHotels = MOCK_BACKEND_DATA.data.map((hotel, index) => 
+  //           normalizeHotelResult(hotel, location)
+  //         ).filter(Boolean);
+  //         
+  //         console.log('✅ Loaded mock backend data, hotels count:', transformedHotels.length);
+  //         setHotels(transformedHotels);
+  //       }
+  //     } catch (err) {
+  //       console.warn('Note: Using MOCK_HOTELS from constants as fallback');
+  //       // Fallback to MOCK_HOTELS
+  //       setHotels(MOCK_HOTELS);
+  //     }
+  //   };
+  //
+  //   loadMockData();
+  // }, [location]);
 
   // Clear filters when location changes (URL state synchronization)
   useEffect(() => {

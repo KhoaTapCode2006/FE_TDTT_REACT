@@ -51,23 +51,36 @@ function CollectionsDashboard() {
     }
   }, [notification]);
 
-  // Load liked collections on mount
+  // Load liked collections on mount and when global collections change
   useEffect(() => {
-    const loadLikedCollections = async () => {
-      try {
-        const likedCollections = await likedCollectionsService.getLikedCollections();
-        const likedIds = new Set(likedCollections.map(c => c.id));
+    const updateLikedCollectionIds = () => {
+      // For global collections, check the savers field
+      if (activeTab === 'global' && globalCollections.length > 0) {
+        const likedIds = new Set(
+          globalCollections
+            .filter(c => c.savers?.some(s => s.uid === user?.uid))
+            .map(c => c.id)
+        );
         setLikedCollectionIds(likedIds);
-      } catch (err) {
-        console.error('Failed to load liked collections:', err);
-        // Don't show error to user, just log it
+        console.log('📦 Updated liked collection IDs from global collections:', Array.from(likedIds));
+      }
+      
+      // For my collections, check the savers field
+      if (activeTab === 'my' && myCollections.length > 0) {
+        const likedIds = new Set(
+          myCollections
+            .filter(c => c.savers?.some(s => s.uid === user?.uid))
+            .map(c => c.id)
+        );
+        setLikedCollectionIds(likedIds);
+        console.log('📦 Updated liked collection IDs from my collections:', Array.from(likedIds));
       }
     };
 
     if (user?.uid) {
-      loadLikedCollections();
+      updateLikedCollectionIds();
     }
-  }, [user?.uid]);
+  }, [user?.uid, activeTab, globalCollections, myCollections]);
 
   // Load My Collections
   const loadMyCollections = useCallback(async () => {
@@ -247,29 +260,23 @@ function CollectionsDashboard() {
 
   // Handle like/unlike collection
   const handleLikeCollection = async (collectionId, shouldLike) => {
-    // Store previous state for rollback
-    const previousLikedIds = new Set(likedCollectionIds);
-
-    // Optimistic update
-    if (shouldLike) {
-      setLikedCollectionIds(prev => new Set([...prev, collectionId]));
-    } else {
-      setLikedCollectionIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(collectionId);
-        return newSet;
-      });
-    }
-
     try {
       if (shouldLike) {
         await likedCollectionsService.likeCollection(collectionId);
+        // Only update state after successful API call
+        setLikedCollectionIds(prev => new Set([...prev, collectionId]));
         setNotification({
           type: 'success',
           message: 'Collection liked successfully!',
         });
       } else {
         await likedCollectionsService.unlikeCollection(collectionId);
+        // Only update state after successful API call
+        setLikedCollectionIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(collectionId);
+          return newSet;
+        });
         setNotification({
           type: 'success',
           message: 'Collection unliked successfully!',
@@ -277,9 +284,6 @@ function CollectionsDashboard() {
       }
     } catch (err) {
       console.error('Failed to like/unlike collection:', err);
-      
-      // Rollback on failure
-      setLikedCollectionIds(previousLikedIds);
       
       // Show error notification
       setNotification({

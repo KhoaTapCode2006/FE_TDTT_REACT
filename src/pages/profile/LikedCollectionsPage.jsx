@@ -52,26 +52,36 @@ const LikedCollectionsPage = () => {
   };
 
   /**
-   * Handle unlike collection with optimistic update
+   * Handle like/unlike collection
    */
-  const handleUnlikeCollection = async (collectionId) => {
+  const handleLikeCollection = async (collectionId, shouldLike) => {
     // Store previous state for rollback
     const previousCollections = [...collections];
     const collection = collections.find(c => c.id === collectionId);
 
-    // Optimistic update - remove from list immediately
-    setCollections(collections.filter(c => c.id !== collectionId));
+    // Optimistic update - remove from list immediately when unliking
+    if (!shouldLike) {
+      setCollections(collections.filter(c => c.id !== collectionId));
+    }
 
     try {
-      await likedCollectionsService.unlikeCollection(collectionId);
-      
-      // Show success notification
-      setNotification({
-        type: 'success',
-        message: `Unliked "${collection?.name || 'collection'}" successfully!`,
-      });
+      if (shouldLike) {
+        await likedCollectionsService.likeCollection(collectionId);
+        // Show success notification
+        setNotification({
+          type: 'success',
+          message: 'Collection liked successfully!',
+        });
+      } else {
+        await likedCollectionsService.unlikeCollection(collectionId);
+        // Show success notification
+        setNotification({
+          type: 'success',
+          message: `Unliked "${collection?.name || 'collection'}" successfully!`,
+        });
+      }
     } catch (err) {
-      console.error('Error unliking collection:', err);
+      console.error('Error liking/unliking collection:', err);
       
       // Rollback on failure
       setCollections(previousCollections);
@@ -79,7 +89,7 @@ const LikedCollectionsPage = () => {
       // Show error notification
       setNotification({
         type: 'error',
-        message: err.message || 'Failed to unlike collection. Please try again.',
+        message: err.message || `Failed to ${shouldLike ? 'like' : 'unlike'} collection. Please try again.`,
       });
     }
   };
@@ -204,11 +214,12 @@ const LikedCollectionsPage = () => {
                         key={collection.id}
                         collection={collection}
                         isOwner={user?.uid === collection.owner_uid}
-                        onSave={handleUnlikeCollection}
-                        isSaved={true}
                         showActions={true}
                         returnTab="liked-collections"
                         currentUserId={user?.uid}
+                        isLiked={true}
+                        onLike={handleLikeCollection}
+                        showLikeButton={true}
                       />
                     ))}
                   </div>

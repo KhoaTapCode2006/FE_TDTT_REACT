@@ -3,22 +3,57 @@ import { useApp } from "@/app/AppContext";
 import HotelCard from "./HotelCard";
 import Icon from "@/components/ui/Icon";
 
-function HotelSidebar({ onFilterOpen }) {
+function HotelSidebar({ onFilterOpen, layoutMode = 'list' }) {
   const { hotels, loading, setActiveHotel, hasActiveFilters, activeFilterCount, clusterHotels, activeHotel } = useApp();
   const [idx, setIdx] = useState(0);
+  const [viewMode, setViewMode] = useState('list'); // Internal view mode for grid toggle
+  const [gridColumns, setGridColumns] = useState(1); // 1, 2, or 3 columns
+  const [gridPageIndex, setGridPageIndex] = useState(0); // Pagination state for grid layout
 
   useEffect(() => {
     setIdx(0);
+    setGridPageIndex(0); // Reset grid page when hotels change
   }, [hotels]);
+
+  // Update view mode when layout mode changes
+  useEffect(() => {
+    if (layoutMode === 'grid') {
+      setViewMode('grid');
+    } else {
+      setViewMode('list');
+    }
+  }, [layoutMode]);
 
   const total = hotels.length;
   const current = hotels[idx] || null;
   const isFirst = idx === 0;
   const isLast = idx === total - 1;
   const hasCluster = clusterHotels && clusterHotels.length > 0;
+  const isGridMode = viewMode === 'grid';
+  const showMultiHotelButton = layoutMode === 'grid'; // Show button when map is narrow
+  
+  // Calculate hotels to display based on grid layout and page
+  const hotelsPerPage = gridColumns;
+  const startIndex = gridPageIndex * hotelsPerPage;
+  const endIndex = startIndex + hotelsPerPage;
+  const paginatedHotels = hotels.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(hotels.length / hotelsPerPage);
+  const isFirstPage = gridPageIndex === 0;
+  const isLastPage = gridPageIndex === totalPages - 1;
+  
+  // Cycle through grid layouts: 1x1 -> 1x2 -> 1x3 -> 1x1
+  const cycleGridLayout = () => {
+    setGridColumns(prev => prev === 3 ? 1 : prev + 1);
+    setGridPageIndex(0); // Reset to first page when layout changes
+  };
+  
+  // Get grid layout label
+  const getGridLayoutLabel = () => {
+    return `1x${gridColumns}`;
+  };
 
   return (
-    <aside className="w-full md:w-[420px] lg:w-[460px] bg-surface-container-lowest border-l border-outline-variant/20 flex flex-col overflow-hidden">
+    <aside className="w-full bg-surface-container-lowest border-l border-outline-variant/20 flex flex-col overflow-hidden">
       <div className="bg-surface-container-lowest/95 backdrop-blur-sm z-10 px-6 pt-6 pb-4 border-b border-outline-variant/10 flex-none">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -27,8 +62,18 @@ function HotelSidebar({ onFilterOpen }) {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold uppercase tracking-widest text-secondary">
-              {loading ? "…" : total === 0 ? "0 Results" : `${idx + 1} / ${total} Results`}
+              {loading ? "…" : total === 0 ? "0 Results" : `${isGridMode ? total : idx + 1 + ' / ' + total} Results`}
             </span>
+            {showMultiHotelButton && !hasCluster && total > 0 && (
+              <button
+                type="button"
+                onClick={() => setViewMode(isGridMode ? 'list' : 'grid')}
+                className="flex items-center gap-1.5 bg-primary text-white px-3 py-2 rounded-xl font-bold text-xs hover:brightness-95 transition-all active:scale-95"
+              >
+                <Icon name={isGridMode ? "view_agenda" : "grid_view"} size={18} />
+                {isGridMode ? "Single View" : "Multi-Hotel View"}
+              </button>
+            )}
             <button
               type="button"
               onClick={onFilterOpen}
@@ -96,7 +141,57 @@ function HotelSidebar({ onFilterOpen }) {
               ))}
             </div>
           </div>
+        ) : isGridMode ? (
+          // Grid layout - show multiple hotels
+          <div className="h-full overflow-y-auto">
+            <div className={`grid gap-4 ${
+              gridColumns === 1 ? 'grid-cols-1' : 
+              gridColumns === 2 ? 'grid-cols-2' : 
+              'grid-cols-3'
+            }`}>
+              {paginatedHotels.map((hotel) => (
+                <HotelCard 
+                  key={hotel.id} 
+                  hotel={hotel} 
+                  onClick={setActiveHotel} 
+                />
+              ))}
+            </div>
+            
+            {/* Grid Layout Navigation and Toggle Buttons - Fixed at bottom */}
+            <div className="sticky bottom-0 left-0 right-0 mt-4 pb-4 flex items-center justify-center gap-4">
+              <button
+                type="button"
+                onClick={() => setGridPageIndex(prev => Math.max(0, prev - 1))}
+                disabled={isFirstPage}
+                className="flex items-center gap-2 bg-white text-primary px-4 py-3 rounded-full font-bold text-sm shadow-lg hover:brightness-95 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <Icon name="chevron_left" size={20} />
+                Previous
+              </button>
+              
+              <button
+                type="button"
+                onClick={cycleGridLayout}
+                className="flex items-center gap-2 bg-primary text-white px-4 py-3 rounded-full font-bold text-sm shadow-lg hover:brightness-95 transition-all active:scale-95"
+              >
+                <Icon name="grid_view" size={20} />
+                Layout: {getGridLayoutLabel()}
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setGridPageIndex(prev => Math.min(totalPages - 1, prev + 1))}
+                disabled={isLastPage}
+                className="flex items-center gap-2 bg-white text-primary px-4 py-3 rounded-full font-bold text-sm shadow-lg hover:brightness-95 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Next
+                <Icon name="chevron_right" size={20} />
+              </button>
+            </div>
+          </div>
         ) : (
+          // List layout - single hotel card with navigation
           <div className="relative h-full">
             <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-2">
               <button

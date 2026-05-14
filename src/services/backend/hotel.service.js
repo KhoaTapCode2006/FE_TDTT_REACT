@@ -2,6 +2,7 @@
 import { tokenManager } from '../../utils/tokenManager.js';
 import { transformDiscoverHotel, transformDiscoverRequest } from '../../utils/schemaTransformers.js';
 import { normalizeHotelResult } from '../../utils/format.js';
+import { loadMockHotels } from './hotelData.service.js';
 
 // Result caching
 const resultCache = new Map();
@@ -245,26 +246,20 @@ export async function searchHotels({
     console.error("searchHotels error:", error);
     
     // For demo purposes, return mock data when API fails
-    console.log('API failed, loading mock data for demo...');
+    console.log('API failed, loading mock data from sample_output_2.json via hotelData service...');
     
     try {
-      // Load mock backend data as fallback
-      const module = await import('../../constants/mock-backend-data.js');
-      const MOCK_BACKEND_DATA = module.MOCK_BACKEND_DATA;
+      // Load mock data from sample_output_2.json via hotelData service
+      const mockHotels = await loadMockHotels();
       
-      if (MOCK_BACKEND_DATA && MOCK_BACKEND_DATA.data) {
-        // Transform mock data using schema transformers
-        const transformedHotels = MOCK_BACKEND_DATA.data.map((item, index) => transformDiscoverHotel(item, index));
-        const normalizedHotels = transformedHotels.map((item) => normalizeHotelResult(item, location));
-        const finalResults = applyClientSideFiltersOnNormalized(normalizedHotels, filters);
-        
-        console.log(`Mock data loaded: ${MOCK_BACKEND_DATA.data.length} raw → ${transformedHotels.length} transformed → ${normalizedHotels.length} normalized → ${finalResults.length} final results`);
-        
-        // Cache the mock results
-        setCachedResult(cacheKey, finalResults);
-        
-        return finalResults;
-      }
+      // Apply filters to mock data
+      const finalResults = applyClientSideFiltersOnNormalized(mockHotels, filters);
+      
+      console.log(`Mock data loaded: ${mockHotels.length} hotels → ${finalResults.length} after filters`);
+      
+      // Cache and return
+      setCachedResult(cacheKey, finalResults);
+      return finalResults;
     } catch (mockError) {
       console.error('Failed to load mock data:', mockError);
     }
