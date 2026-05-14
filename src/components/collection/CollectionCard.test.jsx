@@ -33,7 +33,7 @@ describe('CollectionCard - Task 4.3: Save Handler', () => {
     places: [{ id: '1' }, { id: '2' }],
     saved_count: 10,
     owner_uid: 'owner-123',
-    collaborators: [],
+    contributors: [],
     views: { total_views: 100, weekly_views: 20 },
   };
 

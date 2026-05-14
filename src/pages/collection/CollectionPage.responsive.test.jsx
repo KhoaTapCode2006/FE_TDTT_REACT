@@ -52,7 +52,7 @@ const mockCollection = {
   places: [
     { place_id: 'place1', added_by: 'user1', added_at: '2024-01-01' },
   ],
-  collaborators: [
+  contributors: [
     { uid: 'collab1', contributed_count: 5, joined_at: '2024-01-01' },
   ],
   saved_count: 10,
@@ -77,6 +77,7 @@ describe('CollectionPage - Responsive Design (Task 7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     collectionService.getCollection.mockResolvedValue(mockCollection);
+    collectionService.getCollectionContributors = vi.fn().mockResolvedValue(mockCollection.contributors);
   });
 
   describe('REQ-7: Responsive Tab Navigation', () => {
@@ -124,7 +125,7 @@ describe('CollectionPage - Responsive Design (Task 7)', () => {
       // Verify all three tabs are present
       const infoTab = screen.getByRole('tab', { name: /thông tin collection/i });
       const placesTab = screen.getByRole('tab', { name: /địa điểm trong collection/i });
-      const contributorsTab = screen.getByRole('tab', { name: /cộng tác viên của collection/i });
+      const contributorsTab = screen.getByRole('tab', { name: /người đóng góp trong collection/i });
 
       expect(infoTab).toBeInTheDocument();
       expect(placesTab).toBeInTheDocument();
@@ -133,7 +134,7 @@ describe('CollectionPage - Responsive Design (Task 7)', () => {
       // Verify tabs have text labels
       expect(within(infoTab).getByText('Thông tin')).toBeInTheDocument();
       expect(within(placesTab).getByText('Địa điểm')).toBeInTheDocument();
-      expect(within(contributorsTab).getByText('Cộng tác viên')).toBeInTheDocument();
+      expect(within(contributorsTab).getByText('Người đóng góp')).toBeInTheDocument();
     });
 
     it('should maintain readable text on all screen sizes', async () => {

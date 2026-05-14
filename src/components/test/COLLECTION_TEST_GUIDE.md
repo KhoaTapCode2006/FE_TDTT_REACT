@@ -29,7 +29,7 @@ Component `CollectionTest.jsx` cung cấp giao diện đơn giản để test Co
   - Basic Info (name, description, visibility, owner, dates)
   - Tags list
   - Places list (với place_id, added_by, added_at)
-  - Collaborators list
+  - Contributors list
   - Savers list
   - Raw JSON data
 
@@ -65,7 +65,7 @@ Component hiển thị đầy đủ thông tin collection:
 - Added at (Date)
 - Hiển thị dạng list items
 
-### Collaborators
+### Contributors
 - User UID
 - Contribution count
 - Joined at (Date)
@@ -214,8 +214,9 @@ Sau khi test thành công với component này, bạn có thể:
    - updateCollection
    - deleteCollection
    - removePlacesFromCollection
-   - addCollaboratorsToCollection
-   - removeCollaboratorsFromCollection
+   - addContributorsToCollection
+   - removeContributorsFromCollection
+   - getCollectionContributors
    - addTagsToCollection
    - removeTagsFromCollection
 

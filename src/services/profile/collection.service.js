@@ -413,113 +413,103 @@ class CollectionService {
   }
 
   /**
-   * Add multiple collaborators to a collection
+   * Add multiple contributors to a collection
    * @param {string} collectionId - Collection ID
-   * @param {Array<string>} collaboratorUids - Array of user IDs to add
+   * @param {Array<string>} contributorUids - Array of user IDs to add
    * @returns {Promise<Object>} Updated collection
    */
-  async addCollaborators(collectionId, collaboratorUids) {
+  async addContributors(collectionId, contributorUids) {
     try {
       await this.ensureValidToken();
-      
-      // Validate input
-      if (!Array.isArray(collaboratorUids) || collaboratorUids.length === 0) {
-        throw new Error('Collaborator UIDs must be a non-empty array');
+
+      if (!Array.isArray(contributorUids) || contributorUids.length === 0) {
+        throw new Error('Contributor UIDs must be a non-empty array');
       }
-      
-      if (collaboratorUids.length > 50) {
-        throw new Error('Cannot add more than 50 collaborators at once');
+
+      if (contributorUids.length > 50) {
+        throw new Error('Cannot add more than 50 contributors at once');
       }
-      
-      // Add collaborators via backend API
-      const backendCollection = await apiClient.post(`/collections/${collectionId}/collaborators`, {
-        collaborator_uids: collaboratorUids
+
+      const backendCollection = await apiClient.post(`/collections/${collectionId}/contributors`, {
+        contributor_uids: contributorUids,
       });
-      
-      // Transform backend response to frontend format
+
       return transformCollection(backendCollection);
     } catch (error) {
-      console.error('Error adding collaborators:', error);
-      
+      console.error('Error adding contributors:', error);
+
       if (error.status === 401) {
         throw new Error('Session expired. Please log in again.');
       }
-      
+
       if (error.status === 403) {
         throw new Error('You do not have permission to modify this collection.');
       }
-      
+
       if (error.status === 404) {
         throw new Error('Collection not found.');
       }
-      
-      throw new Error(error.message || 'Failed to add collaborators. Please try again.');
+
+      throw new Error(error.message || 'Failed to add contributors. Please try again.');
     }
   }
 
   /**
-   * Remove multiple collaborators from a collection
+   * Remove multiple contributors from a collection
    * @param {string} collectionId - Collection ID
-   * @param {Array<string>} collaboratorUids - Array of user IDs to remove
+   * @param {Array<string>} contributorUids - Array of user IDs to remove
    * @returns {Promise<Object>} Updated collection
    */
-  async removeCollaborators(collectionId, collaboratorUids) {
+  async removeContributors(collectionId, contributorUids) {
     try {
       await this.ensureValidToken();
-      
-      // Validate input
-      if (!Array.isArray(collaboratorUids) || collaboratorUids.length === 0) {
-        throw new Error('Collaborator UIDs must be a non-empty array');
+
+      if (!Array.isArray(contributorUids) || contributorUids.length === 0) {
+        throw new Error('Contributor UIDs must be a non-empty array');
       }
-      
-      if (collaboratorUids.length > 50) {
-        throw new Error('Cannot remove more than 50 collaborators at once');
+
+      if (contributorUids.length > 50) {
+        throw new Error('Cannot remove more than 50 contributors at once');
       }
-      
-      // Remove collaborators via backend API
-      const backendCollection = await apiClient.delete(`/collections/${collectionId}/collaborators`, {
-        collaborator_uids: collaboratorUids
+
+      const backendCollection = await apiClient.delete(`/collections/${collectionId}/contributors`, {
+        data: { contributor_uids: contributorUids },
       });
-      
-      // Transform backend response to frontend format
+
       return transformCollection(backendCollection);
     } catch (error) {
-      console.error('Error removing collaborators:', error);
-      
+      console.error('Error removing contributors:', error);
+
       if (error.status === 401) {
         throw new Error('Session expired. Please log in again.');
       }
-      
+
       if (error.status === 403) {
         throw new Error('You do not have permission to modify this collection.');
       }
-      
+
       if (error.status === 404) {
         throw new Error('Collection not found.');
       }
-      
-      throw new Error(error.message || 'Failed to remove collaborators. Please try again.');
+
+      throw new Error(error.message || 'Failed to remove contributors. Please try again.');
     }
   }
 
   /**
-   * Add a collaborator to a collection (backward compatibility wrapper)
-   * @param {string} collectionId - Collection ID
-   * @param {string} userId - User ID to add as collaborator
-   * @returns {Promise<Object>} Updated collection
+   * @param {string} collectionId
+   * @param {string} userId
    */
-  async addCollaborator(collectionId, userId) {
-    return this.addCollaborators(collectionId, [userId]);
+  async addContributor(collectionId, userId) {
+    return this.addContributors(collectionId, [userId]);
   }
 
   /**
-   * Remove a collaborator from a collection (backward compatibility wrapper)
-   * @param {string} collectionId - Collection ID
-   * @param {string} userId - User ID to remove as collaborator
-   * @returns {Promise<Object>} Updated collection
+   * @param {string} collectionId
+   * @param {string} userId
    */
-  async removeCollaborator(collectionId, userId) {
-    return this.removeCollaborators(collectionId, [userId]);
+  async removeContributor(collectionId, userId) {
+    return this.removeContributors(collectionId, [userId]);
   }
 
   /**

@@ -647,6 +647,13 @@ export function transformUserProfile(backendUser) {
           }));
         }
         
+        if (Array.isArray(col.contributors)) {
+          col.contributors = col.contributors.map((c) => ({
+            ...c,
+            joinedAt: c.joinedAt ? parseISODate(c.joinedAt) : c.joinedAt
+          }));
+        }
+
         if (Array.isArray(col.collaborators)) {
           col.collaborators = col.collaborators.map(collab => ({
             ...collab,
@@ -681,6 +688,13 @@ export function transformUserProfile(backendUser) {
           }));
         }
         
+        if (Array.isArray(col.contributors)) {
+          col.contributors = col.contributors.map((c) => ({
+            ...c,
+            joinedAt: c.joinedAt ? parseISODate(c.joinedAt) : c.joinedAt
+          }));
+        }
+
         if (Array.isArray(col.collaborators)) {
           col.collaborators = col.collaborators.map(collab => ({
             ...collab,
@@ -957,6 +971,13 @@ export function transformCollection(backendCollection) {
       transformed.savers = transformed.savers.map(saver => ({
         ...saver,
         savedAt: saver.savedAt ? parseISODate(saver.savedAt) : saver.savedAt
+      }));
+    }
+
+    if (Array.isArray(transformed.contributors)) {
+      transformed.contributors = transformed.contributors.map((c) => ({
+        ...c,
+        joinedAt: c.joinedAt ? parseISODate(c.joinedAt) : c.joinedAt
       }));
     }
 

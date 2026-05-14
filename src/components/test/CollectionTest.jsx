@@ -218,19 +218,19 @@ function CollectionTest() {
           </div>
 
           <div style={styles.dataSection}>
-            <h3>Collaborators ({collection.collaborators?.length || 0})</h3>
-            {collection.collaborators && collection.collaborators.length > 0 ? (
+            <h3>Contributors ({collection.contributors?.length || 0})</h3>
+            {collection.contributors && collection.contributors.length > 0 ? (
               <ul style={styles.list}>
-                {collection.collaborators.map((collab, index) => (
+                {collection.contributors.map((c, index) => (
                   <li key={index} style={styles.listItem}>
-                    <strong>UID:</strong> {collab.uid}<br />
-                    <small>Contributions: {collab.contributed_count}</small><br />
-                    <small>Joined: {collab.joined_at?.toLocaleString()}</small>
+                    <strong>UID:</strong> {c.uid}<br />
+                    <small>Contributions: {c.contributed_count}</small><br />
+                    <small>Joined: {c.joined_at?.toLocaleString()}</small>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p>No collaborators</p>
+              <p>No contributors</p>
             )}
           </div>
 

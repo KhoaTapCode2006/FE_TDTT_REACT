@@ -888,9 +888,9 @@ describe('CollectionPage - Task 1: Tab Navigation State and Configuration', () =
       },
       {
         id: 'contributors',
-        label: 'Cộng tác viên',
+        label: 'Người đóng góp',
         icon: 'group',
-        ariaLabel: 'Cộng tác viên của collection'
+        ariaLabel: 'Người đóng góp trong collection'
       }
     ];
 
@@ -920,9 +920,9 @@ describe('CollectionPage - Task 1: Tab Navigation State and Configuration', () =
       expect(placesTab.label).toBe('Địa điểm');
     });
 
-    it('should have Vietnamese label "Cộng tác viên" for contributors tab', () => {
+    it('should have Vietnamese label "Người đóng góp" for contributors tab', () => {
       const contributorsTab = TABS.find(tab => tab.id === 'contributors');
-      expect(contributorsTab.label).toBe('Cộng tác viên');
+      expect(contributorsTab.label).toBe('Người đóng góp');
     });
 
     it('should have "info" icon for info tab', () => {
@@ -952,7 +952,7 @@ describe('CollectionPage - Task 1: Tab Navigation State and Configuration', () =
 
     it('should have ariaLabel for contributors tab', () => {
       const contributorsTab = TABS.find(tab => tab.id === 'contributors');
-      expect(contributorsTab.ariaLabel).toBe('Cộng tác viên của collection');
+      expect(contributorsTab.ariaLabel).toBe('Người đóng góp trong collection');
     });
 
     it('should have all required properties for each tab', () => {
@@ -1061,7 +1061,7 @@ describe('CollectionPage - Task 1: Tab Navigation State and Configuration', () =
       const TABS = [
         { id: 'info', label: 'Thông tin', icon: 'info', ariaLabel: 'Thông tin collection' },
         { id: 'places', label: 'Địa điểm', icon: 'location_on', ariaLabel: 'Địa điểm trong collection' },
-        { id: 'contributors', label: 'Cộng tác viên', icon: 'group', ariaLabel: 'Cộng tác viên của collection' }
+        { id: 'contributors', label: 'Người đóng góp', icon: 'group', ariaLabel: 'Người đóng góp trong collection' }
       ];
       
       expect(TABS).toHaveLength(3);
@@ -1071,19 +1071,19 @@ describe('CollectionPage - Task 1: Tab Navigation State and Configuration', () =
       const TABS = [
         { id: 'info', label: 'Thông tin', icon: 'info', ariaLabel: 'Thông tin collection' },
         { id: 'places', label: 'Địa điểm', icon: 'location_on', ariaLabel: 'Địa điểm trong collection' },
-        { id: 'contributors', label: 'Cộng tác viên', icon: 'group', ariaLabel: 'Cộng tác viên của collection' }
+        { id: 'contributors', label: 'Người đóng góp', icon: 'group', ariaLabel: 'Người đóng góp trong collection' }
       ];
       
       expect(TABS[0].label).toBe('Thông tin');
       expect(TABS[1].label).toBe('Địa điểm');
-      expect(TABS[2].label).toBe('Cộng tác viên');
+      expect(TABS[2].label).toBe('Người đóng góp');
     });
 
     it('validates REQ-1: Icons match design (info, location_on, group)', () => {
       const TABS = [
         { id: 'info', label: 'Thông tin', icon: 'info', ariaLabel: 'Thông tin collection' },
         { id: 'places', label: 'Địa điểm', icon: 'location_on', ariaLabel: 'Địa điểm trong collection' },
-        { id: 'contributors', label: 'Cộng tác viên', icon: 'group', ariaLabel: 'Cộng tác viên của collection' }
+        { id: 'contributors', label: 'Người đóng góp', icon: 'group', ariaLabel: 'Người đóng góp trong collection' }
       ];
       
       expect(TABS[0].icon).toBe('info');

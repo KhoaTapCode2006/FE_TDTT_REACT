@@ -45,8 +45,7 @@ const { collectionService } = await import('./collection.service.js');
 
 describe('Collection Service - Save/Unsave Functionality', () => {
   const mockCollectionId = 'test-collection-123';
-  const mockToken = 'mock-auth-token';
-  
+
   const mockSavedCollection = {
     status_code: 200,
     message: 'Collection saved successfully.',
@@ -63,35 +62,13 @@ describe('Collection Service - Save/Unsave Functionality', () => {
         visibility: 'public',
         tags: ['test'],
         places: [],
-        collaborators: [],
+        contributors: [],
         savers: [
           {
             uid: 'test-user-123',
             saved_at: '2024-01-15T10:30:00Z',
           },
         ],
-      },
-    },
-  };
-
-  const mockUnsavedCollection = {
-    status_code: 200,
-    message: 'Collection unsaved successfully.',
-    data: {
-      collection: {
-        id: mockCollectionId,
-        owner_uid: 'owner-123',
-        name: 'Test Collection',
-        description: 'Test description',
-        thumbnail_url: null,
-        created_at: '2024-01-15T10:00:00Z',
-        updated_at: '2024-01-15T10:00:00Z',
-        saved_count: 14,
-        visibility: 'public',
-        tags: ['test'],
-        places: [],
-        collaborators: [],
-        savers: [],
       },
     },
   };
@@ -106,38 +83,30 @@ describe('Collection Service - Save/Unsave Functionality', () => {
   });
 
   describe('saveCollection()', () => {
-    it('should call POST /collections/{collection_id}/save endpoint', async () => {
-      // Axios wraps the backend response in a data property
-      mockAxiosInstance.post.mockResolvedValue({ data: mockSavedCollection });
+    it('should call POST /me/saved-collections with collection_id body', async () => {
+      mockAxiosInstance.post.mockResolvedValue({ status: 200, data: mockSavedCollection });
 
-      const result = await collectionService.saveCollection(mockCollectionId);
+      await collectionService.saveCollection(mockCollectionId);
 
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
-        `/collections/${mockCollectionId}/save`
-      );
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/me/saved-collections', {
+        collection_id: mockCollectionId,
+      });
     });
 
-    it('should return collection data with savers array', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: mockSavedCollection });
+    it('should return true on 200', async () => {
+      mockAxiosInstance.post.mockResolvedValue({ status: 200, data: {} });
 
       const result = await collectionService.saveCollection(mockCollectionId);
 
-      expect(result).toBeDefined();
-      expect(result.id).toBe(mockCollectionId);
-      expect(result.saved_count).toBe(15);
-      expect(result.savers).toHaveLength(1);
-      expect(result.savers[0].uid).toBe('test-user-123');
-      expect(result.savers[0].saved_at).toBeInstanceOf(Date);
+      expect(result).toBe(true);
     });
 
-    it('should transform date strings to Date objects', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: mockSavedCollection });
+    it('should return true on 201', async () => {
+      mockAxiosInstance.post.mockResolvedValue({ status: 201, data: {} });
 
       const result = await collectionService.saveCollection(mockCollectionId);
 
-      expect(result.created_at).toBeInstanceOf(Date);
-      expect(result.updated_at).toBeInstanceOf(Date);
-      expect(result.savers[0].saved_at).toBeInstanceOf(Date);
+      expect(result).toBe(true);
     });
 
     it('should handle 400 error (already saved)', async () => {
@@ -206,25 +175,22 @@ describe('Collection Service - Save/Unsave Functionality', () => {
   });
 
   describe('unsaveCollection()', () => {
-    it('should call DELETE /collections/{collection_id}/save endpoint', async () => {
-      mockAxiosInstance.delete.mockResolvedValue({ data: mockUnsavedCollection });
+    it('should call DELETE /me/saved-collections/{collection_id}', async () => {
+      mockAxiosInstance.delete.mockResolvedValue({ status: 200, data: {} });
 
-      const result = await collectionService.unsaveCollection(mockCollectionId);
+      await collectionService.unsaveCollection(mockCollectionId);
 
       expect(mockAxiosInstance.delete).toHaveBeenCalledWith(
-        `/collections/${mockCollectionId}/save`
+        `/me/saved-collections/${mockCollectionId}`
       );
     });
 
-    it('should return collection data with empty savers array', async () => {
-      mockAxiosInstance.delete.mockResolvedValue({ data: mockUnsavedCollection });
+    it('should return true on success', async () => {
+      mockAxiosInstance.delete.mockResolvedValue({ status: 200, data: {} });
 
       const result = await collectionService.unsaveCollection(mockCollectionId);
 
-      expect(result).toBeDefined();
-      expect(result.id).toBe(mockCollectionId);
-      expect(result.saved_count).toBe(14);
-      expect(result.savers).toHaveLength(0);
+      expect(result).toBe(true);
     });
 
     it('should handle 403 error (permission denied)', async () => {
@@ -279,33 +245,13 @@ describe('Collection Service - Save/Unsave Functionality', () => {
     });
   });
 
-  describe('Response Transformation', () => {
-    it('should include saved_count field in response', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: mockSavedCollection });
+  describe('Response handling', () => {
+    it('should return false when status is not 200/201', async () => {
+      mockAxiosInstance.post.mockResolvedValue({ status: 204, data: {} });
 
       const result = await collectionService.saveCollection(mockCollectionId);
 
-      expect(result).toHaveProperty('saved_count');
-      expect(typeof result.saved_count).toBe('number');
-    });
-
-    it('should include savers array in response', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: mockSavedCollection });
-
-      const result = await collectionService.saveCollection(mockCollectionId);
-
-      expect(result).toHaveProperty('savers');
-      expect(Array.isArray(result.savers)).toBe(true);
-    });
-
-    it('should transform savers array with uid and saved_at fields', async () => {
-      mockAxiosInstance.post.mockResolvedValue({ data: mockSavedCollection });
-
-      const result = await collectionService.saveCollection(mockCollectionId);
-
-      expect(result.savers[0]).toHaveProperty('uid');
-      expect(result.savers[0]).toHaveProperty('saved_at');
-      expect(result.savers[0].saved_at).toBeInstanceOf(Date);
+      expect(result).toBe(false);
     });
   });
 

@@ -7,13 +7,14 @@ import Icon from '@/components/ui/Icon';
  * Displays a collection card with thumbnail, name, description, tags, and actions
  * 
  * @param {Object} props
- * @param {Object} props.collection - Collection data object containing id, name, description, thumbnail_url, tags, places, visibility, saved_count, owner_uid, collaborators, and views
+ * @param {Object} props.collection - Collection data object containing id, name, description, thumbnail_url, tags, places, visibility, saved_count, owner_uid, contributors, and views
  * @param {boolean} props.isOwner - Whether current user owns this collection. If true, shows edit/delete actions instead of save button
  * @param {Function} props.onDelete - Callback when delete button is clicked. Signature: (collectionId: string) => Promise<void>
  * @param {Function} props.onSave - Callback when save/unsave button is clicked. Signature: (collectionId: string, shouldSave: boolean) => Promise<void>. The shouldSave parameter indicates the desired state (true to save, false to unsave)
  * @param {boolean} props.isSaved - Whether collection is currently saved by the current user. Used to display the correct icon state (filled heart if saved, outline heart if not saved)
  * @param {boolean} props.showActions - Whether to show action buttons (edit/delete for owners, save for non-owners)
- * @param {string} props.returnTab - Tab to return to when navigating back from collection page ('my' or 'global')
+ * @param {string} props.returnTab - Main dashboard tab when going back: 'my' or 'global'
+ * @param {string} [props.returnMyTab] - When returnTab is 'my', sub-tab: 'owned' | 'contributing' | 'saved'
  * @param {string} props.currentUserId - Current user's UID for displaying "You" in contributors list
  */
 function CollectionCard({ 
@@ -24,18 +25,23 @@ function CollectionCard({
   isSaved = false,
   showActions = true,
   returnTab = 'my',
+  returnMyTab = null,
   currentUserId = null
 }) {
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  const returnState = returnMyTab
+    ? { returnTab, returnMyTab }
+    : { returnTab };
+
   const handleEdit = () => {
-    navigate(`/collections/${collection.id}`, { state: { autoEdit: true, returnTab } });
+    navigate(`/collections/${collection.id}`, { state: { autoEdit: true, ...returnState } });
   };
 
   const handleView = () => {
-    navigate(`/collections/${collection.id}`, { state: { returnTab } });
+    navigate(`/collections/${collection.id}`, { state: { ...returnState } });
   };
 
   const handleDelete = async () => {
@@ -65,33 +71,41 @@ function CollectionCard({
     }
   };
 
-  // Build contributors list: owner + collaborators, with "You" first
+  // Build display list: owner + other contributors, with "You" first
   const getContributorsList = () => {
     const contributors = [];
-    
-    // Check if current user is owner
-    if (currentUserId && collection.owner_uid === currentUserId) {
-      contributors.push({ uid: currentUserId, label: 'You', isOwner: true });
-    } else if (collection.owner_uid) {
-      contributors.push({ 
-        uid: collection.owner_uid, 
-        label: `${collection.owner_uid.substring(0, 8)}...`,
-        isOwner: true 
-      });
+    const ownerUid = collection.owner?.uid ?? collection.owner_uid;
+
+    if (ownerUid) {
+      let label;
+      if (currentUserId && ownerUid === currentUserId) {
+        label = 'You';
+      } else if (collection.owner?.display_name) {
+        label = collection.owner.display_name;
+      } else if (collection.owner?.username) {
+        label = collection.owner.username;
+      } else {
+        label = `${ownerUid.substring(0, 8)}...`;
+      }
+      contributors.push({ uid: ownerUid, label, isOwner: true });
     }
-    
-    // Add collaborators (excluding current user if they're already added as owner)
-    if (collection.collaborators && collection.collaborators.length > 0) {
-      collection.collaborators.forEach(collab => {
-        // Skip if this collaborator is the current user and already added as owner
-        if (collab.uid === currentUserId && contributors.some(c => c.uid === currentUserId)) {
+
+    if (collection.contributors && collection.contributors.length > 0) {
+      collection.contributors.forEach((c) => {
+        if (ownerUid && c.uid === ownerUid) {
           return;
         }
-        
+        if (c.uid === currentUserId && contributors.some((x) => x.uid === currentUserId)) {
+          return;
+        }
+
         contributors.push({
-          uid: collab.uid,
-          label: collab.uid === currentUserId ? 'You' : `${collab.uid.substring(0, 8)}...`,
-          isOwner: false
+          uid: c.uid,
+          label:
+            c.uid === currentUserId
+              ? 'You'
+              : c.display_name || c.username || `${c.uid.substring(0, 8)}...`,
+          isOwner: false,
         });
       });
     }
@@ -201,7 +215,7 @@ function CollectionCard({
         <div className="flex items-center gap-4 text-xs text-on-surface-variant mb-3">
           <div className="flex items-center gap-1">
             <Icon name="place" size={16} />
-            <span>{collection.places?.length || 0} places</span>
+            <span>{collection.place_count ?? collection.places?.length ?? 0} places</span>
           </div>
           <div className="flex items-center gap-1">
             <Icon name="visibility" size={16} />

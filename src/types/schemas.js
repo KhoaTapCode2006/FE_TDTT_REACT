@@ -68,11 +68,11 @@
  */
 
 /**
- * Collection collaborator information
- * @typedef {Object} CollectionCollaborator
- * @property {string} uid - User ID of collaborator
- * @property {number} contributedCount - Number of places added by this collaborator
- * @property {Date} joinedAt - When the collaborator was added
+ * Collection contributor information
+ * @typedef {Object} CollectionContributor
+ * @property {string} uid - User ID of contributor
+ * @property {number} contributedCount - Number of places added by this contributor
+ * @property {Date} joinedAt - When the contributor was added
  */
 
 /**
@@ -102,7 +102,7 @@
  * @property {Date} updatedAt - Last update timestamp
  * @property {number} savedCount - Number of times saved
  * @property {CollectionSaver[]} savers - List of users who saved this collection
- * @property {CollectionCollaborator[]} collaborators - List of collaborators
+ * @property {CollectionContributor[]} contributors - List of contributors
  * @property {CollectionPlace[]} places - List of places in collection
  * @property {string[]} tags - User-defined tags
  * @property {CollectionVisibility} visibility - Visibility level
@@ -319,15 +319,15 @@
  */
 
 /**
- * Add multiple collaborators request
- * @typedef {Object} AddMultipleCollaboratorsRequest
- * @property {string[]} collaboratorUids - List of user IDs to add (1-50)
+ * Add multiple contributors request
+ * @typedef {Object} AddMultipleContributorsRequest
+ * @property {string[]} contributorUids - List of user IDs to add (1-50)
  */
 
 /**
- * Remove multiple collaborators request
- * @typedef {Object} RemoveMultipleCollaboratorsRequest
- * @property {string[]} collaboratorUids - List of user IDs to remove (1-50)
+ * Remove multiple contributors request
+ * @typedef {Object} RemoveMultipleContributorsRequest
+ * @property {string[]} contributorUids - List of user IDs to remove (1-50)
  */
 
 /**
