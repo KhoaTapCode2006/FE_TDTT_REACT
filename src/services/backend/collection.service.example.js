@@ -44,7 +44,7 @@ async function exampleGetCollection(collectionId) {
     
     console.log('Collection:', collection.name);
     console.log('Places:', collection.places.length);
-    console.log('Collaborators:', collection.collaborators.length);
+    console.log('Contributors:', collection.contributors.length);
     console.log('Tags:', collection.tags);
   } catch (error) {
     if (error.code === 'SERVER_ERROR' && error.statusCode === 404) {
@@ -116,22 +116,22 @@ async function exampleRemovePlaces(collectionId, hotelIds) {
 }
 
 // ============================================================================
-// EXAMPLE 6: Add collaborators
+// EXAMPLE 6: Add contributors
 // ============================================================================
 
-async function exampleAddCollaborators(collectionId, userIds) {
+async function exampleAddContributors(collectionId, userIds) {
   try {
-    const updated = await collectionService.addCollaboratorsToCollection(
+    const updated = await collectionService.addContributorsToCollection(
       collectionId,
       userIds // e.g., ['user_uid_1', 'user_uid_2']
     );
     
-    console.log('Collaborators added:', updated.collaborators.length);
+    console.log('Contributors added:', updated.contributors.length);
   } catch (error) {
     if (error.code === 'SERVER_ERROR' && error.statusCode === 403) {
-      console.error('Only the owner can add collaborators');
+      console.error('Only the owner can add contributors');
     } else {
-      console.error('Failed to add collaborators:', error.message);
+      console.error('Failed to add contributors:', error.message);
     }
   }
 }
@@ -204,12 +204,12 @@ async function exampleCompleteWorkflow() {
     );
     console.log('✅ Added places:', withPlaces.places.length);
     
-    // 3. Add collaborators
-    const withCollabs = await collectionService.addCollaboratorsToCollection(
+    // 3. Add contributors
+    const withContributors = await collectionService.addContributorsToCollection(
       collection.id,
       ['friend_uid_1', 'friend_uid_2']
     );
-    console.log('✅ Added collaborators:', withCollabs.collaborators.length);
+    console.log('✅ Added contributors:', withContributors.contributors.length);
     
     // 4. Update details
     const updated = await collectionService.updateCollection(collection.id, {
@@ -222,7 +222,7 @@ async function exampleCompleteWorkflow() {
     console.log('✅ Final collection:', {
       name: final.name,
       places: final.places.length,
-      collaborators: final.collaborators.length,
+      contributors: final.contributors.length,
       tags: final.tags
     });
     
@@ -344,7 +344,7 @@ export {
   exampleUpdateCollection,
   exampleAddPlaces,
   exampleRemovePlaces,
-  exampleAddCollaborators,
+  exampleAddContributors,
   exampleManageTags,
   exampleDeleteCollection,
   exampleCompleteWorkflow,

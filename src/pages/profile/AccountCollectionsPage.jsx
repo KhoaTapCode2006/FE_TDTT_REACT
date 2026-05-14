@@ -288,31 +288,32 @@ const CollectionCard = ({ collection, onClick }) => {
           </div>
         )}
 
-        {/* Collaborators */}
-        {collection.collaborators && collection.collaborators.length > 0 && (
+        {/* Contributors */}
+        {collection.contributors && collection.contributors.length > 0 && (
           <div className="flex items-center gap-2">
             <div className="flex -space-x-2">
-              {collection.collaborators.slice(0, 3).map((collaborator) => (
+              {collection.contributors.slice(0, 3).map((contributor) => (
                 <img
-                  key={collaborator.id}
-                  src={collaborator.avatar}
-                  alt={collaborator.name}
+                  key={contributor.uid}
+                  src={contributor.avatar_url || contributor.avatar}
+                  alt={contributor.display_name || contributor.name || contributor.username || contributor.uid}
                   className="w-6 h-6 rounded-full border-2 border-surface"
                   onError={(e) => {
-                    e.target.src = `https://placehold.co/24x24?text=${collaborator.name.charAt(0)}`;
+                    const label = contributor.display_name || contributor.name || contributor.username || '?';
+                    e.target.src = `https://placehold.co/24x24?text=${label.charAt(0)}`;
                   }}
                 />
               ))}
-              {collection.collaborators.length > 3 && (
+              {collection.contributors.length > 3 && (
                 <div className="w-6 h-6 rounded-full border-2 border-surface bg-surface-container flex items-center justify-center">
                   <span className="text-xs text-on-surface-variant font-semibold">
-                    +{collection.collaborators.length - 3}
+                    +{collection.contributors.length - 3}
                   </span>
                 </div>
               )}
             </div>
             <span className="text-xs text-on-surface-variant">
-              {collection.collaborators.length} collaborator{collection.collaborators.length !== 1 ? 's' : ''}
+              {collection.contributors.length} contributor{collection.contributors.length !== 1 ? 's' : ''}
             </span>
           </div>
         )}

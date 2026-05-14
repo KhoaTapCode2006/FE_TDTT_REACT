@@ -7,216 +7,226 @@ import { viewsService } from '@/services/backend/views.service';
 import { likedCollectionsService } from '@/services/profile/likedCollections.service';
 import { useAuth } from '@/contexts/AuthContext';
 
+const VALID_MAIN_TABS = ['my', 'global'];
+const VALID_MY_SUB_TABS = ['owned', 'contributing', 'saved'];
+
+/** Parse GET /views/top style payload into an array of collections */
+function collectionsFromTopViewsBody(body) {
+  if (!body) return [];
+  const d = body.data;
+  if (Array.isArray(d)) return d;
+  if (d && Array.isArray(d.items)) return d.items;
+  if (Array.isArray(body.items)) return body.items;
+  return [];
+}
+
+function withOwnerUid(collection) {
+  if (!collection || typeof collection !== 'object') return collection;
+  const ownerUid = collection.owner?.uid ?? collection.owner_uid;
+  return { ...collection, owner_uid: ownerUid ?? collection.owner_uid };
+}
+
 /**
- * CollectionsDashboard Component
- * Main dashboard for managing collections with two tabs:
- * - My Collections: User's own collections
- * - Global Collections: Public collections from other users
+ * Two main tabs: My Collections | Global Collections.
+ * Inside My Collections: three sub-tabs (owned / contributing / saved) → three /me/* APIs.
  */
 function CollectionsDashboard() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
-  
-  // Get initial tab from URL or default to 'my'
-  const initialTab = searchParams.get('tab') || 'my';
-  const [activeTab, setActiveTab] = useState(initialTab); // 'my' or 'global'
+
+  const rawMainTab = searchParams.get('tab');
+  const rawMySubTab = searchParams.get('myTab');
+
+  const mainTab = VALID_MAIN_TABS.includes(rawMainTab) ? rawMainTab : 'my';
+  const mySubTab =
+    mainTab === 'my' && VALID_MY_SUB_TABS.includes(rawMySubTab) ? rawMySubTab : 'owned';
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t === 'contributing' || t === 'saved') {
+      setSearchParams(
+        { tab: 'my', myTab: t === 'contributing' ? 'contributing' : 'saved' },
+        { replace: true }
+      );
+      return;
+    }
+    if (t != null && !VALID_MAIN_TABS.includes(t)) {
+      setSearchParams({ tab: 'my', myTab: 'owned' }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   const [myCollections, setMyCollections] = useState([]);
+  const [contributingCollections, setContributingCollections] = useState([]);
+  const [savedCollections, setSavedCollections] = useState([]);
   const [globalCollections, setGlobalCollections] = useState([]);
   const [savedCollectionIds, setSavedCollectionIds] = useState(new Set());
-  const [likedCollectionIds, setLikedCollectionIds] = useState(new Set());
-  
-  const [loading, setLoading] = useState(true);
+
+  const [loadingMy, setLoadingMy] = useState(false);
+  const [loadingGlobal, setLoadingGlobal] = useState(false);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  // Global tab filters
-  const [topType, setTopType] = useState('all_time'); // 'weekly' or 'all_time'
+  const [topType, setTopType] = useState('all_time');
   const [globalPage, setGlobalPage] = useState(1);
   const [hasMoreGlobal, setHasMoreGlobal] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  
-  // Track last load time to force refresh
-  const [lastLoadTime, setLastLoadTime] = useState(Date.now());
 
-  // Auto-dismiss notifications after 5 seconds
-  useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => {
-        setNotification(null);
-      }, 5000);
-      return () => clearTimeout(timer);
+  const hasAnyMyData =
+    myCollections.length > 0 ||
+    contributingCollections.length > 0 ||
+    savedCollections.length > 0;
+
+  const loadMySection = useCallback(async () => {
+    if (!user) {
+      setMyCollections([]);
+      setContributingCollections([]);
+      setSavedCollections([]);
+      setSavedCollectionIds(new Set());
+      setLoadingMy(false);
+      return;
     }
-  }, [notification]);
 
-  // Load liked collections on mount and when global collections change
-  useEffect(() => {
-    const updateLikedCollectionIds = () => {
-      // For global collections, check the savers field
-      if (activeTab === 'global' && globalCollections.length > 0) {
-        const likedIds = new Set(
-          globalCollections
-            .filter(c => c.savers?.some(s => s.uid === user?.uid))
-            .map(c => c.id)
-        );
-        setLikedCollectionIds(likedIds);
-        console.log('📦 Updated liked collection IDs from global collections:', Array.from(likedIds));
-      }
-      
-      // For my collections, check the savers field
-      if (activeTab === 'my' && myCollections.length > 0) {
-        const likedIds = new Set(
-          myCollections
-            .filter(c => c.savers?.some(s => s.uid === user?.uid))
-            .map(c => c.id)
-        );
-        setLikedCollectionIds(likedIds);
-        console.log('📦 Updated liked collection IDs from my collections:', Array.from(likedIds));
-      }
-    };
-
-    if (user?.uid) {
-      updateLikedCollectionIds();
-    }
-  }, [user?.uid, activeTab, globalCollections, myCollections]);
-
-  // Load My Collections
-  const loadMyCollections = useCallback(async () => {
     try {
-      setLoading(true);
+      setLoadingMy(true);
       setError(null);
-      const collections = await collectionService.getMyCollections();
-      setMyCollections(collections || []);
+
+      // Only load data for the active sub-tab to improve performance
+      if (mySubTab === 'owned') {
+        const owned = await collectionService.getMyOwnedCollections();
+        setMyCollections(owned || []);
+      } else if (mySubTab === 'contributing') {
+        const contributing = await collectionService.getContributingCollections();
+        setContributingCollections(contributing || []);
+      } else if (mySubTab === 'saved') {
+        const saved = await collectionService.getSavedCollections();
+        setSavedCollections(saved || []);
+        setSavedCollectionIds(new Set((saved || []).map((c) => c.id)));
+      }
     } catch (err) {
-      console.error('Failed to load my collections:', err);
+      console.error('Failed to load my collections section:', err);
       setError(err.message || 'Failed to load your collections');
     } finally {
-      setLoading(false);
+      setLoadingMy(false);
     }
-  }, []);
+  }, [user, mySubTab]);
 
-  // Load Global Collections using Views API + fallback to latest public collections
-  const loadGlobalCollections = useCallback(async (page = 1, append = false) => {
-    try {
-      if (!append) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-      setError(null);
-      
-      const limit = 10;
-      
-      // Get top views collections
-      const response = await viewsService.getTopCollections(topType, limit, page);
-      
-      // API returns data directly as array, not nested in items
-      let collections = response.data || [];
-      
-      // If not enough collections from top views, fill with latest public collections
-      if (collections.length < limit && page === 1) {
-        try {
-          const needed = limit - collections.length;
-          
-          // Get more collections from Views API (all_time with higher limit)
-          const fallbackResponse = await viewsService.getTopCollections('all_time', 50, 1);
-          const latestCollections = fallbackResponse.data || [];
-          
-          // Filter out collections already in top views
-          const topViewIds = new Set(collections.map(c => c.id));
-          const additionalCollections = latestCollections
-            .filter(c => !topViewIds.has(c.id))
-            .slice(0, needed);
-          
-          collections = [...collections, ...additionalCollections];
-          
-          console.log(`Added ${additionalCollections.length} latest collections to fill gap`);
-        } catch (fallbackError) {
-          console.error('Failed to load fallback collections:', fallbackError);
-          // Continue with what we have from top views
+  const loadGlobalCollections = useCallback(
+    async (page = 1, append = false) => {
+      try {
+        if (!append) {
+          setLoadingGlobal(true);
+        } else {
+          setLoadingMore(true);
         }
+        setError(null);
+
+        const limit = 10;
+        const response = await viewsService.getTopCollections(topType, limit, page);
+        let collections = collectionsFromTopViewsBody(response).map(withOwnerUid);
+
+        if (collections.length < limit && page === 1) {
+          try {
+            const needed = limit - collections.length;
+            const fallbackResponse = await viewsService.getTopCollections('all_time', 50, 1);
+            const latestCollections = collectionsFromTopViewsBody(fallbackResponse).map(
+              withOwnerUid
+            );
+            const topViewIds = new Set(collections.map((c) => c.id));
+            const additionalCollections = latestCollections
+              .filter((c) => !topViewIds.has(c.id))
+              .slice(0, needed);
+            collections = [...collections, ...additionalCollections];
+          } catch (fallbackError) {
+            console.error('Failed to load fallback collections:', fallbackError);
+          }
+        }
+
+        if (append) {
+          setGlobalCollections((prev) => [...prev, ...collections]);
+        } else {
+          setGlobalCollections(collections);
+        }
+
+        setHasMoreGlobal(collections.length >= limit);
+        setGlobalPage(page);
+
+        if (user?.uid) {
+          const fromSavers = new Set(
+            collections
+              .filter((c) => c.savers?.some((s) => s.uid === user.uid))
+              .map((c) => c.id)
+          );
+          setSavedCollectionIds((prev) => {
+            const next = new Set(prev);
+            fromSavers.forEach((id) => next.add(id));
+            return next;
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load global collections:', err);
+        setError(err.message || 'Failed to load global collections');
+      } finally {
+        setLoadingGlobal(false);
+        setLoadingMore(false);
       }
-      
-      if (append) {
-        setGlobalCollections(prev => [...prev, ...collections]);
-      } else {
-        setGlobalCollections(collections);
-      }
-      
-      // Check if there are more pages (if we got full limit, assume there might be more)
-      setHasMoreGlobal(collections.length >= limit);
-      setGlobalPage(page);
-      
-      // Extract saved collection IDs
-      const savedIds = new Set(
-        collections
-          .filter(c => c.savers?.some(s => s.uid === user?.uid))
-          .map(c => c.id)
-      );
-      setSavedCollectionIds(savedIds);
-    } catch (err) {
-      console.error('Failed to load global collections:', err);
-      setError(err.message || 'Failed to load global collections');
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [topType, user]);
+    },
+    [topType, user]
+  );
 
-  // Initial load based on active tab
   useEffect(() => {
-    if (activeTab === 'my') {
-      loadMyCollections();
-    } else {
-      loadGlobalCollections(1, false);
-    }
-  }, [activeTab, loadMyCollections, loadGlobalCollections]);
+    if (mainTab !== 'my' || !user) return;
+    const timer = setTimeout(() => loadMySection(), 50);
+    return () => clearTimeout(timer);
+  }, [user, mainTab, location.key, loadMySection]);
 
-  // Force reload when navigating back to this page
   useEffect(() => {
-    // Check if we're coming back from another page (location state will be set)
-    const shouldReload = location.state?.fromCollection || location.key;
-    
-    if (shouldReload) {
-      console.log('Detected navigation back - force reloading collections');
-      setLastLoadTime(Date.now());
-      
-      // Reload based on active tab
-      if (activeTab === 'my') {
-        loadMyCollections();
-      } else {
-        loadGlobalCollections(1, false);
-      }
-    }
-  }, [location.key]); // Trigger on location change
+    if (mainTab !== 'global') return;
+    const timer = setTimeout(() => loadGlobalCollections(1, false), 50);
+    return () => clearTimeout(timer);
+  }, [mainTab, topType, location.key, loadGlobalCollections]);
 
-  // Reload global collections when topType changes
-  useEffect(() => {
-    if (activeTab === 'global') {
-      loadGlobalCollections(1, false);
-    }
-  }, [topType]); // Only depend on topType, not loadGlobalCollections
-
-  // Handle tab change
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
+  const setMainTabParams = (nextMain) => {
     setError(null);
-    // Update URL with tab parameter
-    setSearchParams({ tab });
+    const p = new URLSearchParams(searchParams);
+    p.set('tab', nextMain);
+    if (nextMain === 'global') {
+      p.delete('myTab');
+    } else {
+      const cur = p.get('myTab');
+      if (!VALID_MY_SUB_TABS.includes(cur)) {
+        p.set('myTab', 'owned');
+      }
+    }
+    setSearchParams(p);
   };
 
-  // Handle delete collection
+  const setMySubTabParams = (sub) => {
+    setError(null);
+    const p = new URLSearchParams(searchParams);
+    p.set('tab', 'my');
+    p.set('myTab', sub);
+    setSearchParams(p);
+  };
+
+  const refreshSavedCollections = useCallback(async () => {
+    if (!user) return;
+    try {
+      const saved = await collectionService.getSavedCollections();
+      setSavedCollections(saved || []);
+      setSavedCollectionIds(new Set((saved || []).map((c) => c.id)));
+    } catch (e) {
+      console.error('Failed to refresh saved collections:', e);
+    }
+  }, [user]);
+
   const handleDeleteCollection = async (collectionId) => {
     setActionLoading(true);
     try {
       await collectionService.deleteCollection(collectionId);
-      
-      // Remove from local state
-      setMyCollections(prev => prev.filter(c => c.id !== collectionId));
-      
-      // Show success message
+      setMyCollections((prev) => prev.filter((c) => c.id !== collectionId));
       alert('Collection deleted successfully!');
     } catch (err) {
       console.error('Failed to delete collection:', err);
@@ -226,93 +236,103 @@ function CollectionsDashboard() {
     }
   };
 
-  // Handle save/unsave collection
   const handleSaveCollection = async (collectionId, shouldSave) => {
+    if (!user) {
+      alert('Vui lòng đăng nhập để lưu collection.');
+      return;
+    }
+
     setActionLoading(true);
     try {
       if (shouldSave) {
         await collectionService.saveCollection(collectionId);
-        setSavedCollectionIds(prev => new Set([...prev, collectionId]));
+        setSavedCollectionIds((prev) => new Set([...prev, collectionId]));
       } else {
         await collectionService.unsaveCollection(collectionId);
-        setSavedCollectionIds(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(collectionId);
-          return newSet;
+        setSavedCollectionIds((prev) => {
+          const next = new Set(prev);
+          next.delete(collectionId);
+          return next;
         });
       }
-      
-      // Update saved_count in local state
-      setGlobalCollections(prev => 
-        prev.map(c => 
-          c.id === collectionId 
-            ? { ...c, saved_count: (c.saved_count || 0) + (shouldSave ? 1 : -1) }
+
+      setContributingCollections((prev) =>
+        prev.map((c) =>
+          c.id === collectionId
+            ? {
+                ...c,
+                saved_count: Math.max(0, (c.saved_count || 0) + (shouldSave ? 1 : -1)),
+              }
             : c
         )
       );
+
+      setGlobalCollections((prev) =>
+        prev.map((c) =>
+          c.id === collectionId
+            ? {
+                ...c,
+                saved_count: Math.max(0, (c.saved_count || 0) + (shouldSave ? 1 : -1)),
+              }
+            : c
+        )
+      );
+
+      await refreshSavedCollections();
     } catch (err) {
       console.error('Failed to save/unsave collection:', err);
-      alert(`Failed to ${shouldSave ? 'save' : 'unsave'} collection: ${err.message}`);
+
+      if (err.statusCode === 400) {
+        alert(err.message || 'Thao tác không thành công.');
+      } else if (err.statusCode === 403) {
+        alert(err.message || 'Bạn không có quyền thực hiện thao tác này.');
+      } else if (err.statusCode === 404) {
+        alert('Collection không tồn tại.');
+      } else if (
+        err.code === 'NETWORK_ERROR' ||
+        err.message?.includes('network') ||
+        err.message?.includes('Network')
+      ) {
+        alert('Không thể kết nối. Vui lòng thử lại.');
+      } else {
+        alert(`Không thể ${shouldSave ? 'lưu' : 'bỏ lưu'} collection. Vui lòng thử lại.`);
+      }
     } finally {
       setActionLoading(false);
     }
   };
 
-  // Handle like/unlike collection
-  const handleLikeCollection = async (collectionId, shouldLike) => {
-    try {
-      if (shouldLike) {
-        await likedCollectionsService.likeCollection(collectionId);
-        // Only update state after successful API call
-        setLikedCollectionIds(prev => new Set([...prev, collectionId]));
-        setNotification({
-          type: 'success',
-          message: 'Collection liked successfully!',
-        });
-      } else {
-        await likedCollectionsService.unlikeCollection(collectionId);
-        // Only update state after successful API call
-        setLikedCollectionIds(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(collectionId);
-          return newSet;
-        });
-        setNotification({
-          type: 'success',
-          message: 'Collection unliked successfully!',
-        });
-      }
-    } catch (err) {
-      console.error('Failed to like/unlike collection:', err);
-      
-      // Show error notification
-      setNotification({
-        type: 'error',
-        message: err.message || `Failed to ${shouldLike ? 'like' : 'unlike'} collection. Please try again.`,
-      });
-    }
-  };
-
-  // Handle load more for global collections
   const handleLoadMore = () => {
     if (!loadingMore && hasMoreGlobal) {
       loadGlobalCollections(globalPage + 1, true);
     }
   };
 
-  // Handle top type filter change
   const handleTopTypeChange = (newTopType) => {
     setTopType(newTopType);
     setGlobalPage(1);
   };
 
-  // Handle create new collection
   const handleCreateCollection = () => {
     navigate('/collections/new');
   };
 
-  // Render loading state
-  if (loading && (myCollections.length === 0 && globalCollections.length === 0)) {
+  if (authLoading) {
+    return (
+      <div className="min-h-[calc(100vh-80px)] flex items-center justify-center bg-background">
+        <div className="inline-flex items-center gap-3 rounded-3xl border border-outline-variant/40 bg-surface-container-low px-6 py-5 shadow-xl">
+          <Icon name="hourglass_top" size={24} className="text-primary animate-spin" />
+          <span className="text-sm font-medium text-on-surface">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const showFullPageLoad =
+    (mainTab === 'my' && user && loadingMy && !hasAnyMyData) ||
+    (mainTab === 'global' && loadingGlobal && globalCollections.length === 0);
+
+  if (showFullPageLoad) {
     return (
       <div className="min-h-[calc(100vh-80px)] flex items-center justify-center bg-background">
         <div className="inline-flex items-center gap-3 rounded-3xl border border-outline-variant/40 bg-surface-container-low px-6 py-5 shadow-xl">
@@ -323,24 +343,37 @@ function CollectionsDashboard() {
     );
   }
 
-  const currentCollections = activeTab === 'my' ? myCollections : globalCollections;
+  const currentCollections =
+    mainTab === 'global'
+      ? globalCollections
+      : mySubTab === 'owned'
+        ? myCollections
+        : mySubTab === 'contributing'
+          ? contributingCollections
+          : savedCollections;
+
+  const sectionLoading = mainTab === 'my' ? loadingMy : loadingGlobal;
+
+  const pageTitle =
+    mainTab === 'global' ? 'Global Collections' : 'My Collections';
+
+  const pageSubtitle =
+    mainTab === 'global'
+      ? 'Discover and save collections from the community'
+      : 'Your collections, collaborations, and saves';
 
   return (
     <div className="min-h-[calc(100vh-80px)] bg-background px-4 py-8 sm:px-6 lg:px-10">
       <div className="mx-auto max-w-7xl space-y-8">
-        {/* Header */}
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-on-surface">Collections</h1>
-            <p className="mt-2 text-sm text-on-surface-variant">
-              {activeTab === 'my' 
-                ? 'Manage your personal collections of favorite places' 
-                : 'Discover and save collections from the community'}
-            </p>
+            <h1 className="text-3xl font-bold text-on-surface">{pageTitle}</h1>
+            <p className="mt-2 text-sm text-on-surface-variant">{pageSubtitle}</p>
           </div>
 
-          {activeTab === 'my' && (
+          {mainTab === 'my' && mySubTab === 'owned' && user && (
             <button
+              type="button"
               onClick={handleCreateCollection}
               className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-primary/90 hover:shadow-xl"
             >
@@ -350,50 +383,77 @@ function CollectionsDashboard() {
           )}
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 border-b border-outline-variant/30">
+        {/* Main tabs */}
+        <div className="flex flex-wrap gap-2 border-b-2 border-outline-variant/40">
           <button
-            onClick={() => handleTabChange('my')}
-            className={`relative px-6 py-3 text-sm font-semibold transition-colors ${
-              activeTab === 'my'
-                ? 'text-primary'
-                : 'text-on-surface-variant hover:text-on-surface'
+            type="button"
+            onClick={() => setMainTabParams('my')}
+            className={`relative px-6 py-3.5 text-sm font-bold transition-colors bg-transparent border-0 outline-none ${
+              mainTab === 'my' ? 'text-primary' : 'text-on-surface-variant hover:text-on-surface'
             }`}
           >
             <div className="flex items-center gap-2">
-              <Icon name="person" size={20} />
+              <Icon name="collections_bookmark" size={22} />
               My Collections
             </div>
-            {activeTab === 'my' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
+            {mainTab === 'my' && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
             )}
           </button>
 
           <button
-            onClick={() => handleTabChange('global')}
-            className={`relative px-6 py-3 text-sm font-semibold transition-colors ${
-              activeTab === 'global'
-                ? 'text-primary'
-                : 'text-on-surface-variant hover:text-on-surface'
+            type="button"
+            onClick={() => setMainTabParams('global')}
+            className={`relative px-6 py-3.5 text-sm font-bold transition-colors bg-transparent border-0 outline-none ${
+              mainTab === 'global' ? 'text-primary' : 'text-on-surface-variant hover:text-on-surface'
             }`}
           >
             <div className="flex items-center gap-2">
-              <Icon name="public" size={20} />
+              <Icon name="public" size={22} />
               Global Collections
             </div>
-            {activeTab === 'global' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />
+            {mainTab === 'global' && (
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
             )}
           </button>
         </div>
 
-        {/* Global Tab Filters */}
-        {activeTab === 'global' && (
+        {/* Sub-tabs (only under My Collections) */}
+        {mainTab === 'my' && (
+          <div className="rounded-2xl border border-outline-variant/30 bg-surface-container-low/60 p-2">
+            <div className="flex flex-wrap gap-1">
+              {[
+                { id: 'owned', label: 'Của tôi', icon: 'person' },
+                { id: 'contributing', label: 'Contributing', icon: 'group' },
+                { id: 'saved', label: 'Đã lưu', icon: 'bookmark' },
+              ].map(({ id, label, icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setMySubTabParams(id)}
+                  className={`relative flex-1 min-w-[120px] rounded-xl px-4 py-2.5 text-xs font-semibold transition-all sm:text-sm ${
+                    mySubTab === id
+                      ? 'bg-primary text-white shadow-md'
+                      : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'
+                  }`}
+                >
+                  <span className="flex items-center justify-center gap-2">
+                    <Icon name={icon} size={18} />
+                    {label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {mainTab === 'global' && (
           <div className="flex items-center gap-3 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/30">
             <Icon name="filter_list" size={20} className="text-on-surface-variant" />
             <span className="text-sm font-medium text-on-surface-variant">Hiển thị:</span>
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => handleTopTypeChange('all_time')}
                 className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
                   topType === 'all_time'
@@ -404,6 +464,7 @@ function CollectionsDashboard() {
                 Thịnh hành nhất
               </button>
               <button
+                type="button"
                 onClick={() => handleTopTypeChange('weekly')}
                 className={`px-4 py-2 rounded-full text-sm font-semibold transition-all ${
                   topType === 'weekly'
@@ -417,7 +478,12 @@ function CollectionsDashboard() {
           </div>
         )}
 
-        {/* Error Message */}
+        {mainTab === 'my' && !user && (
+          <div className="rounded-3xl border border-outline-variant/40 bg-surface-container-low p-6 text-center text-sm text-on-surface-variant">
+            Đăng nhập để xem collection của bạn, contributing và đã lưu.
+          </div>
+        )}
+
         {error && (
           <div className="rounded-3xl border border-red-400/20 bg-red-50 p-4">
             <div className="flex items-center gap-3">
@@ -430,60 +496,48 @@ function CollectionsDashboard() {
           </div>
         )}
 
-        {/* Notification */}
-        {notification && (
-          <div
-            className={`flex items-center gap-2 rounded-xl px-4 py-3 ${
-              notification.type === 'success'
-                ? 'bg-green-50 border border-green-200'
-                : 'bg-red-50 border border-red-200'
-            }`}
-          >
-            <Icon
-              name={notification.type === 'success' ? 'check_circle' : 'error_outline'}
-              size={18}
-              className={notification.type === 'success' ? 'text-green-500' : 'text-red-500'}
-            />
-            <p
-              className={`text-sm flex-1 ${
-                notification.type === 'success' ? 'text-green-600' : 'text-red-600'
-              }`}
-            >
-              {notification.message}
-            </p>
-            <button
-              onClick={() => setNotification(null)}
-              className={notification.type === 'success' ? 'text-green-600' : 'text-red-600'}
-            >
-              <Icon name="close" size={18} />
-            </button>
-          </div>
-        )}
-
-        {/* Collections Grid */}
-        {loading ? (
+        {sectionLoading ? (
           <div className="flex items-center justify-center py-12">
             <Icon name="hourglass_top" size={32} className="text-primary animate-spin" />
           </div>
-        ) : currentCollections.length === 0 ? (
+        ) : mainTab === 'my' && !user ? null : currentCollections.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4">
             <div className="rounded-full bg-surface-container p-6 mb-4">
-              <Icon 
-                name={activeTab === 'my' ? 'collections_bookmark' : 'public'} 
-                size={48} 
-                className="text-on-surface-variant" 
+              <Icon
+                name={
+                  mainTab === 'global'
+                    ? 'public'
+                    : mySubTab === 'owned'
+                      ? 'collections_bookmark'
+                      : mySubTab === 'contributing'
+                        ? 'group'
+                        : 'bookmark'
+                }
+                size={48}
+                className="text-on-surface-variant"
               />
             </div>
             <h3 className="text-xl font-semibold text-on-surface mb-2">
-              {activeTab === 'my' ? 'No collections yet' : 'No public collections available'}
+              {mainTab === 'global'
+                ? 'No public collections available'
+                : mySubTab === 'owned'
+                  ? 'No collections yet'
+                  : mySubTab === 'contributing'
+                    ? 'No contributing collections'
+                    : 'No saved collections yet'}
             </h3>
             <p className="text-sm text-on-surface-variant text-center max-w-md mb-6">
-              {activeTab === 'my' 
-                ? 'Create your first collection to start organizing your favorite places' 
-                : 'Check back later for community collections'}
+              {mainTab === 'global'
+                ? 'Check back later for community collections'
+                : mySubTab === 'owned'
+                  ? 'Create your first collection to start organizing your favorite places'
+                  : mySubTab === 'contributing'
+                    ? 'When you collaborate on a collection, it will appear here'
+                    : 'Save collections from Global to see them here'}
             </p>
-            {activeTab === 'my' && (
+            {mainTab === 'my' && mySubTab === 'owned' && user && (
               <button
+                type="button"
                 onClick={handleCreateCollection}
                 className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-primary/90"
               >
@@ -494,49 +548,61 @@ function CollectionsDashboard() {
           </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {currentCollections.map((collection) => (
-              <CollectionCard
-                key={collection.id}
-                collection={collection}
-                isOwner={activeTab === 'my'}
-                onDelete={handleDeleteCollection}
-                onSave={handleSaveCollection}
-                isSaved={savedCollectionIds.has(collection.id)}
-                showActions={true}
-                returnTab={activeTab}
-                currentUserId={user?.uid}
-                isLiked={likedCollectionIds.has(collection.id)}
-                onLike={handleLikeCollection}
-                showLikeButton={true}
-              />
-            ))}
+            {currentCollections.map((collection) => {
+              const isCardOwner = user?.uid && collection.owner_uid === user.uid;
+              const returnMyTab =
+                mainTab === 'my'
+                  ? mySubTab
+                  : undefined;
+
+              return (
+                <CollectionCard
+                  key={`${mainTab}-${mySubTab}-${collection.id}`}
+                  collection={collection}
+                  isOwner={isCardOwner}
+                  onDelete={isCardOwner ? handleDeleteCollection : undefined}
+                  {...((mainTab === 'global' ||
+                    mySubTab === 'contributing' ||
+                    mySubTab === 'saved') && {
+                    onSave: handleSaveCollection,
+                    isSaved: savedCollectionIds.has(collection.id),
+                  })}
+                  showActions
+                  returnTab={mainTab}
+                  returnMyTab={returnMyTab}
+                  currentUserId={user?.uid}
+                />
+              );
+            })}
           </div>
         )}
 
-        {/* Load More Button (Global Tab Only) */}
-        {activeTab === 'global' && !loading && currentCollections.length > 0 && hasMoreGlobal && (
-          <div className="flex justify-center mt-8">
-            <button
-              onClick={handleLoadMore}
-              disabled={loadingMore}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-primary/90 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loadingMore ? (
-                <>
-                  <Icon name="hourglass_top" size={20} className="animate-spin" />
-                  Đang tải...
-                </>
-              ) : (
-                <>
-                  <Icon name="expand_more" size={20} />
-                  Xem thêm
-                </>
-              )}
-            </button>
-          </div>
-        )}
+        {mainTab === 'global' &&
+          !sectionLoading &&
+          currentCollections.length > 0 &&
+          hasMoreGlobal && (
+            <div className="flex justify-center mt-8">
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-primary/90 hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loadingMore ? (
+                  <>
+                    <Icon name="hourglass_top" size={20} className="animate-spin" />
+                    Đang tải...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="expand_more" size={20} />
+                    Xem thêm
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
-        {/* Loading Overlay */}
         {actionLoading && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="rounded-3xl bg-surface-container-low px-6 py-4 shadow-2xl">

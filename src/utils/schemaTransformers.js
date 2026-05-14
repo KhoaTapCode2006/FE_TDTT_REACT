@@ -547,11 +547,10 @@ export function transformUserProfile(backendUser, firebaseUid = null) {
     console.log('🔄 transformUserProfile input:', backendUser);
     console.log('🔑 Firebase UID provided:', firebaseUid);
 
-    // Validate required fields (uid might not be present in /me response)
-    // Backend might use different field names or not include uid
-    if (!backendUser.uid && !backendUser.user_id && !backendUser.id && !firebaseUid) {
-      console.warn('⚠️ User ID not found in backend response and no Firebase UID provided. Available fields:', Object.keys(backendUser));
-      // Don't throw error if firebaseUid is provided - we'll use that
+    // Validate required fields - uid should now be present in backend response
+    if (!backendUser.uid) {
+      console.warn('⚠️ User ID (uid) not found in backend response. Available fields:', Object.keys(backendUser));
+      // Don't throw error, let it continue - uid might be added from Firebase user
     }
 
     if (!backendUser.username) {
@@ -649,6 +648,13 @@ export function transformUserProfile(backendUser, firebaseUid = null) {
           }));
         }
         
+        if (Array.isArray(col.contributors)) {
+          col.contributors = col.contributors.map((c) => ({
+            ...c,
+            joinedAt: c.joinedAt ? parseISODate(c.joinedAt) : c.joinedAt
+          }));
+        }
+
         if (Array.isArray(col.collaborators)) {
           col.collaborators = col.collaborators.map(collab => ({
             ...collab,
@@ -683,6 +689,13 @@ export function transformUserProfile(backendUser, firebaseUid = null) {
           }));
         }
         
+        if (Array.isArray(col.contributors)) {
+          col.contributors = col.contributors.map((c) => ({
+            ...c,
+            joinedAt: c.joinedAt ? parseISODate(c.joinedAt) : c.joinedAt
+          }));
+        }
+
         if (Array.isArray(col.collaborators)) {
           col.collaborators = col.collaborators.map(collab => ({
             ...collab,
@@ -717,13 +730,13 @@ export function transformUserProfile(backendUser, firebaseUid = null) {
     // Validate transformed data has required fields (uid is now optional if firebaseUid provided)
     if (!transformed.username || !transformed.displayName || !transformed.email) {
       console.warn('⚠️ Missing required fields after transformation:', {
+        hasUid: !!transformed.uid,
         hasUsername: !!transformed.username,
         hasDisplayName: !!transformed.displayName,
-        hasEmail: !!transformed.email,
-        hasUid: !!transformed.uid
+        hasEmail: !!transformed.email
       });
       throw new SchemaTransformError(
-        'Transformation resulted in missing required fields (username, displayName, or email)',
+        'Transformation resulted in missing required fields (uid, username, displayName, or email)',
         backendUser,
         'UserProfile'
       );
@@ -972,6 +985,13 @@ export function transformCollection(backendCollection) {
       transformed.savers = transformed.savers.map(saver => ({
         ...saver,
         savedAt: saver.savedAt ? parseISODate(saver.savedAt) : saver.savedAt
+      }));
+    }
+
+    if (Array.isArray(transformed.contributors)) {
+      transformed.contributors = transformed.contributors.map((c) => ({
+        ...c,
+        joinedAt: c.joinedAt ? parseISODate(c.joinedAt) : c.joinedAt
       }));
     }
 

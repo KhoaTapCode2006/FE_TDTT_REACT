@@ -13,10 +13,13 @@ import { auth } from '@/config/firebase';
  */
 
 /**
- * @typedef {Object} CollectionCollaborator
+ * @typedef {Object} CollectionContributor
  * @property {string} uid - User unique identifier
+ * @property {string} [username]
+ * @property {string} [display_name]
+ * @property {string|null} [avatar_url]
  * @property {number} contributed_count - Number of places contributed
- * @property {Date} joined_at - Timestamp when collaborator joined
+ * @property {Date} joined_at - Timestamp when contributor joined
  */
 
 /**
@@ -42,7 +45,7 @@ import { auth } from '@/config/firebase';
  * @property {CollectionVisibility} visibility - Collection visibility setting
  * @property {string[]} tags - Array of tag strings
  * @property {CollectionPlace[]} places - Array of places in collection
- * @property {CollectionCollaborator[]} collaborators - Array of collaborators
+ * @property {CollectionContributor[]} contributors - Array of contributors
  * @property {CollectionSaver[]} savers - Array of users who saved collection
  */
 
@@ -214,31 +217,52 @@ function validateArrayParam(arr, paramName) {
 // ============================================================================
 
 /**
+ * Normalize one contributor row from API (GET list or embedded in collection)
+ * @param {Object} row
+ * @returns {Object|null}
+ */
+function normalizeContributorRow(row) {
+  if (!row || typeof row !== 'object') return null;
+  return {
+    ...row,
+    joined_at: row.joined_at ? new Date(row.joined_at) : null,
+  };
+}
+
+function contributorsFromCollectionPayload(collection) {
+  const raw = collection.contributors ?? collection.collaborators ?? [];
+  if (!Array.isArray(raw)) return [];
+  return raw.map(normalizeContributorRow).filter(Boolean);
+}
+
+/**
  * Extract collection data from API response
  * @param {Object} response - Axios response object
  * @returns {CollectionData} Collection data
  */
 function extractCollectionData(response) {
-  // Backend response format: { status_code, message, data: { collection: {...} } }
   const collection = response.data?.data?.collection;
   
   if (!collection) {
     throw new Error('Invalid response format from server');
   }
   
+  // Extract owner_uid from owner object or use existing owner_uid field
+  const ownerUid = collection.owner?.uid ?? collection.owner_uid ?? null;
+  
   // Transform date strings to Date objects
+  const { collaborators: _legacyCollab, contributors: _ignored, ...restCollection } = collection;
+
   return {
-    ...collection,
+    ...restCollection,
+    owner_uid: ownerUid, // Ensure owner_uid is always present
     created_at: collection.created_at ? new Date(collection.created_at) : null,
     updated_at: collection.updated_at ? new Date(collection.updated_at) : null,
     places: (collection.places || []).map(place => ({
       ...place,
       added_at: place.added_at ? new Date(place.added_at) : null,
     })),
-    collaborators: (collection.collaborators || []).map(collab => ({
-      ...collab,
-      joined_at: collab.joined_at ? new Date(collab.joined_at) : null,
-    })),
+    contributors: contributorsFromCollectionPayload(collection),
     savers: (collection.savers || []).map(saver => ({
       ...saver,
       saved_at: saver.saved_at ? new Date(saver.saved_at) : null,
@@ -253,6 +277,51 @@ function extractCollectionData(response) {
  */
 function extractBooleanResult(response) {
   return response.data?.data === true || response.status === 200;
+}
+
+/**
+ * Normalize a collection summary from GET /me/my-collections, contributing, or saved
+ * @param {Object} raw - Item from API `data` array
+ * @returns {Object}
+ */
+function normalizeMeCollectionSummary(raw) {
+  if (!raw || typeof raw !== 'object' || !raw.id) {
+    return null;
+  }
+  const ownerUid = raw.owner?.uid ?? raw.owner_uid ?? null;
+  const { collaborators: _legacyC, contributors: _legacyCtr, ...rawRest } = raw;
+  return {
+    ...rawRest,
+    owner_uid: ownerUid,
+    created_at: raw.created_at ? new Date(raw.created_at) : null,
+    updated_at: raw.updated_at ? new Date(raw.updated_at) : null,
+    places: Array.isArray(raw.places)
+      ? raw.places.map((place) => ({
+          ...place,
+          added_at: place.added_at ? new Date(place.added_at) : null,
+        }))
+      : [],
+    contributors: contributorsFromCollectionPayload(raw),
+    savers: Array.isArray(raw.savers)
+      ? raw.savers.map((saver) => ({
+          ...saver,
+          saved_at: saver.saved_at ? new Date(saver.saved_at) : null,
+        }))
+      : [],
+    views: raw.views && typeof raw.views === 'object' ? { ...raw.views } : raw.views,
+  };
+}
+
+/**
+ * @param {Object} response - Axios response object
+ * @returns {Object[]}
+ */
+function extractMeCollectionList(response) {
+  const data = response.data?.data;
+  if (!Array.isArray(data)) {
+    throw new Error('Invalid response format from server');
+  }
+  return data.map(normalizeMeCollectionSummary).filter(Boolean);
 }
 
 // ============================================================================
@@ -362,40 +431,54 @@ export const collectionService = {
   },
 
   /**
-   * Add collaborators to collection
-   * Endpoint: POST /collections/{collection_id}/collaborators
-   * 
+   * List contributors for a collection
+   * Endpoint: GET /collections/{collection_id}/contributors
+   *
    * @param {string} collectionId - Collection ID
-   * @param {string[]} collaboratorUids - Array of user UIDs to add
+   * @returns {Promise<CollectionContributor[]>}
+   */
+  async getCollectionContributors(collectionId) {
+    const response = await collectionClient.get(`/collections/${collectionId}/contributors`);
+    const data = response.data?.data;
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    return data.map(normalizeContributorRow).filter(Boolean);
+  },
+
+  /**
+   * Add contributors to collection
+   * Endpoint: POST /collections/{collection_id}/contributors
+   *
+   * @param {string} collectionId - Collection ID
+   * @param {string[]} contributorUids - Array of user UIDs to add
    * @returns {Promise<CollectionData>} Updated collection
    * @throws {Error} Permission denied or validation error
    */
-  async addCollaboratorsToCollection(collectionId, collaboratorUids) {
-    validateArrayParam(collaboratorUids, 'collaboratorUids');
-    
-    const response = await collectionClient.post(
-      `/collections/${collectionId}/collaborators`,
-      { collaborator_uids: collaboratorUids }
-    );
+  async addContributorsToCollection(collectionId, contributorUids) {
+    validateArrayParam(contributorUids, 'contributorUids');
+
+    const response = await collectionClient.post(`/collections/${collectionId}/contributors`, {
+      contributor_uids: contributorUids,
+    });
     return extractCollectionData(response);
   },
 
   /**
-   * Remove collaborators from collection
-   * Endpoint: DELETE /collections/{collection_id}/collaborators
-   * 
+   * Remove contributors from collection
+   * Endpoint: DELETE /collections/{collection_id}/contributors
+   *
    * @param {string} collectionId - Collection ID
-   * @param {string[]} collaboratorUids - Array of user UIDs to remove
+   * @param {string[]} contributorUids - Array of user UIDs to remove
    * @returns {Promise<CollectionData>} Updated collection
    * @throws {Error} Permission denied or validation error
    */
-  async removeCollaboratorsFromCollection(collectionId, collaboratorUids) {
-    validateArrayParam(collaboratorUids, 'collaboratorUids');
-    
-    const response = await collectionClient.delete(
-      `/collections/${collectionId}/collaborators`,
-      { data: { collaborator_uids: collaboratorUids } }
-    );
+  async removeContributorsFromCollection(collectionId, contributorUids) {
+    validateArrayParam(contributorUids, 'contributorUids');
+
+    const response = await collectionClient.delete(`/collections/${collectionId}/contributors`, {
+      data: { contributor_uids: contributorUids },
+    });
     return extractCollectionData(response);
   },
 
@@ -438,45 +521,44 @@ export const collectionService = {
   },
 
   /**
-   * Get all collections owned by or collaborated on by current user
-   * Endpoint: GET /me/collections
-   * 
-   * @returns {Promise<CollectionData[]>} Array of user's collections (owned + collaborated)
-   * @throws {Error} Network or authentication error
+   * Collections the current user owns
+   * Endpoint: GET /me/my-collections
+   *
+   * @returns {Promise<CollectionData[]>}
+   */
+  async getMyOwnedCollections() {
+    const response = await collectionClient.get('/me/my-collections');
+    return extractMeCollectionList(response);
+  },
+
+  /**
+   * Collections the current user contributes to (not owner)
+   * Endpoint: GET /me/contributing-collections
+   *
+   * @returns {Promise<CollectionData[]>}
+   */
+  async getContributingCollections() {
+    const response = await collectionClient.get('/me/contributing-collections');
+    return extractMeCollectionList(response);
+  },
+
+  /**
+   * Collections saved by the current user
+   * Endpoint: GET /me/saved-collections
+   *
+   * @returns {Promise<CollectionData[]>}
+   */
+  async getSavedCollections() {
+    const response = await collectionClient.get('/me/saved-collections');
+    return extractMeCollectionList(response);
+  },
+
+  /**
+   * @deprecated Prefer getMyOwnedCollections / getContributingCollections / getSavedCollections
+   * Endpoint: GET /me/my-collections
    */
   async getMyCollections() {
-    const response = await collectionClient.get('/me/collections');
-    
-    // Backend returns: { status_code, message, data: { owned: [...], collaborated: [...] } }
-    const data = response.data?.data;
-    
-    if (!data) {
-      throw new Error('Invalid response format from server');
-    }
-    
-    // Merge owned and collaborated collections into single array
-    const ownedCollections = data.owned || [];
-    const collaboratedCollections = data.collaborated || [];
-    const allCollections = [...ownedCollections, ...collaboratedCollections];
-    
-    // Transform each collection
-    return allCollections.map(collection => ({
-      ...collection,
-      created_at: collection.created_at ? new Date(collection.created_at) : null,
-      updated_at: collection.updated_at ? new Date(collection.updated_at) : null,
-      places: (collection.places || []).map(place => ({
-        ...place,
-        added_at: place.added_at ? new Date(place.added_at) : null,
-      })),
-      collaborators: (collection.collaborators || []).map(collab => ({
-        ...collab,
-        joined_at: collab.joined_at ? new Date(collab.joined_at) : null,
-      })),
-      savers: (collection.savers || []).map(saver => ({
-        ...saver,
-        saved_at: saver.saved_at ? new Date(saver.saved_at) : null,
-      })),
-    }));
+    return this.getMyOwnedCollections();
   },
 
   /**
@@ -508,29 +590,52 @@ export const collectionService = {
   },
 
   /**
-   * Save/bookmark a collection (add to user's saved collections)
-   * Endpoint: POST /collections/{collection_id}/save
-   * 
-   * @param {string} collectionId - Collection ID to save
-   * @returns {Promise<CollectionData>} Updated collection
+   * Get list of users who saved a collection
+   * Endpoint: GET /collections/{collection_id}/savers
+   *
+   * @param {string} collectionId - Collection ID
+   * @returns {Promise<Array>} Array of users who saved this collection
    * @throws {Error} Network error
    */
-  async saveCollection(collectionId) {
-    const response = await collectionClient.post(`/collections/${collectionId}/save`);
-    return extractCollectionData(response);
+  async getCollectionSavers(collectionId) {
+    const response = await collectionClient.get(`/collections/${collectionId}/savers`);
+    const data = response.data?.data;
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    return data.map(saver => ({
+      ...saver,
+      saved_at: saver.saved_at ? new Date(saver.saved_at) : null,
+    }));
   },
 
   /**
-   * Unsave/unbookmark a collection (remove from user's saved collections)
-   * Endpoint: DELETE /collections/{collection_id}/save
-   * 
+   * Save/bookmark a collection (add to user's saved list)
+   * Endpoint: POST /me/saved-collections
+   * Body: { collection_id }
+   *
+   * @param {string} collectionId - Collection ID to save
+   * @returns {Promise<boolean>} Success status
+   * @throws {Error} Network error
+   */
+  async saveCollection(collectionId) {
+    const response = await collectionClient.post('/me/saved-collections', {
+      collection_id: collectionId,
+    });
+    return response.status === 200 || response.status === 201;
+  },
+
+  /**
+   * Unsave/unbookmark a collection (remove from user's saved list)
+   * Endpoint: DELETE /me/saved-collections/{collection_id}
+   *
    * @param {string} collectionId - Collection ID to unsave
-   * @returns {Promise<CollectionData>} Updated collection
+   * @returns {Promise<boolean>} Success status
    * @throws {Error} Network error
    */
   async unsaveCollection(collectionId) {
-    const response = await collectionClient.delete(`/collections/${collectionId}/save`);
-    return extractCollectionData(response);
+    const response = await collectionClient.delete(`/me/saved-collections/${collectionId}`);
+    return response.status === 200 || response.status === 201;
   },
 };
 
