@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
 import PlaceListItem from "@/components/collection/PlaceListItem";
-import AddressAutocomplete from "@/components/autocomplete/AddressAutocomplete";
 import UserSuggestionAutocomplete from "@/components/autocomplete/UserSuggestionAutocomplete";
+import HotelSuggestionAutocomplete from "@/components/autocomplete/HotelSuggestionAutocomplete";
 import { collectionService } from "../../services/backend/collection.service";
 import { viewsService } from "../../services/backend/views.service";
 import { useAuth } from "../../contexts/AuthContext";
@@ -47,6 +47,12 @@ const TABS = [
     label: 'Người đóng góp',
     icon: 'group',
     ariaLabel: 'Người đóng góp trong collection'
+  },
+  {
+    id: 'savers',
+    label: 'Người đã lưu',
+    icon: 'favorite',
+    ariaLabel: 'Người đã lưu collection'
   }
 ];
 
@@ -134,12 +140,17 @@ function CollectionPage() {
   const [placeInput, setPlaceInput] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [toast, setToast] = useState(null);
-  const [activeTab, setActiveTab] = useState('info'); // 'info', 'places', 'contributors'
+  const [activeTab, setActiveTab] = useState('info'); // 'info', 'places', 'contributors', 'savers'
   const [savers, setSavers] = useState([]); // List of users who saved this collection
+  const [saversPage, setSaversPage] = useState(1); // Current page for savers list
+  const [saversLoading, setSaversLoading] = useState(false); // Loading state for savers fetch
+  const SAVERS_PER_PAGE = 3; // Number of savers per page
+  const PLACES_PER_PAGE = 3; // Number of places per page
 
   // Task 2: Places state management for collection-places-display feature
   // Requirements: REQ-4 (Load Places Data on Tab Navigation)
-  const [placesData, setPlacesData] = useState([]); // Full hotel data from API
+  const [placesData, setPlacesData] = useState([]); // Current page of hotel data from API
+  const [placesPage, setPlacesPage] = useState(1); // Current page for places list
   const [placesLoading, setPlacesLoading] = useState(false); // Loading state for places fetch
   const [placesError, setPlacesError] = useState(null); // Error message for places fetch
   const [expandedPlaces, setExpandedPlaces] = useState(new Set()); // Set of expanded place_ids
@@ -250,8 +261,7 @@ function CollectionPage() {
 
   // Task 2.5: Load places data callback function
   // Requirements: REQ-1 (Fetch Collection Places with Full Hotel Data), REQ-4 (Load Places Data on Tab Navigation)
-  const loadPlacesData = useCallback(async () => {
-    // Skip if no collection or in create mode
+  const loadPlacesData = useCallback(async (page = 1) => {
     if (!collection || isCreateMode) {
       return;
     }
@@ -260,7 +270,10 @@ function CollectionPage() {
     setPlacesError(null);
 
     try {
-      const places = await collectionService.getCollectionPlaces(collection.id);
+      const places = await collectionService.getCollectionPlaces(collection.id, {
+        page,
+        limit: PLACES_PER_PAGE,
+      });
       setPlacesData(places || []);
     } catch (error) {
       console.error("Failed to load places data:", error);
@@ -446,18 +459,18 @@ function CollectionPage() {
     }
   }, [collectionId, loadCollection, user]);
 
-  // Task 6: Load places data when Places tab is opened
-  // Requirements: REQ-4 (Load Places Data on Tab Navigation)
   useEffect(() => {
-    // Only load if:
-    // 1. activeTab is 'places'
-    // 2. placesData is empty (not already loaded)
-    // 3. Not in create mode
-    // 4. Collection exists
-    if (activeTab === 'places' && placesData.length === 0 && !isCreateMode && collection) {
-      loadPlacesData();
+    setPlacesPage(1);
+    setPlacesData([]);
+    setExpandedPlaces(new Set());
+  }, [collectionId]);
+
+  // Load places when Places tab is active or page changes
+  useEffect(() => {
+    if (activeTab === 'places' && !isCreateMode && collection) {
+      loadPlacesData(placesPage);
     }
-  }, [activeTab, collection, isCreateMode, placesData.length, loadPlacesData]);
+  }, [activeTab, collection, isCreateMode, placesPage, loadPlacesData]);
   const handleCancelEdit = () => {
     if (collection) {
       setEditValues({
@@ -552,9 +565,10 @@ function CollectionPage() {
       // Update local state with response from backend
       setCollection(updatedCollection);
       
-      // Task 5.4: Refresh places data after successful add
-      await loadPlacesData();
-      
+      const totalPlaces = updatedCollection.place_count ?? updatedCollection.places?.length ?? 0;
+      const lastPage = Math.max(1, Math.ceil(totalPlaces / PLACES_PER_PAGE));
+      setPlacesPage(lastPage);
+
       setPlaceInput("");
       showToast("Thành công", "Đã thêm địa điểm vào collection.", "success");
     } catch (error) {
@@ -566,26 +580,25 @@ function CollectionPage() {
   };
 
   /**
-   * Handle place selection from AddressAutocomplete
-   * Requirements: 4.2, 4.3, 4.4, 4.5, 4.6, 4.7
+   * Handle hotel selection from HotelSuggestionAutocomplete
    */
-  const handlePlaceSelect = async (suggestion) => {
+  const handleHotelSelect = async (hotel) => {
     if (!collection) {
       showToast("Lỗi", "Collection chưa được tải.", "error");
       return;
     }
 
-    // Extract ref_id as place_id
-    const placeId = suggestion.ref_id;
+    // Use property_token as place_id
+    const placeId = hotel.property_token;
     
     if (!placeId) {
-      showToast("Lỗi", "Địa điểm không hợp lệ.", "error");
+      showToast("Lỗi", "Khách sạn không hợp lệ.", "error");
       return;
     }
 
     // Check for duplicates
     if (collection.places?.some((item) => item.place_id === placeId)) {
-      showToast("Thông báo", "Địa điểm này đã có trong collection.", "info");
+      showToast("Thông báo", "Khách sạn này đã có trong collection.", "info");
       return;
     }
 
@@ -597,13 +610,14 @@ function CollectionPage() {
       // Update local state with response from backend
       setCollection(updatedCollection);
       
-      // Refresh places data after successful add
-      await loadPlacesData();
+      const totalPlaces = updatedCollection.place_count ?? updatedCollection.places?.length ?? 0;
+      const lastPage = Math.max(1, Math.ceil(totalPlaces / PLACES_PER_PAGE));
+      setPlacesPage(lastPage);
       
-      showToast("Thành công", "Đã thêm địa điểm vào collection.", "success");
+      showToast("Thành công", "Đã thêm khách sạn vào collection.", "success");
     } catch (error) {
-      console.error("Add place failed:", error);
-      showToast("Lỗi", "Thêm địa điểm không thành công.", "error");
+      console.error("Add hotel failed:", error);
+      showToast("Lỗi", "Thêm khách sạn không thành công.", "error");
     } finally {
       setActionBusy(false);
     }
@@ -617,18 +631,21 @@ function CollectionPage() {
       // Backend expects array of place IDs
       const updatedCollection = await collectionService.removePlacesFromCollection(collection.id, [placeId]);
       
-      // Update local state with response from backend
       setCollection(updatedCollection);
-      
-      // Task 5.5: Update placesData state by removing the place
-      setPlacesData(prev => prev.filter(place => place.place_id !== placeId));
-      
-      // Task 5.6: Remove place from expandedPlaces Set when removed
+
       setExpandedPlaces(prev => {
         const newSet = new Set(prev);
         newSet.delete(placeId);
         return newSet;
       });
+
+      const totalPlaces = updatedCollection.place_count ?? updatedCollection.places?.length ?? 0;
+      const totalPages = Math.max(1, Math.ceil(totalPlaces / PLACES_PER_PAGE));
+      if (placesPage > totalPages) {
+        setPlacesPage(totalPages);
+      } else {
+        await loadPlacesData(placesPage);
+      }
       
       showToast("Thành công", "Đã xóa địa điểm.", "success");
     } catch (error) {
@@ -791,12 +808,139 @@ function CollectionPage() {
     if (!collection) return null;
 
     return (
-      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-        <PropertyChip label="ID" value={collection.id || 'N/A'} />
-        <PropertyChip label="Trạng thái" value={String(collection.visibility || 'public').toUpperCase()} />
-        <PropertyChip label="Số tag" value={collection.tags?.length ?? 0} />
-        <PropertyChip label="Người đóng góp" value={collection.contributors?.length ?? 0} />
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Views */}
+        <PropertyChip 
+          label="Lượt xem (tuần)" 
+          value={collection.views?.weekly_views ?? 0} 
+        />
+        <PropertyChip 
+          label="Lượt xem (tổng)" 
+          value={collection.views?.total_views ?? 0} 
+        />
+        
+        {/* Contributors */}
+        <PropertyChip 
+          label="Người đóng góp" 
+          value={collection.contributors?.length ?? 0} 
+        />
+        
+        {/* Saves */}
+        <PropertyChip 
+          label="Lượt lưu" 
+          value={collection.saved_count ?? 0} 
+        />
+        
+        {/* Places */}
+        <PropertyChip 
+          label="Số địa điểm" 
+          value={collection.place_count ?? collection.places?.length ?? 0} 
+        />
+        
+        {/* Visibility */}
+        <PropertyChip 
+          label="Trạng thái" 
+          value={String(collection.visibility || 'public').toUpperCase()} 
+        />
       </div>
+    );
+  };
+
+  const getTotalPlaces = () =>
+    collection?.place_count ?? collection?.places?.length ?? 0;
+
+  const togglePlaceExpanded = (placeId) => {
+    setExpandedPlaces(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(placeId)) {
+        newSet.delete(placeId);
+      } else {
+        newSet.add(placeId);
+      }
+      return newSet;
+    });
+  };
+
+  const renderPlacesPagination = () => {
+    const totalPlaces = getTotalPlaces();
+    const totalPages = Math.ceil(totalPlaces / PLACES_PER_PAGE);
+
+    if (totalPages <= 1) {
+      return null;
+    }
+
+    return (
+      <div className="mt-4 flex items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => setPlacesPage(prev => Math.max(1, prev - 1))}
+          disabled={placesPage === 1 || placesLoading}
+          className="inline-flex items-center gap-2 rounded-full border border-outline-variant/70 bg-surface-container px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Icon name="chevron_left" size={18} />
+          Trước
+        </button>
+
+        <span className="text-sm text-on-surface-variant">
+          Trang {placesPage} / {totalPages}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => setPlacesPage(prev => Math.min(totalPages, prev + 1))}
+          disabled={placesPage === totalPages || placesLoading}
+          className="inline-flex items-center gap-2 rounded-full border border-outline-variant/70 bg-surface-container px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Sau
+          <Icon name="chevron_right" size={18} />
+        </button>
+      </div>
+    );
+  };
+
+  const renderPlacesList = (isEditMode) => {
+    if (placesLoading) {
+      return (
+        <div className="flex items-center justify-center py-10">
+          <div className="flex items-center gap-3 text-on-surface-variant">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <span className="text-sm">Đang tải địa điểm...</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (placesError) {
+      return (
+        <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="font-semibold">Lỗi</p>
+          <p>{placesError}</p>
+        </div>
+      );
+    }
+
+    if (!placesData.length) {
+      return (
+        <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
+          Collection chưa có địa điểm nào
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {placesData.map((place) => (
+          <PlaceListItem
+            key={place.place_id}
+            place={place}
+            isExpanded={expandedPlaces.has(place.place_id)}
+            onToggle={() => togglePlaceExpanded(place.place_id)}
+            isEditMode={isEditMode}
+            onRemove={isEditMode ? handleRemovePlace : undefined}
+          />
+        ))}
+        {renderPlacesPagination()}
+      </>
     );
   };
 
@@ -813,41 +957,16 @@ function CollectionPage() {
             description="Thêm hoặc xóa địa điểm trong collection."
           >
             <div className="grid gap-4">
-              {/* Add Place Form */}
-              <AddressAutocomplete
-                onSelect={handlePlaceSelect}
-                placeholder="Tìm kiếm địa điểm..."
+              {/* Add Hotel Form */}
+              <HotelSuggestionAutocomplete
+                onSelect={handleHotelSelect}
+                placeholder="Tìm kiếm khách sạn..."
                 disabled={actionBusy}
               />
 
               {/* Task 5.2: Places List with PlaceListItem components in edit mode */}
               <div className="space-y-3">
-                {placesData?.length ? (
-                  placesData.map((place) => (
-                    <PlaceListItem
-                      key={place.place_id}
-                      place={place}
-                      isExpanded={expandedPlaces.has(place.place_id)}
-                      onToggle={() => {
-                        setExpandedPlaces(prev => {
-                          const newSet = new Set(prev);
-                          if (newSet.has(place.place_id)) {
-                            newSet.delete(place.place_id);
-                          } else {
-                            newSet.add(place.place_id);
-                          }
-                          return newSet;
-                        });
-                      }}
-                      isEditMode={true}
-                      onRemove={handleRemovePlace}
-                    />
-                  ))
-                ) : (
-                  <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
-                    Collection chưa có địa điểm nào
-                  </div>
-                )}
+                {renderPlacesList(true)}
               </div>
             </div>
           </SectionCard>
@@ -861,56 +980,11 @@ function CollectionPage() {
         <div className="grid gap-6">
           <SectionCard
             title="Địa điểm trong collection"
-            description="Danh sách địa điểm đã lưu trong collection."
+            description={`${getTotalPlaces()} địa điểm trong collection.`}
           >
-            {/* Loading Indicator */}
-            {placesLoading && (
-              <div className="flex items-center justify-center py-10">
-                <div className="flex items-center gap-3 text-on-surface-variant">
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                  <span className="text-sm">Đang tải địa điểm...</span>
-                </div>
-              </div>
-            )}
-
-            {/* Error Message */}
-            {placesError && !placesLoading && (
-              <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <p className="font-semibold">Lỗi</p>
-                <p>{placesError}</p>
-              </div>
-            )}
-
-            {/* Places List */}
-            {!placesLoading && !placesError && (
-              <div className="space-y-3">
-                {placesData.length > 0 ? (
-                  placesData.map((place) => (
-                    <PlaceListItem
-                      key={place.place_id}
-                      place={place}
-                      isExpanded={expandedPlaces.has(place.place_id)}
-                      onToggle={() => {
-                        setExpandedPlaces(prev => {
-                          const newSet = new Set(prev);
-                          if (newSet.has(place.place_id)) {
-                            newSet.delete(place.place_id);
-                          } else {
-                            newSet.add(place.place_id);
-                          }
-                          return newSet;
-                        });
-                      }}
-                      isEditMode={false}
-                    />
-                  ))
-                ) : (
-                  <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
-                    Collection chưa có địa điểm nào
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="space-y-3">
+              {renderPlacesList(false)}
+            </div>
           </SectionCard>
         </div>
       );
@@ -1064,10 +1138,104 @@ function CollectionPage() {
         return renderPlacesTab();
       case 'contributors':
         return renderContributorsTab();
+      case 'savers':
+        return renderSaversTab();
       default:
         // Default to Info tab if invalid tab value
         return renderInfoTab();
     }
+  };
+
+  // Render Savers Tab Content
+  const renderSaversTab = () => {
+    // Calculate pagination
+    const totalSavers = collection?.saved_count || 0;
+    const totalPages = Math.ceil(totalSavers / SAVERS_PER_PAGE);
+    const startIndex = (saversPage - 1) * SAVERS_PER_PAGE;
+    const endIndex = startIndex + SAVERS_PER_PAGE;
+    const currentSavers = savers.slice(startIndex, endIndex);
+
+    return (
+      <div className="grid gap-6">
+        <SectionCard
+          title="Người đã lưu"
+          description={`${totalSavers} người dùng đã lưu collection này.`}
+        >
+          <div className="space-y-3">
+            {saversLoading ? (
+              <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
+                <Icon name="hourglass_top" size={24} className="text-primary animate-spin mx-auto mb-2" />
+                Đang tải...
+              </div>
+            ) : currentSavers.length ? (
+              <>
+                {currentSavers.map((saver) => {
+                  const displayLabel = saver.display_name || saver.username || saver.uid;
+                  return (
+                    <div key={saver.uid} className="flex items-center gap-3 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3">
+                      {/* Avatar */}
+                      {saver.avatar_url ? (
+                        <img 
+                          src={saver.avatar_url} 
+                          alt={`${displayLabel} avatar`}
+                          className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-medium flex-shrink-0">
+                          {(saver.username || saver.uid).charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                      
+                      {/* User Info */}
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <p className="text-sm font-semibold text-on-surface truncate">{displayLabel}</p>
+                        <p className="text-xs text-on-surface-variant font-mono truncate">@{saver.username || saver.uid}</p>
+                        <p className="text-xs text-on-surface-variant truncate">
+                          Đã lưu: {formatDate(saver.saved_at)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-4">
+                    <button
+                      type="button"
+                      onClick={() => setSaversPage(prev => Math.max(1, prev - 1))}
+                      disabled={saversPage === 1}
+                      className="inline-flex items-center gap-2 rounded-full border border-outline-variant/70 bg-surface-container px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Icon name="chevron_left" size={18} />
+                      Trước
+                    </button>
+                    
+                    <span className="text-sm text-on-surface-variant">
+                      Trang {saversPage} / {totalPages}
+                    </span>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setSaversPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={saversPage === totalPages}
+                      className="inline-flex items-center gap-2 rounded-full border border-outline-variant/70 bg-surface-container px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Sau
+                      <Icon name="chevron_right" size={18} />
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
+                Chưa có ai lưu collection này
+              </div>
+            )}
+          </div>
+        </SectionCard>
+      </div>
+    );
   };
 
   // Task 3: Render Info Tab Content
@@ -1181,20 +1349,47 @@ function CollectionPage() {
               <div className="grid gap-3">
                 {!isCreateMode && (
                   <>
-                    <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                      <p className="font-semibold text-on-surface">Ngày tạo</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.created_at)}</p>
+                    {/* Owner Info */}
+                    <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4">
+                      <p className="font-semibold text-on-surface mb-3">Chủ sở hữu</p>
+                      <div className="flex items-center gap-3">
+                        {collection.owner?.avatar_url ? (
+                          <img 
+                            src={collection.owner.avatar_url} 
+                            alt={collection.owner.display_name || collection.owner.username}
+                            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-medium flex-shrink-0">
+                            {(collection.owner?.username || collection.owner_uid || '?').charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-on-surface truncate">
+                            {collection.owner?.display_name || collection.owner?.username || collection.owner_uid || 'N/A'}
+                          </p>
+                          {collection.owner?.username && (
+                            <p className="text-xs text-on-surface-variant truncate">
+                              @{collection.owner.username}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                      <p className="font-semibold text-on-surface">Cập nhật</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.updated_at)}</p>
+                    
+                    {/* Created and Updated dates side by side */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
+                        <p className="font-semibold text-on-surface">Ngày tạo</p>
+                        <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.created_at)}</p>
+                      </div>
+                      <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
+                        <p className="font-semibold text-on-surface">Cập nhật lần cuối</p>
+                        <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.updated_at)}</p>
+                      </div>
                     </div>
                   </>
                 )}
-                <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                  <p className="font-semibold text-on-surface">Người dùng hiện tại</p>
-                  <p className="mt-1 text-sm text-on-surface-variant">{user?.uid || "Chưa đăng nhập"}</p>
-                </div>
                 {isCreateMode && (
                   <div className="rounded-3xl border border-primary/20 bg-primary/5 px-4 py-4 text-sm">
                     <p className="font-semibold text-primary">Chế độ tạo mới</p>
@@ -1234,43 +1429,6 @@ function CollectionPage() {
                 )}
               </div>
             </SectionCard>
-
-            {/* Savers List */}
-            <SectionCard
-              title="Người đã lưu"
-              description={`${savers.length} người dùng đã lưu collection này.`}
-            >
-              <div className="space-y-3">
-                {savers.length ? (
-                  savers.map((saver) => {
-                    const displayLabel = saver.display_name || saver.username || saver.uid;
-                    return (
-                      <div key={saver.uid} className="flex items-center gap-3 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3">
-                        {saver.avatar_url ? (
-                          <img 
-                            src={saver.avatar_url} 
-                            alt={displayLabel}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Icon name="person" size={20} className="text-primary" />
-                          </div>
-                        )}
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-on-surface">{displayLabel}</p>
-                          <p className="text-xs text-on-surface-variant">Đã lưu: {formatDate(saver.saved_at)}</p>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
-                    Chưa có ai lưu collection này
-                  </div>
-                )}
-              </div>
-            </SectionCard>
           </div>
 
           {/* Summary Card */}
@@ -1280,17 +1438,44 @@ function CollectionPage() {
               description="Thông tin nhanh của collection."
             >
               <div className="grid gap-3">
-                <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                  <p className="font-semibold text-on-surface">Ngày tạo</p>
-                  <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.created_at)}</p>
+                {/* Owner Info */}
+                <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4">
+                  <p className="font-semibold text-on-surface mb-3">Chủ sở hữu</p>
+                  <div className="flex items-center gap-3">
+                    {collection.owner?.avatar_url ? (
+                      <img 
+                        src={collection.owner.avatar_url} 
+                        alt={collection.owner.display_name || collection.owner.username}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-medium flex-shrink-0">
+                        {(collection.owner?.username || collection.owner_uid || '?').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-on-surface truncate">
+                        {collection.owner?.display_name || collection.owner?.username || collection.owner_uid || 'N/A'}
+                      </p>
+                      {collection.owner?.username && (
+                        <p className="text-xs text-on-surface-variant truncate">
+                          @{collection.owner.username}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                  <p className="font-semibold text-on-surface">Cập nhật</p>
-                  <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.updated_at)}</p>
-                </div>
-                <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                  <p className="font-semibold text-on-surface">Người dùng hiện tại</p>
-                  <p className="mt-1 text-sm text-on-surface-variant">{user?.uid || "Chưa đăng nhập"}</p>
+                
+                {/* Created and Updated dates side by side */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
+                    <p className="font-semibold text-on-surface">Ngày tạo</p>
+                    <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.created_at)}</p>
+                  </div>
+                  <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
+                    <p className="font-semibold text-on-surface">Cập nhật lần cuối</p>
+                    <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.updated_at)}</p>
+                  </div>
                 </div>
               </div>
             </SectionCard>
@@ -1430,22 +1615,7 @@ function CollectionPage() {
                 </h1>
 
                 {!isEditing && (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {collection?.tags?.length ? (
-                        collection.tags.map((tag) => (
-                          <span key={tag} className="rounded-full bg-surface-container px-3 py-1 text-xs font-medium text-on-surface">
-                            #{tag}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="rounded-full bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
-                          Chưa có thẻ tag
-                        </span>
-                      )}
-                    </div>
-                    <p className="max-w-3xl text-sm leading-7 text-on-surface-variant mt-2">{collection?.description || "Collection chưa có mô tả."}</p>
-                  </>
+                  <p className="max-w-3xl text-sm leading-7 text-on-surface-variant">{collection?.description || "Collection chưa có mô tả."}</p>
                 )}
               </div>
 

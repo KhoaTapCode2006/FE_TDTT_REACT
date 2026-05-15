@@ -49,6 +49,43 @@ describe('PlaceListItem', () => {
     address: '123 Test Street',
   };
 
+  it('renders added-by avatar when avatar_url is provided', () => {
+    const onToggle = vi.fn();
+    const placeWithAvatar = {
+      ...mockPlace,
+      added_by: {
+        ...mockPlace.added_by,
+        avatar_url: 'https://example.com/avatar.jpg',
+      },
+    };
+
+    render(
+      <PlaceListItem
+        place={placeWithAvatar}
+        isExpanded={false}
+        onToggle={onToggle}
+        isEditMode={false}
+      />
+    );
+
+    const avatar = screen.getByAltText('Test User avatar');
+    expect(avatar).toHaveAttribute('src', 'https://example.com/avatar.jpg');
+  });
+
+  it('renders added-by initial when avatar_url is missing', () => {
+    const onToggle = vi.fn();
+    render(
+      <PlaceListItem
+        place={mockPlace}
+        isExpanded={false}
+        onToggle={onToggle}
+        isEditMode={false}
+      />
+    );
+
+    expect(screen.getByText('T')).toBeInTheDocument();
+  });
+
   it('renders compact view with place information', () => {
     const onToggle = vi.fn();
     render(

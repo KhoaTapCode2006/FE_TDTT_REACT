@@ -28,6 +28,12 @@ function PlaceListItem({
   // Fallback values for missing data
   const placeName = place?.name || 'Unknown Place';
   const addedByName = place?.added_by?.display_name || place?.added_by?.username || 'Unknown User';
+  const addedByAvatarUrl = place?.added_by?.avatar_url;
+  const addedByInitial = (
+    place?.added_by?.username ||
+    place?.added_by?.display_name ||
+    'U'
+  ).charAt(0).toUpperCase();
   const addedAtDate = place?.added_at ? fmtDate(place.added_at) : '-';
   
   // Get thumbnail image or use placeholder
@@ -96,8 +102,18 @@ function PlaceListItem({
             {placeName}
           </h3>
           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs text-on-surface-variant">
-            <div className="flex items-center gap-1">
-              <Icon name="person" size={14} />
+            <div className="flex items-center gap-1.5">
+              {addedByAvatarUrl ? (
+                <img
+                  src={addedByAvatarUrl}
+                  alt={`${addedByName} avatar`}
+                  className="h-5 w-5 flex-shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-on-primary">
+                  {addedByInitial}
+                </div>
+              )}
               <span className="truncate">Thêm bởi: {addedByName}</span>
             </div>
             <span className="hidden sm:inline text-outline-variant">•</span>

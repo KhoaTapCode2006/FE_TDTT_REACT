@@ -610,15 +610,20 @@ export const collectionService = {
   },
 
   /**
-   * Get full place data for all places in a collection
-   * Endpoint: GET /collections/{collection_id}/places
+   * Get place data for a collection (paginated)
+   * Endpoint: GET /collections/{collection_id}/places?page=&limit=
    *
    * @param {string} collectionId - Collection ID
+   * @param {Object} [options]
+   * @param {number} [options.page=1] - Page number (1-based)
+   * @param {number} [options.limit=3] - Places per page
    * @returns {Promise<Array>} Array of place objects with full hotel data
    * @throws {Error} Network error
    */
-  async getCollectionPlaces(collectionId) {
-    const response = await collectionClient.get(`/collections/${collectionId}/places`);
+  async getCollectionPlaces(collectionId, { page = 1, limit = 3 } = {}) {
+    const response = await collectionClient.get(`/collections/${collectionId}/places`, {
+      params: { page, limit },
+    });
     const data = response.data?.data;
     if (!Array.isArray(data)) {
       return [];
