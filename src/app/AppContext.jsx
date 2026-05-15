@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useMemo, useEffect, useCallback } from 'react';
 import { MOCK_HOTELS, DEFAULT_FILTER_STATE } from '@/constants/enums';
 import { AuthProvider } from '../contexts/AuthContext.jsx';
+import { geolocationService } from '../services/geolocation.service.js';
 
 const AppContext = createContext();
 
@@ -144,6 +145,29 @@ const AppContextProvider = ({ children }) => {
 
   // Hovered hotel ID for map marker highlighting
   const [hoveredHotelId, setHoveredHotelId] = useState(null);
+
+  // Request user geolocation on app load (Task 7.1)
+  useEffect(() => {
+    const initializeGeolocation = async () => {
+      try {
+        console.log('🌍 Requesting user geolocation...');
+        const location = await geolocationService.requestUserLocation();
+        
+        // Update user location state with obtained coordinates
+        setUserLoc({
+          lat: location.latitude,
+          lng: location.longitude
+        });
+        
+        console.log('✅ User location set:', location);
+      } catch (error) {
+        console.error('Failed to get user location:', error);
+        // userLoc already has default value, no need to set again
+      }
+    };
+
+    initializeGeolocation();
+  }, []); // Run once on mount
 
   const value = {
     location, setLocation,

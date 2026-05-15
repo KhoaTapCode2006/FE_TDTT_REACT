@@ -32,22 +32,22 @@ async function ensureValidToken() {
  */
 export async function addFavoritePlace(hotelData) {
   try {
-    if (!hotelData || !hotelData.id) {
-      throw new Error('Hotel data with ID is required');
+    if (!hotelData || !hotelData.propertyToken) {
+      throw new Error('Hotel data with propertyToken is required');
     }
 
     await ensureValidToken();
 
-    // Prepare hotel data for backend
+    // Prepare hotel data for backend - use propertyToken as place_id
     const favoriteData = {
-      id: hotelData.id || hotelData.propertyToken,
+      place_id: hotelData.propertyToken,
       name: hotelData.name || 'Unknown Hotel',
       address: hotelData.address || hotelData.location || '',
       rating: hotelData.rating || hotelData.ai_score || 0,
       pricePerNight: hotelData.pricePerNight || hotelData.price || 0,
       images: hotelData.images || [],
       amenities: hotelData.amenities || [],
-      coordinates: hotelData.coordinates || {
+      gps_coordinates: {
         latitude: hotelData.lat || 0,
         longitude: hotelData.lng || hotelData.lon || 0
       }
@@ -58,12 +58,16 @@ export async function addFavoritePlace(hotelData) {
   } catch (error) {
     console.error('Error adding favorite place:', error);
 
-    if (error.message === 'Hotel data with ID is required') {
+    if (error.message === 'Hotel data with propertyToken is required') {
       throw error;
     }
 
     if (error.status === 401) {
       throw new Error('Bạn phải đăng nhập để lưu các địa điểm yêu thích');
+    }
+
+    if (error.status === 404) {
+      throw new Error('Failed to add favorite: Invalid hotel ID. Please try again.');
     }
 
     if (error.status === 409) {
@@ -77,24 +81,24 @@ export async function addFavoritePlace(hotelData) {
 /**
  * Remove hotel from favorite places
  * Requirements: 15.3, 15.4
- * @param {string} placeId - Place ID (hotel ID)
+ * @param {string} propertyToken - Property token (place_id)
  * @returns {Promise<void>}
- * @throws {Error} If not authenticated or place ID is invalid
+ * @throws {Error} If not authenticated or property token is invalid
  */
-export async function removeFavoritePlace(placeId) {
+export async function removeFavoritePlace(propertyToken) {
   try {
-    if (!placeId) {
-      throw new Error('Place ID is required');
+    if (!propertyToken) {
+      throw new Error('Property token is required');
     }
 
     await ensureValidToken();
 
-    // Remove from favorite places via backend API
-    await apiClient.delete(`/me/favourites-places?place_id=${placeId}`);
+    // Remove from favorite places via backend API using propertyToken as place_id
+    await apiClient.delete(`/me/favourites-places?place_id=${propertyToken}`);
   } catch (error) {
     console.error('Error removing favorite place:', error);
 
-    if (error.message === 'Place ID is required') {
+    if (error.message === 'Property token is required') {
       throw error;
     }
 
@@ -103,7 +107,7 @@ export async function removeFavoritePlace(placeId) {
     }
 
     if (error.status === 404) {
-      throw new Error('Favorite not found.');
+      throw new Error('Favorite not found. It may have already been removed.');
     }
 
     throw new Error(error.message || 'Unable to remove hotel from favorites. Please try again.');
@@ -129,10 +133,11 @@ export async function getFavoritePlaces() {
       return [];
     }
 
-    // Transform to frontend format
+    // Transform to frontend format - handle place_id correctly
     return response.map(place => ({
-      id: place.id || place.place_id,
-      hotelId: place.id || place.place_id,
+      id: place.place_id || place.id,
+      hotelId: place.place_id || place.id,
+      propertyToken: place.place_id || place.id,
       name: place.name || 'Unknown Hotel',
       location: place.address || '',
       rating: place.rating || 0,
@@ -141,7 +146,9 @@ export async function getFavoritePlaces() {
       imageUrl: place.images?.[0] || place.thumbnail || null,
       images: place.images || [],
       amenities: place.amenities || [],
-      coordinates: place.coordinates || null,
+      coordinates: place.gps_coordinates || place.coordinates || null,
+      lat: place.gps_coordinates?.latitude || 0,
+      lng: place.gps_coordinates?.longitude || 0,
       addedAt: place.added_at ? new Date(place.added_at) : new Date(),
     }));
   } catch (error) {
@@ -158,12 +165,12 @@ export async function getFavoritePlaces() {
 /**
  * Check if hotel is favorited
  * Requirements: 15.5, 15.6
- * @param {string} hotelId - Hotel ID
+ * @param {string} propertyToken - Property token (hotel ID)
  * @returns {Promise<boolean>} True if favorited
  */
-export async function isFavorite(hotelId) {
+export async function isFavorite(propertyToken) {
   try {
-    if (!hotelId) {
+    if (!propertyToken) {
       return false;
     }
 
@@ -176,9 +183,9 @@ export async function isFavorite(hotelId) {
       return false;
     }
 
-    // Check if hotel exists in favorite places
+    // Check if hotel exists in favorite places using place_id
     return favoritePlaces.some(place => 
-      place.id === hotelId || place.place_id === hotelId
+      place.place_id === propertyToken || place.id === propertyToken
     );
   } catch (error) {
     console.error('Error checking if hotel is favorite:', error);
@@ -194,12 +201,12 @@ export async function isFavorite(hotelId) {
 /**
  * Get favorite by hotel ID
  * Requirements: 15.5, 15.6
- * @param {string} hotelId - Hotel ID
+ * @param {string} propertyToken - Property token (hotel ID)
  * @returns {Promise<Object|null>} Favorite or null
  */
-export async function getFavoriteByHotelId(hotelId) {
+export async function getFavoriteByHotelId(propertyToken) {
   try {
-    if (!hotelId) {
+    if (!propertyToken) {
       return null;
     }
 
@@ -212,9 +219,9 @@ export async function getFavoriteByHotelId(hotelId) {
       return null;
     }
 
-    // Find the place in favorite places
+    // Find the place in favorite places using place_id
     const place = favoritePlaces.find(p => 
-      p.id === hotelId || p.place_id === hotelId
+      p.place_id === propertyToken || p.id === propertyToken
     );
 
     if (!place) {
@@ -223,8 +230,9 @@ export async function getFavoriteByHotelId(hotelId) {
 
     // Transform to favorite format
     return {
-      id: place.id || place.place_id,
-      hotelId: place.id || place.place_id,
+      id: place.place_id || place.id,
+      hotelId: place.place_id || place.id,
+      propertyToken: place.place_id || place.id,
       name: place.name || 'Unknown Hotel',
       location: place.address || '',
       rating: place.rating || 0,
@@ -233,7 +241,9 @@ export async function getFavoriteByHotelId(hotelId) {
       imageUrl: place.images?.[0] || place.thumbnail || null,
       images: place.images || [],
       amenities: place.amenities || [],
-      coordinates: place.coordinates || null,
+      coordinates: place.gps_coordinates || place.coordinates || null,
+      lat: place.gps_coordinates?.latitude || 0,
+      lng: place.gps_coordinates?.longitude || 0,
       addedAt: place.added_at ? new Date(place.added_at) : new Date(),
     };
   } catch (error) {
@@ -262,11 +272,11 @@ class FavoritesService {
 
   /**
    * Remove hotel from favorites
-   * @param {string} placeId - Place ID (hotel ID)
+   * @param {string} propertyToken - Property token (place_id)
    * @returns {Promise<void>}
    */
-  async removeFavorite(placeId) {
-    return removeFavoritePlace(placeId);
+  async removeFavorite(propertyToken) {
+    return removeFavoritePlace(propertyToken);
   }
 
   /**
@@ -279,20 +289,20 @@ class FavoritesService {
 
   /**
    * Check if hotel is favorited
-   * @param {string} hotelId - Hotel ID
+   * @param {string} propertyToken - Property token (hotel ID)
    * @returns {Promise<boolean>} True if favorited
    */
-  async isFavorite(hotelId) {
-    return isFavorite(hotelId);
+  async isFavorite(propertyToken) {
+    return isFavorite(propertyToken);
   }
 
   /**
    * Get favorite by hotel ID
-   * @param {string} hotelId - Hotel ID
+   * @param {string} propertyToken - Property token (hotel ID)
    * @returns {Promise<Object|null>} Favorite or null
    */
-  async getFavoriteByHotelId(hotelId) {
-    return getFavoriteByHotelId(hotelId);
+  async getFavoriteByHotelId(propertyToken) {
+    return getFavoriteByHotelId(propertyToken);
   }
 }
 

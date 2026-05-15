@@ -3,7 +3,7 @@ import { usePopup } from "../hooks/usePopup";
 import { useApp } from "@/app/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { fmtPrice, fmtDate } from "@/utils/format";
+import { fmtPrice, fmtDate, formatViewCount } from "@/utils/format";
 import SaveToListModal from "@/components/profile/SaveToListModal";
 import styles from "./HotelPopup.module.css";
 
@@ -418,6 +418,104 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                 {hotel.description ??
                   `${hotel.name} nằm tại vị trí thuận tiện, phù hợp cho cả du lịch và công tác. Khách sạn có không gian sạch sẽ, dịch vụ thân thiện và dễ dàng di chuyển đến các điểm tham quan.`}
               </p>
+
+              {/* AI Sentiment Display */}
+              {hotel?.aiSentiment && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                      <path d="M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z" />
+                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                      <circle cx="12" cy="17" r="0.5" fill="currentColor" />
+                    </svg>
+                    <h4 className="font-bold text-blue-900">AI Analysis</h4>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <p className="text-xs text-blue-700">AI Score</p>
+                      <p className="text-2xl font-bold text-blue-900">
+                        {hotel.aiSentiment.aiScore?.toFixed(1) || 'N/A'}
+                      </p>
+                    </div>
+                    {hotel.aiSentiment.trustWeight !== undefined && (
+                      <div>
+                        <p className="text-xs text-blue-700">Trust Weight</p>
+                        <p className="text-sm font-medium text-blue-900">
+                          {(hotel.aiSentiment.trustWeight * 100).toFixed(0)}%
+                        </p>
+                      </div>
+                    )}
+                    {hotel.aiSentiment.analyzedReviews !== undefined && (
+                      <div>
+                        <p className="text-xs text-blue-700">Reviews Analyzed</p>
+                        <p className="text-sm font-medium text-blue-900">
+                          {hotel.aiSentiment.analyzedReviews}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Summary Display */}
+              {hotel?.aiSummary && (
+                <div className="mt-4">
+                  <h4 className="font-bold text-primary mb-2">AI Summary</h4>
+                  {hotel.aiSummary.overview && (
+                    <p className="text-sm text-on-surface mb-3">{hotel.aiSummary.overview}</p>
+                  )}
+                  
+                  {hotel.aiSummary.pros && hotel.aiSummary.pros.length > 0 && (
+                    <div className="mb-2">
+                      <p className="text-xs font-bold text-green-700 mb-1">Pros:</p>
+                      <ul className="list-disc list-inside text-sm text-on-surface">
+                        {hotel.aiSummary.pros.map((pro, idx) => (
+                          <li key={idx}>{pro}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {hotel.aiSummary.cons && hotel.aiSummary.cons.length > 0 && (
+                    <div className="mb-2">
+                      <p className="text-xs font-bold text-red-700 mb-1">Cons:</p>
+                      <ul className="list-disc list-inside text-sm text-on-surface">
+                        {hotel.aiSummary.cons.map((con, idx) => (
+                          <li key={idx}>{con}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  
+                  {hotel.aiSummary.notes && (
+                    <p className="text-xs text-on-surface-variant italic mt-2">
+                      Note: {hotel.aiSummary.notes}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* View Statistics Display */}
+              {hotel?.views && (
+                <div className="flex items-center gap-4 text-xs text-on-surface-variant mt-4 p-3 bg-surface-container rounded-lg">
+                  <div className="flex items-center gap-1">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <span>{formatViewCount(hotel.views.totalViews)} total views</span>
+                  </div>
+                  {hotel.views.weeklyViews !== undefined && (
+                    <div className="flex items-center gap-1">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                        <polyline points="17 6 23 6 23 12" />
+                      </svg>
+                      <span>{hotel.views.weeklyViews} this week</span>
+                    </div>
+                  )}
+                </div>
+              )}
               
               {/* Book Now Button */}
               <button

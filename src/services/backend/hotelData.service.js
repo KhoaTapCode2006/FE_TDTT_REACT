@@ -7,6 +7,8 @@
  * Requirements: 3.1, 3.2, 3.6, 3.7
  */
 
+import { transformHotelDetailResponse } from '../../utils/schemaTransformers.js';
+
 /**
  * Load mock hotels from sample_output_2.json
  * 
@@ -39,10 +41,17 @@ export async function loadMockHotels() {
       return [];
     }
     
-    // Transform and validate each hotel
+    // Transform and validate each hotel using the new transformer
     const hotels = data.data
-      .map((backendHotel, index) => transformHotel(backendHotel, index))
-      .filter(hotel => validateHotelData(hotel));
+      .map((backendHotel, index) => {
+        try {
+          return transformHotelDetailResponse(backendHotel, index);
+        } catch (error) {
+          console.error(`Failed to transform hotel at index ${index}:`, error);
+          return null;
+        }
+      })
+      .filter(hotel => hotel !== null && validateHotelData(hotel));
     
     console.log(`Loaded ${hotels.length} valid hotels from ${data.data.length} total entries`);
     
@@ -54,80 +63,6 @@ export async function loadMockHotels() {
     // Return empty array on critical errors
     return [];
   }
-}
-
-/**
- * Transform backend hotel schema to frontend schema
- * 
- * Maps backend fields to frontend format:
- * - property_token → id
- * - gps_coordinates → coordinates with latitude and longitude
- * - ai_score → rating
- * - images array with thumbnail and original_image → original
- * 
- * Handles missing optional fields with defaults.
- * 
- * @param {Object} backendHotel - Backend hotel data (snake_case)
- * @param {number} index - Index in the array (for fallback ID generation)
- * @returns {Object} Frontend hotel data (camelCase)
- */
-export function transformHotel(backendHotel, index = 0) {
-  if (!backendHotel || typeof backendHotel !== 'object') {
-    console.warn('Invalid hotel data: not an object');
-    return null;
-  }
-  
-  // Extract fields from backend schema
-  const {
-    property_token,
-    name,
-    description,
-    address,
-    phone,
-    gps_coordinates,
-    price,
-    ai_score,
-    images,
-    amenities,
-    link
-  } = backendHotel;
-  
-  // Transform to frontend schema
-  return {
-    // Map property_token to id, with fallback for missing tokens
-    id: property_token || `hotel-fallback-${Date.now()}-${index}`,
-    
-    // Required fields with defaults
-    name: name || 'Unknown Hotel',
-    
-    // Map gps_coordinates to coordinates with latitude and longitude
-    coordinates: {
-      latitude: gps_coordinates?.latitude || 0,
-      longitude: gps_coordinates?.longitude || 0
-    },
-    
-    // IMPORTANT: Also add lat/lng for VietMap compatibility
-    lat: gps_coordinates?.latitude || 0,
-    lng: gps_coordinates?.longitude || 0,
-    
-    // Map ai_score to rating - generate random rating if ai_score is 0 or missing
-    rating: (ai_score && ai_score > 0) ? ai_score : (3.5 + Math.random() * 1.5), // Random rating between 3.5 and 5.0
-    
-    // Optional fields with null/default values
-    description: description || null,
-    address: address || null,
-    phone: phone || null,
-    price: price || 0,
-    pricePerNight: price || 0, // Add pricePerNight alias for compatibility
-    link: link || null,
-    
-    // Transform images array: thumbnail and original_image → original
-    images: (images || []).map(img => img?.thumbnail || ''),
-    thumbnail: images?.[0]?.thumbnail || '', // Add thumbnail field for marker
-    
-    // Amenities array with default empty array
-    amenities: amenities || []
-  };
 }
 
 /**

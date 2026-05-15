@@ -1,4 +1,4 @@
-﻿import { fmtPrice } from "@/utils/format";
+﻿import { fmtPrice, formatViewCount } from "@/utils/format";
 import { AMENITY_META } from "@/constants/enums";
 import Icon from "@/components/ui/Icon";
 import { useApp } from "@/app/AppContext";
@@ -13,6 +13,17 @@ function HotelCard({ hotel, onClick }) {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [showSaveModal, setShowSaveModal] = useState(false);
+  
+  // Debug: Log hotel data to check user_reviews
+  const reviews = hotel?.userReviews || hotel?.reviews || hotel?.user_reviews || [];
+  console.log('HotelCard hotel data:', {
+    name: hotel?.name,
+    hasUserReviews: !!hotel?.userReviews,
+    hasReviews: !!hotel?.reviews,
+    hasOldFormat: !!hotel?.user_reviews,
+    reviewsLength: reviews.length,
+    firstReview: reviews[0]
+  });
   
   const imageSrc = hotel?.images?.[0] || "https://via.placeholder.com/640x480?text=No+Image";
   const amenityIcons = (hotel?.amenities || []).slice(0, 3).map((a) => {
@@ -51,8 +62,20 @@ function HotelCard({ hotel, onClick }) {
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
 
-          {/* Save to List Button - Top Left */}
-          <div className="absolute top-3 left-3">
+          {/* User Review Box - Top Left */}
+          {reviews && reviews.length > 0 && (
+            <div className="review-box">
+              <div className="review-rating">
+                ⭐ {reviews[0].rawRating || reviews[0].rawStars || reviews[0].raw_rating || reviews[0].raw_star || 0}
+              </div>
+              <div className="review-text">
+                "{reviews[0].text}"
+              </div>
+            </div>
+          )}
+
+          {/* Save to List Button - Top Left (below review if present) */}
+          <div className={`absolute ${reviews && reviews.length > 0 ? 'top-24' : 'top-3'} left-3`}>
             <button
               onClick={handleSaveClick}
               className="glass p-2 rounded-full hover:bg-white/90 transition-all shadow-sm group/save"
@@ -115,6 +138,16 @@ function HotelCard({ hotel, onClick }) {
             <div className="text-right flex-none">
               <p className="text-base font-extrabold text-primary font-headline">{fmtPrice(hotel?.pricePerNight ?? 0)}</p>
               <p className="text-[10px] text-outline uppercase font-semibold">per night</p>
+              
+              {/* Top View Section */}
+              {hotel?.totalViews && hotel.totalViews > 0 && (
+                <div className="flex items-center justify-end gap-1 text-on-surface-variant mt-2">
+                  <Icon name="visibility" size={14} />
+                  <span className="text-xs font-medium">
+                    {formatViewCount(hotel.totalViews)} views
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

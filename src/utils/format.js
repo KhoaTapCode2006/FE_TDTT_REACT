@@ -11,6 +11,23 @@
   }).format(n);
 }
 
+/**
+ * Format view count with K/M suffixes
+ * @param {number} count - View count number
+ * @returns {string} Formatted view count (e.g., "1.2K", "1.5M")
+ */
+export function formatViewCount(count) {
+  if (!count || typeof count !== 'number') return '0';
+  
+  if (count >= 1000000) {
+    return (count / 1000000).toFixed(1) + 'M';
+  }
+  if (count >= 1000) {
+    return (count / 1000).toFixed(1) + 'K';
+  }
+  return count.toString();
+}
+
 export function fmtDate(d) {
   if (!d) return "";
   return d.toLocaleDateString("en-GB", {
@@ -79,12 +96,14 @@ export function normalizeHotelResult(raw, fallbackLocation) {
     : [];
 
   // ── Reviews ────────────────────────────────────────────────────────────
-  // sample_output_2.json: user_reviews: [{ text, raw_stars }]
-  const reviews = Array.isArray(raw.user_reviews)
-    ? raw.user_reviews.map(r => ({
-        author: r.reviewer_name || r.author || 'Khách',
-        text: r.review_text || r.text || r.comment || '',
-        raw_star: r.raw_stars ?? r.raw_star ?? 0,
+  // API response: user_reviews: [{ text, raw_rating }] (snake_case)
+  // After transform: userReviews: [{ text, rawRating }] (camelCase)
+  const rawReviews = raw.userReviews || raw.user_reviews || [];
+  const reviews = Array.isArray(rawReviews)
+    ? rawReviews.map(r => ({
+        author: r.reviewerName || r.reviewer_name || r.author || 'Khách',
+        text: r.reviewText || r.review_text || r.text || r.comment || '',
+        rawRating: r.rawRating ?? r.raw_rating ?? r.rawStars ?? r.raw_stars ?? r.raw_star ?? 0,
       }))
     : [];
 
@@ -134,6 +153,7 @@ export function normalizeHotelResult(raw, fallbackLocation) {
     amenities,
     latestReview,
     reviews,
+    userReviews: reviews, // Alias for consistency with transformed data
 
     // AI metadata
     ai_score: raw.ai_score != null ? Number(raw.ai_score) : null,

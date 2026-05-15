@@ -36,21 +36,49 @@ class HotelSearchService {
         return [];
       }
 
-      const response = await apiClient.get(`/discover/address-suggest?query=${encodeURIComponent(address.trim())}`);
+      // Use POST method as backend requires it
+      const response = await apiClient.post('/discover/address-suggest', { 
+        query: address.trim() 
+      });
+      
+      // Backend returns {suggestions: [...]}
+      let suggestions = response;
+      
+      // Check for suggestions property first (actual backend format)
+      if (response && typeof response === 'object' && response.suggestions) {
+        suggestions = response.suggestions;
+      }
+      // Fallback: check for data property
+      else if (response && typeof response === 'object' && response.data) {
+        suggestions = response.data;
+      }
       
       // Response should be an array of suggestions
-      if (!Array.isArray(response)) {
-        console.warn('Address suggestions response is not an array:', response);
+      if (!Array.isArray(suggestions)) {
+        console.warn('Address suggestions is not an array:', suggestions);
         return [];
       }
 
-      return response.map(suggestion => ({
+      const mapped = suggestions.map(suggestion => ({
         ref_id: suggestion.ref_id || suggestion.refId || '',
-        display: suggestion.display || suggestion.name || address,
+        display: suggestion.display || suggestion.name || suggestion.address || address,
         address: suggestion.address || address
       }));
+      
+      console.log('✅ Mapped suggestions:', mapped);
+      return mapped;
     } catch (error) {
       console.error('Error fetching address suggestions:', error);
+      
+      // Handle specific error codes
+      if (error.status === 405) {
+        console.error('Method not allowed for address-suggest API. Backend may require POST instead of GET.');
+      } else if (error.status === 400) {
+        console.error('Bad request for address-suggest API. Check query parameter format.');
+      } else if (error.status === 500) {
+        console.error('Server error for address-suggest API.');
+      }
+      
       // Return empty array on error to allow graceful degradation
       return [];
     }
