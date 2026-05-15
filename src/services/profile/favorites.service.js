@@ -32,7 +32,17 @@ async function ensureValidToken() {
  */
 export async function addFavoritePlace(hotelData) {
   try {
+    // Debug logging
+    console.log('🔍 addFavoritePlace called with:', {
+      hasHotelData: !!hotelData,
+      hotelDataKeys: hotelData ? Object.keys(hotelData) : [],
+      propertyToken: hotelData?.propertyToken,
+      id: hotelData?.id,
+      name: hotelData?.name
+    });
+
     if (!hotelData || !hotelData.propertyToken) {
+      console.error('❌ Missing propertyToken in hotelData:', hotelData);
       throw new Error('Hotel data with propertyToken is required');
     }
 

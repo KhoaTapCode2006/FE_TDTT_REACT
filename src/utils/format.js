@@ -59,11 +59,31 @@ export function normalizeHotelResult(raw, fallbackLocation) {
   // ── Safety: reject completely malformed input ──────────────────────────
   if (!raw || typeof raw !== 'object') return null;
 
+  // Debug logging
+  console.log('🔄 normalizeHotelResult called with:', {
+    hasRaw: !!raw,
+    rawId: raw.id,
+    rawPropertyToken: raw.propertyToken,
+    rawProperty_token: raw.property_token,
+    rawName: raw.name
+  });
+
   // ── Coordinates ────────────────────────────────────────────────────────
-  // sample_output_2.json: { gps_coordinates: { latitude, longitude } }
-  const gps = raw.gps_coordinates || {};
-  const lat = parseFloat(gps.latitude ?? raw.lat ?? raw.latitude) || null;
-  const lng = parseFloat(gps.longitude ?? raw.lng ?? raw.longitude) || null;
+  // After transformHotelDetailResponse, data is in camelCase with coordinates.latitude/longitude
+  // Also check gpsCoordinates (from snakeToCamel) and flat lat/lng fields
+  const coords = raw.coordinates || raw.gpsCoordinates || raw.gps_coordinates || {};
+  
+  // Try to get lat/lng from various sources (prioritize transformed format)
+  let lat = coords.latitude ?? raw.lat ?? raw.latitude;
+  let lng = coords.longitude ?? raw.lng ?? raw.longitude;
+  
+  // Convert to numbers if they're strings
+  if (typeof lat === 'string') lat = parseFloat(lat);
+  if (typeof lng === 'string') lng = parseFloat(lng);
+  
+  // Set to null if invalid (but allow 0 as valid coordinate)
+  if (typeof lat !== 'number' || isNaN(lat)) lat = null;
+  if (typeof lng !== 'number' || isNaN(lng)) lng = null;
 
   // ── Images ─────────────────────────────────────────────────────────────
   // sample_output_2.json: images: [{ thumbnail, original_image }]
@@ -96,14 +116,14 @@ export function normalizeHotelResult(raw, fallbackLocation) {
     : [];
 
   // ── Reviews ────────────────────────────────────────────────────────────
-  // API response: user_reviews: [{ text, raw_rating }] (snake_case)
-  // After transform: userReviews: [{ text, rawRating }] (camelCase)
+  // After transformHotelDetailResponse, data is in camelCase: userReviews with rawStars
+  // Also check old format: user_reviews with raw_stars or raw_rating
   const rawReviews = raw.userReviews || raw.user_reviews || [];
   const reviews = Array.isArray(rawReviews)
     ? rawReviews.map(r => ({
         author: r.reviewerName || r.reviewer_name || r.author || 'Khách',
         text: r.reviewText || r.review_text || r.text || r.comment || '',
-        rawRating: r.rawRating ?? r.raw_rating ?? r.rawStars ?? r.raw_stars ?? r.raw_star ?? 0,
+        rawRating: r.rawStars ?? r.raw_stars ?? r.rawRating ?? r.raw_rating ?? r.raw_star ?? 0,
       }))
     : [];
 
@@ -120,9 +140,15 @@ export function normalizeHotelResult(raw, fallbackLocation) {
       ? raw.nearbyLandmarks
       : [];
 
-  return {
+  // ── Identity ───────────────────────────────────────────────────────────
+  // Ensure both id and propertyToken are set
+  const hotelId = raw.id || raw.propertyToken || raw.property_token || raw.link || Math.random().toString(36).slice(2);
+  const propertyToken = raw.propertyToken || raw.property_token || raw.id || hotelId;
+
+  const result = {
     // Identity
-    id: raw.id || raw.property_token || raw.link || Math.random().toString(36).slice(2),
+    id: hotelId,
+    propertyToken: propertyToken,
     name: raw.name || 'Unknown Hotel',
     type: raw.type || 'Hotel',
     badge: raw.badge || raw.deal || null,
@@ -158,4 +184,15 @@ export function normalizeHotelResult(raw, fallbackLocation) {
     // AI metadata
     ai_score: raw.ai_score != null ? Number(raw.ai_score) : null,
   };
+
+  // Debug logging
+  console.log('✅ normalizeHotelResult output:', {
+    id: result.id,
+    propertyToken: result.propertyToken,
+    name: result.name,
+    hasLat: result.lat !== null,
+    hasLng: result.lng !== null
+  });
+
+  return result;
 }
