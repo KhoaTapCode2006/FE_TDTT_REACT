@@ -22,12 +22,10 @@ function TripInfoModal({ trip, onClose, onRemoveMember }) {
     if (!iso) return "—";
     const d = new Date(iso);
     if (isNaN(d.getTime())) return "—";
-    const hh = String(d.getUTCHours()).padStart(2, "0");
-    const mm = String(d.getUTCMinutes()).padStart(2, "0");
-    const dd = String(d.getUTCDate()).padStart(2, "0");
-    const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const yy = d.getUTCFullYear();
-    return `${hh}:${mm} ${dd}/${mo}/${yy}`;
+    return d.toLocaleString("vi-VN", {
+      hour: "2-digit", minute: "2-digit",
+      day: "2-digit", month: "2-digit", year: "numeric",
+    });
   };
 
   const tabs = [
