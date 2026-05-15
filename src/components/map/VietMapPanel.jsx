@@ -18,6 +18,14 @@ import "./VietMapPanel.css";
 
 function VietMapPanel() {
   const { userLoc, hotels, activeHotel, setActiveHotel, radiusM, setRadiusM, setClusterHotels, hoveredHotelId } = useApp();
+  
+  // Debug: Log hotels from context
+  console.log('🎯 VietMapPanel received hotels:', {
+    hotelsCount: hotels?.length || 0,
+    firstHotel: hotels?.[0],
+    hasHotels: !!hotels && hotels.length > 0
+  });
+  
   const mapRef = useRef(null);
   const mapObjRef = useRef(null);
   const clusterMarkersRef = useRef([]);
@@ -37,16 +45,35 @@ function VietMapPanel() {
   }, [userLoc]);
 
   // Memoize valid hotels and supercluster points
-  const validHotels = useMemo(() => validateHotelCoordinates(hotels), [hotels]);
+  const validHotels = useMemo(() => {
+    const validated = validateHotelCoordinates(hotels);
+    console.log('🏨 Valid hotels:', {
+      totalHotels: hotels?.length || 0,
+      validHotels: validated.length,
+      filtered: (hotels?.length || 0) - validated.length,
+      firstHotelCoords: hotels?.[0] ? {
+        lat: hotels[0].lat,
+        lng: hotels[0].lng,
+        coordinates: hotels[0].coordinates
+      } : null
+    });
+    return validated;
+  }, [hotels]);
   
-  const superclusterPoints = useMemo(() => 
-    convertHotelsToSuperclusterPoints(validHotels),
-    [validHotels]
-  );
+  const superclusterPoints = useMemo(() => {
+    const points = convertHotelsToSuperclusterPoints(validHotels);
+    console.log('📍 Supercluster points:', {
+      validHotels: validHotels.length,
+      points: points.length,
+      firstPoint: points[0]
+    });
+    return points;
+  }, [validHotels]);
 
   // Initialize and update supercluster
   useEffect(() => {
     if (!superclusterRef.current) {
+      console.log('🔧 Initializing Supercluster');
       superclusterRef.current = new Supercluster({
         radius: 50,
         maxZoom: 14,
@@ -56,10 +83,14 @@ function VietMapPanel() {
 
     if (superclusterPoints.length > 0) {
       try {
+        console.log('📥 Loading points into Supercluster:', superclusterPoints.length);
         superclusterRef.current.load(superclusterPoints);
+        console.log('✅ Supercluster loaded successfully');
       } catch (error) {
-        console.error('Error loading supercluster:', error);
+        console.error('❌ Error loading supercluster:', error);
       }
+    } else {
+      console.warn('⚠️ No points to load into Supercluster');
     }
   }, [superclusterPoints]);
 
@@ -78,7 +109,15 @@ function VietMapPanel() {
 
   // Render clusters function
   const renderClusters = useCallback(() => {
-    if (!mapReady || !mapObjRef.current || !superclusterRef.current || !window.vietmapgl) return;
+    if (!mapReady || !mapObjRef.current || !superclusterRef.current || !window.vietmapgl) {
+      console.log('renderClusters: Not ready', {
+        mapReady,
+        hasMapObj: !!mapObjRef.current,
+        hasSupercluster: !!superclusterRef.current,
+        hasVietmapgl: !!window.vietmapgl
+      });
+      return;
+    }
     
     const map = mapObjRef.current;
     
@@ -97,17 +136,56 @@ function VietMapPanel() {
         mapBounds.getEast(),
         mapBounds.getNorth()
       ];
+      
+      // Validate bounds
+      if (!bounds.every(b => typeof b === 'number' && isFinite(b))) {
+        console.error('Invalid bounds:', bounds);
+        return;
+      }
+      
       const zoom = Math.floor(map.getZoom());
       
+      // Validate zoom
+      if (typeof zoom !== 'number' || !isFinite(zoom)) {
+        console.error('Invalid zoom:', zoom);
+        return;
+      }
+      
+      // Check if supercluster has data
+      const points = superclusterRef.current.points;
+      if (!points || points.length === 0) {
+        console.warn('Supercluster has no points loaded');
+        return;
+      }
+      
+      console.log('🗺️ Getting clusters with:', {
+        bounds,
+        zoom,
+        pointsCount: points.length
+      });
+      
       const clusters = superclusterRef.current.getClusters(bounds, zoom);
+      
+      console.log('🗺️ Rendering clusters:', {
+        totalClusters: clusters.length,
+        bounds,
+        zoom
+      });
       
       // Clear existing cluster markers
       clearClusterMarkers();
       
       // Render each cluster or single hotel
-      clusters.forEach(cluster => {
+      clusters.forEach((cluster, index) => {
         const [lng, lat] = cluster.geometry.coordinates;
         const { cluster: isCluster, point_count: pointCount } = cluster.properties;
+        
+        console.log(`Cluster ${index}:`, {
+          isCluster,
+          pointCount,
+          coordinates: [lng, lat],
+          properties: cluster.properties
+        });
         
         if (isCluster) {
           // Get hotels in this cluster
@@ -160,8 +238,11 @@ function VietMapPanel() {
           clusterMarkersRef.current.push(marker);
         }
       });
+      
+      console.log('✅ Rendered markers:', clusterMarkersRef.current.length);
     } catch (error) {
       console.error('Error rendering clusters:', error);
+      console.error('Error stack:', error.stack);
     }
   }, [mapReady, validUserLoc, radiusM, setActiveHotel, setClusterHotels, showHotelPopup]);
 

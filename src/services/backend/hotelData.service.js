@@ -8,6 +8,7 @@
  */
 
 import { transformHotelDetailResponse } from '../../utils/schemaTransformers.js';
+import { normalizeHotelResult } from '../../utils/format.js';
 
 /**
  * Load mock hotels from sample_output_2.json

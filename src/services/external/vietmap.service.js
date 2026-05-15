@@ -220,6 +220,17 @@ export function getRadiusHandleCoordinates(center, radius) {
 export function createHotelMarkerElement(hotel, insideCircle, onSelect, isHovered = false) {
   const size = insideCircle ? 52 : 42;
   
+  // Debug logging
+  console.log('Creating hotel marker:', {
+    name: hotel.name,
+    id: hotel.id,
+    thumbnail: hotel.thumbnail,
+    hasImages: hotel.images?.length > 0,
+    firstImage: hotel.images?.[0],
+    insideCircle,
+    size
+  });
+  
   // Create wrapper div (no styles - map handles positioning)
   const wrapper = document.createElement("div");
   wrapper.dataset.hotelId = hotel.id; // Store hotel ID for later updates
@@ -249,13 +260,23 @@ export function createHotelMarkerElement(hotel, insideCircle, onSelect, isHovere
     inner.style.transform = "scale(1)";
   }
 
+  const thumbnailUrl = getHotelThumbnailUrl(hotel);
+  console.log('Using thumbnail URL:', thumbnailUrl);
+  
   const image = document.createElement("img");
-  image.src = hotel.thumbnail || hotel.images?.[0] || "";
+  image.src = thumbnailUrl;
   image.alt = hotel.name || "Hotel";
   image.style.width = "100%";
   image.style.height = "100%";
   image.style.objectFit = "cover";
   image.style.display = "block";
+  
+  // Add error handler for image loading
+  image.onerror = () => {
+    console.error('Failed to load hotel image:', thumbnailUrl);
+    image.src = 'https://via.placeholder.com/60x60?text=Hotel';
+  };
+  
   inner.appendChild(image);
 
   inner.addEventListener("click", (event) => {
@@ -315,8 +336,9 @@ export function validateHotelCoordinates(hotels) {
     return [];
   }
 
-  return hotels.filter(hotel => {
+  return hotels.filter((hotel, index) => {
     if (!hotel || typeof hotel !== 'object') {
+      console.warn(`Hotel ${index}: Not an object`);
       return false;
     }
     
@@ -345,29 +367,34 @@ export function validateHotelCoordinates(hotels) {
     
     // Check if coordinates exist
     if (lat == null || lng == null) {
+      if (index < 3) console.warn(`Hotel ${index} (${hotel.name}): lat or lng is null/undefined`, { lat, lng });
       return false;
     }
     
     // Check if coordinates are numbers
     if (typeof lat !== 'number' || typeof lng !== 'number') {
+      if (index < 3) console.warn(`Hotel ${index} (${hotel.name}): lat or lng is not a number`, { lat: typeof lat, lng: typeof lng });
       return false;
     }
     
     // Check if coordinates are not NaN
     if (isNaN(lat) || isNaN(lng)) {
+      if (index < 3) console.warn(`Hotel ${index} (${hotel.name}): lat or lng is NaN`);
       return false;
     }
     
     // Check if coordinates are finite
     if (!isFinite(lat) || !isFinite(lng)) {
+      if (index < 3) console.warn(`Hotel ${index} (${hotel.name}): lat or lng is not finite`);
       return false;
     }
     
-    // Check if coordinates are not zero (invalid)
-    if (lat === 0 && lng === 0) {
-      console.warn(`Invalid coordinates for hotel: ${hotel.name || hotel.id}`);
-      return false;
-    }
+    // REMOVED: Check if coordinates are not zero - this was too strict!
+    // Many hotels might have 0,0 as placeholder, but we should still show them
+    // if (lat === 0 && lng === 0) {
+    //   console.warn(`Invalid coordinates for hotel: ${hotel.name || hotel.id}`);
+    //   return false;
+    // }
     
     return true;
   });
@@ -402,18 +429,26 @@ export function convertHotelsToSuperclusterPoints(hotels) {
  * @returns {string} Thumbnail URL or placeholder
  */
 export function getHotelThumbnailUrl(hotel) {
-  if (!hotel) return '/placeholder-hotel.jpg';
+  if (!hotel) {
+    console.warn('getHotelThumbnailUrl: No hotel provided');
+    return 'https://via.placeholder.com/60x60?text=Hotel';
+  }
   
   // Try thumbnail first
-  if (hotel.thumbnail) return hotel.thumbnail;
+  if (hotel.thumbnail) {
+    return hotel.thumbnail;
+  }
   
   // Try first image
   if (hotel.images && Array.isArray(hotel.images) && hotel.images.length > 0) {
     return hotel.images[0];
   }
   
+  // Log warning for hotels without images
+  console.warn(`Hotel ${hotel.name || hotel.id} has no thumbnail or images`);
+  
   // Fallback to placeholder
-  return '/placeholder-hotel.jpg';
+  return 'https://via.placeholder.com/60x60?text=Hotel';
 }
 
 /**
@@ -438,6 +473,15 @@ export function getClusterBadgeText(count) {
  * @returns {HTMLElement} Cluster marker element
  */
 export function createClusterMarkerElement(cluster, firstHotel, hotelCount, onClick, clusterHotelIds = [], hoveredHotelId = null) {
+  // Debug logging
+  console.log('Creating cluster marker:', {
+    hotelCount,
+    firstHotelName: firstHotel?.name,
+    firstHotelId: firstHotel?.id,
+    thumbnail: firstHotel?.thumbnail,
+    hasImages: firstHotel?.images?.length > 0
+  });
+  
   // ── Wrapper ──────────────────────────────────────────────────────────────
   // Fixed 60×60 size + position:relative so the badge's absolute positioning
   // anchors to this box, not to some distant ancestor.
@@ -479,6 +523,8 @@ export function createClusterMarkerElement(cluster, firstHotel, hotelCount, onCl
 
   // Hotel photo
   const thumbnailUrl = getHotelThumbnailUrl(firstHotel);
+  console.log('Cluster using thumbnail URL:', thumbnailUrl);
+  
   const img = document.createElement('img');
   img.src = thumbnailUrl;
   img.alt = firstHotel?.name || 'Hotel';
@@ -486,6 +532,13 @@ export function createClusterMarkerElement(cluster, firstHotel, hotelCount, onCl
   img.style.height = '100%';
   img.style.objectFit = 'cover';
   img.style.display = 'block';
+  
+  // Add error handler for image loading
+  img.onerror = () => {
+    console.error('Failed to load cluster image:', thumbnailUrl);
+    img.src = 'https://via.placeholder.com/60x60?text=Hotels';
+  };
+  
   inner.appendChild(img);
 
   // ── Badge (quantity circle) ───────────────────────────────────────────────
