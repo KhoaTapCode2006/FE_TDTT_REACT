@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, FacebookAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -104,21 +104,11 @@ export { storage };
 // ============================================
 
 export const googleProvider = new GoogleAuthProvider();
-export const facebookProvider = new FacebookAuthProvider();
 
 // Configure Google provider settings
 googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
-
-// Configure Facebook provider settings
-facebookProvider.setCustomParameters({
-  display: 'popup'
-});
-
-// Request additional permissions for Facebook
-facebookProvider.addScope('email');
-facebookProvider.addScope('public_profile');
 
 // ============================================
 // Exports

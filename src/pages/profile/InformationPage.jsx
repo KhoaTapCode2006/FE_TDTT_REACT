@@ -3,20 +3,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import ProfileHeader from '@/components/profile/ProfileHeader';
 import InfoSection from '@/components/profile/InfoSection';
-import FavoritesSection from '@/components/profile/FavoritesSection';
-import LoyaltyCard from '@/components/profile/LoyaltyCard';
 import EditInfoModal from '@/components/profile/EditInfoModal';
 import Icon from '@/components/ui/Icon';
 import { profileService } from '@/services/profile/profile.service';
 
 /**
- * ProfilePage Component
- * Main profile page for authenticated users
- * Displays personal information, favorites, and social links
+ * InformationPage Component
+ * User profile information page
+ * Displays personal information and account details
  */
-const ProfilePage = () => {
+const InformationPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profileData, setProfileData] = useState(null);
@@ -25,7 +22,7 @@ const ProfilePage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   /**
-   * Fetch profile data from Firestore
+   * Fetch profile data
    */
   const fetchProfileData = async () => {
     if (!user?.uid) {
@@ -42,7 +39,7 @@ const ProfilePage = () => {
       if (data) {
         setProfileData(data);
       } else {
-        // Profile doesn't exist, create a new one with basic info from auth user
+        // Profile doesn't exist, create a new one
         console.log('Profile not found, creating new profile...');
         try {
           const newProfile = await profileService.createProfile(user.uid, {
@@ -78,57 +75,26 @@ const ProfilePage = () => {
 
   /**
    * Handle edit profile button click
-   * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5
    */
   const handleEditProfile = () => {
-    console.log('📝 handleEditProfile called in ProfilePage');
-    console.log('Current isEditModalOpen:', isEditModalOpen);
-    console.log('Current profileData:', profileData);
-    
     setIsEditModalOpen(true);
-    console.log('✅ Set isEditModalOpen to true');
   };
 
   /**
    * Handle profile update from EditInfoModal
-   * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 10.4, 10.5
    */
   const handleProfileUpdate = async (updatedData) => {
-    console.log('🔄 handleProfileUpdate called');
-    console.log('User UID:', user?.uid);
-    console.log('Updated data:', updatedData);
-    
     if (!user?.uid) {
-      console.error('❌ User not authenticated');
       throw new Error('User not authenticated');
     }
 
     try {
-      console.log('📤 Calling profileService.updateProfile...');
-      
-      // Call profileService.updateProfile with uid and updated data
-      // Requirement 10.4: Use updateProfile method from profileService
       const updatedProfile = await profileService.updateProfile(user.uid, updatedData);
-      
-      console.log('✅ Profile updated successfully:', updatedProfile);
-      
-      // Update local state after successful save
-      // Requirement 3.2: Update local profileData state
       setProfileData(updatedProfile);
-      
-      // Close modal on successful save
-      // Requirement 3.5: Close modal after successful save
       setIsEditModalOpen(false);
-      
-      // Return success (no error thrown means success)
       return updatedProfile;
     } catch (err) {
-      console.error('❌ Error updating profile:', err);
-      console.error('Error code:', err.code);
-      console.error('Error message:', err.message);
-      
-      // Re-throw error to be handled by EditInfoModal
-      // Requirement 3.3: Handle validation errors
+      console.error('Error updating profile:', err);
       throw err;
     }
   };
@@ -142,17 +108,10 @@ const ProfilePage = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <Header />
 
       {/* Main Content */}
       <main className="flex-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Profile Header */}
-          <div className="mb-8">
-            <ProfileHeader />
-          </div>
-
           {/* Loading State */}
           {loading && (
             <div className="flex flex-col items-center justify-center py-16">
@@ -184,19 +143,12 @@ const ProfilePage = () => {
           {/* Profile Content */}
           {!loading && !error && profileData && (
             <>
-              {/* Information and Loyalty Card Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                <div className="lg:col-span-2">
-                  <InfoSection 
-                    profileData={profileData} 
-                    onEdit={handleEditProfile}
-                    loading={loading}
-                  />
-                </div>
-                <div className="lg:col-span-1">
-                  <LoyaltyCard />
-                </div>
-              </div>
+              {/* Information Section - Full Width */}
+              <InfoSection 
+                profileData={profileData} 
+                onEdit={handleEditProfile}
+                loading={loading}
+              />
 
               {/* Edit Info Modal */}
               <EditInfoModal
@@ -205,25 +157,13 @@ const ProfilePage = () => {
                 profileData={profileData}
                 onSave={handleProfileUpdate}
               />
-
-              {/* Liked Places Section */}
-              <div className="mb-8">
-                <h2 className="font-headline font-bold text-2xl text-on-surface mb-6">
-                  Liked Places
-                </h2>
-                <FavoritesSection 
-                  userId={user?.uid}
-                />
-              </div>
             </>
           )}
         </div>
       </main>
 
-      {/* Footer */}
-      <Footer />
     </div>
   );
 };
 
-export default ProfilePage;
+export default InformationPage;

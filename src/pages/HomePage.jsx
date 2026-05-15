@@ -8,7 +8,6 @@ import Icon from '@/components/ui/Icon';
 import Splitter from '@/components/ui/Splitter';
 import { useApp } from '@/app/AppContext';
 import { searchHotels } from '@/services/backend/hotel.service';
-import { loadMockHotels } from '@/services/backend/hotelData.service';
 
 
 const HomePage = () => {
@@ -20,7 +19,6 @@ const HomePage = () => {
   } = useApp();
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [error, setError] = useState(null);
-  const [mockDataLoading, setMockDataLoading] = useState(true);
   
   // Layout state for splitter
   const [splitterPosition, setSplitterPosition] = useState(50);
@@ -31,31 +29,6 @@ const HomePage = () => {
   // Debouncing and request cancellation
   const debounceTimeoutRef = useRef(null);
   const currentRequestRef = useRef(null);
-
-  // Load mock hotels on component mount
-  useEffect(() => {
-    const loadHotels = async () => {
-      try {
-        setMockDataLoading(true);
-        setError(null);
-        
-        const hotels = await loadMockHotels();
-        
-        if (hotels.length === 0) {
-          setError('Không thể tải dữ liệu khách sạn. Vui lòng thử lại sau.');
-        } else {
-          setHotels(hotels);
-        }
-      } catch (err) {
-        console.error('Error loading mock hotels:', err);
-        setError('Có lỗi xảy ra khi tải dữ liệu khách sạn. Vui lòng làm mới trang.');
-      } finally {
-        setMockDataLoading(false);
-      }
-    };
-
-    loadHotels();
-  }, []); // Empty dependency array - load only on mount
 
   // Restore layout state from session storage on mount
   useEffect(() => {
@@ -195,28 +168,8 @@ const HomePage = () => {
 
   const handleRetry = async () => {
     setError(null);
-    
-    // If mock data failed to load, retry loading it
-    if (mockDataLoading === false) {
-      try {
-        setMockDataLoading(true);
-        const hotels = await loadMockHotels();
-        
-        if (hotels.length === 0) {
-          setError('Không thể tải dữ liệu khách sạn. Vui lòng thử lại sau.');
-        } else {
-          setHotels(hotels);
-        }
-      } catch (err) {
-        console.error('Error loading mock hotels:', err);
-        setError('Có lỗi xảy ra khi tải dữ liệu khách sạn. Vui lòng làm mới trang.');
-      } finally {
-        setMockDataLoading(false);
-      }
-    } else {
-      // Otherwise, retry the filter search
-      debouncedHotelSearch(filters);
-    }
+    // Retry the filter search
+    debouncedHotelSearch(filters);
   };
 
   return (
@@ -224,18 +177,8 @@ const HomePage = () => {
       {/* 1. Thanh tìm kiếm nằm trên cùng */}
       <SearchBar />
 
-      {/* Loading State for Mock Data */}
-      {mockDataLoading && (
-        <div className="flex items-center justify-center flex-1">
-          <div className="flex flex-col items-center gap-3">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            <p className="text-sm text-text-secondary">Đang tải dữ liệu khách sạn...</p>
-          </div>
-        </div>
-      )}
-
       {/* Error Banner */}
-      {error && !mockDataLoading && (
+      {error && (
         <div className="bg-error/10 border-l-4 border-error px-4 py-3 mx-4 mt-2 rounded-r-lg flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Icon name="error" size={20} className="text-error" />
@@ -261,8 +204,7 @@ const HomePage = () => {
       )}
 
       {/* 2. Vùng nội dung chính: Chia đôi Bản đồ và Sidebar */}
-      {!mockDataLoading && (
-        <main className="flex-1 flex overflow-hidden relative min-h-0">
+      <main className="flex-1 flex overflow-hidden relative min-h-0">
           {/* Bản đồ bên trái */}
           <div 
             className="min-w-0 transition-all duration-200"
@@ -293,7 +235,6 @@ const HomePage = () => {
             />
           </div>
         </main>
-      )}
 
       {/* 3. Filter Modal */}
       {filterModalOpen && (

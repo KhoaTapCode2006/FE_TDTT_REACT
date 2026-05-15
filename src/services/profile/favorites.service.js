@@ -4,7 +4,9 @@ import { tokenManager } from '../../utils/tokenManager.js';
 /**
  * Favorites Service
  * Handles all favorite hotel operations via backend REST API
- * Favorites are managed through the user's liked collection
+ * Favorites are managed through the /me/favourites-places endpoint
+ * 
+ * Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8
  */
 
 /**
@@ -22,13 +24,13 @@ async function ensureValidToken() {
 }
 
 /**
- * Add hotel to favorites (adds to liked collection)
- * Requirements: 4.1, 4.2
- * @param {string} userId - User ID (not used, kept for backward compatibility)
+ * Add hotel to favorite places
+ * Requirements: 15.1, 15.2, 15.7
  * @param {Object} hotelData - Hotel data to save
- * @returns {Promise<Object>} Created favorite
+ * @returns {Promise<void>}
+ * @throws {Error} If not authenticated or hotel data is invalid
  */
-export async function addFavorite(userId, hotelData) {
+export async function addFavoritePlace(hotelData) {
   try {
     if (!hotelData || !hotelData.id) {
       throw new Error('Hotel data with ID is required');
@@ -36,33 +38,32 @@ export async function addFavorite(userId, hotelData) {
 
     await ensureValidToken();
 
-    // Extract place ID from hotel data
-    const placeId = hotelData.id || hotelData.propertyToken || hotelData.placeId;
-
-    // Add to liked collection via backend API
-    await apiClient.post(`/me/liked-collection?place_id=${placeId}`);
-
-    // Return favorite object for backward compatibility
-    return {
-      id: placeId,
-      hotelId: placeId,
+    // Prepare hotel data for backend
+    const favoriteData = {
+      id: hotelData.id || hotelData.propertyToken,
       name: hotelData.name || 'Unknown Hotel',
-      location: hotelData.address || hotelData.location || '',
-      rating: hotelData.rating || 0,
-      pricePerNight: hotelData.pricePerNight || 0,
-      currency: hotelData.currency || 'VND',
-      imageUrl: hotelData.images?.[0] || hotelData.image || hotelData.thumbnail || null,
-      addedAt: new Date(),
+      address: hotelData.address || hotelData.location || '',
+      rating: hotelData.rating || hotelData.ai_score || 0,
+      pricePerNight: hotelData.pricePerNight || hotelData.price || 0,
+      images: hotelData.images || [],
+      amenities: hotelData.amenities || [],
+      coordinates: hotelData.coordinates || {
+        latitude: hotelData.lat || 0,
+        longitude: hotelData.lng || hotelData.lon || 0
+      }
     };
+
+    // Add to favorite places via backend API
+    await apiClient.post('/me/favourites-places', favoriteData);
   } catch (error) {
-    console.error('Error adding favorite:', error);
+    console.error('Error adding favorite place:', error);
 
     if (error.message === 'Hotel data with ID is required') {
       throw error;
     }
 
     if (error.status === 401) {
-      throw new Error('Session expired. Please log in again.');
+      throw new Error('Bạn phải đăng nhập để lưu các địa điểm yêu thích');
     }
 
     if (error.status === 409) {
@@ -74,31 +75,31 @@ export async function addFavorite(userId, hotelData) {
 }
 
 /**
- * Remove hotel from favorites (removes from liked collection)
- * Requirements: 4.3
- * @param {string} userId - User ID (not used, kept for backward compatibility)
- * @param {string} favoriteId - Favorite document ID (place ID)
+ * Remove hotel from favorite places
+ * Requirements: 15.3, 15.4
+ * @param {string} placeId - Place ID (hotel ID)
  * @returns {Promise<void>}
+ * @throws {Error} If not authenticated or place ID is invalid
  */
-export async function removeFavorite(userId, favoriteId) {
+export async function removeFavoritePlace(placeId) {
   try {
-    if (!favoriteId) {
-      throw new Error('Favorite ID is required');
+    if (!placeId) {
+      throw new Error('Place ID is required');
     }
 
     await ensureValidToken();
 
-    // Remove from liked collection via backend API
-    await apiClient.delete(`/me/liked-collection?place_id=${favoriteId}`);
+    // Remove from favorite places via backend API
+    await apiClient.delete(`/me/favourites-places?place_id=${placeId}`);
   } catch (error) {
-    console.error('Error removing favorite:', error);
+    console.error('Error removing favorite place:', error);
 
-    if (error.message === 'Favorite ID is required') {
+    if (error.message === 'Place ID is required') {
       throw error;
     }
 
     if (error.status === 401) {
-      throw new Error('Session expired. Please log in again.');
+      throw new Error('Bạn phải đăng nhập để lưu các địa điểm yêu thích');
     }
 
     if (error.status === 404) {
@@ -110,49 +111,44 @@ export async function removeFavorite(userId, favoriteId) {
 }
 
 /**
- * Get all favorites for user (gets liked collection)
- * Requirements: 4.4, 4.5
- * @param {string} userId - User ID (not used, kept for backward compatibility)
- * @returns {Promise<Array>} List of favorites sorted by addedAt descending
+ * Get all favorite places for user
+ * Requirements: 15.5, 15.6, 15.8
+ * @returns {Promise<Array>} List of favorite places
+ * @throws {Error} If not authenticated
  */
-export async function getFavorites(userId) {
+export async function getFavoritePlaces() {
   try {
     await ensureValidToken();
 
-    // Get user profile which includes liked collection
-    const profile = await apiClient.get('/me');
+    // Get favorite places from backend API
+    const response = await apiClient.get('/me/favourites-places');
 
-    // Extract liked collection ID
-    const likedCollectionId = profile.liked_collection;
-
-    if (!likedCollectionId) {
-      // No liked collection yet, return empty array
+    // Response should be an array of favorite places
+    if (!Array.isArray(response)) {
+      console.warn('Favorite places response is not an array:', response);
       return [];
     }
 
-    // Get the liked collection details
-    const collection = await apiClient.get(`/collections/${likedCollectionId}`);
-
-    // Transform collection places to favorites format
-    const favorites = (collection.places || []).map(place => ({
-      id: place.place_id,
-      hotelId: place.place_id,
+    // Transform to frontend format
+    return response.map(place => ({
+      id: place.id || place.place_id,
+      hotelId: place.id || place.place_id,
       name: place.name || 'Unknown Hotel',
       location: place.address || '',
       rating: place.rating || 0,
-      pricePerNight: place.price || 0,
+      pricePerNight: place.pricePerNight || place.price || 0,
       currency: 'VND',
-      imageUrl: place.thumbnail || null,
+      imageUrl: place.images?.[0] || place.thumbnail || null,
+      images: place.images || [],
+      amenities: place.amenities || [],
+      coordinates: place.coordinates || null,
       addedAt: place.added_at ? new Date(place.added_at) : new Date(),
     }));
-
-    // Sort by addedAt descending (newest first)
-    return favorites.sort((a, b) => b.addedAt - a.addedAt);
   } catch (error) {
-    console.error('Error fetching favorites:', error);
+    console.error('Error fetching favorite places:', error);
 
     if (error.status === 401) {
-      throw new Error('Session expired. Please log in again.');
+      throw new Error('Bạn phải đăng nhập để lưu các địa điểm yêu thích');
     }
 
     throw new Error(error.message || 'Unable to load favorites. Please try again.');
@@ -161,12 +157,11 @@ export async function getFavorites(userId) {
 
 /**
  * Check if hotel is favorited
- * Requirements: 4.6
- * @param {string} userId - User ID (not used, kept for backward compatibility)
+ * Requirements: 15.5, 15.6
  * @param {string} hotelId - Hotel ID
  * @returns {Promise<boolean>} True if favorited
  */
-export async function isFavorite(userId, hotelId) {
+export async function isFavorite(hotelId) {
   try {
     if (!hotelId) {
       return false;
@@ -174,36 +169,35 @@ export async function isFavorite(userId, hotelId) {
 
     await ensureValidToken();
 
-    // Get user profile which includes liked collection
-    const profile = await apiClient.get('/me');
+    // Get all favorite places
+    const favoritePlaces = await apiClient.get('/me/favourites-places');
 
-    // Extract liked collection ID
-    const likedCollectionId = profile.liked_collection;
-
-    if (!likedCollectionId) {
+    if (!Array.isArray(favoritePlaces)) {
       return false;
     }
 
-    // Get the liked collection details
-    const collection = await apiClient.get(`/collections/${likedCollectionId}`);
-
-    // Check if hotel exists in places
-    const places = collection.places || [];
-    return places.some(place => place.place_id === hotelId);
+    // Check if hotel exists in favorite places
+    return favoritePlaces.some(place => 
+      place.id === hotelId || place.place_id === hotelId
+    );
   } catch (error) {
     console.error('Error checking if hotel is favorite:', error);
+    
+    if (error.status === 401) {
+      return false; // Not authenticated, so not favorited
+    }
+    
     return false;
   }
 }
 
 /**
  * Get favorite by hotel ID
- * Requirements: 4.6
- * @param {string} userId - User ID (not used, kept for backward compatibility)
+ * Requirements: 15.5, 15.6
  * @param {string} hotelId - Hotel ID
  * @returns {Promise<Object|null>} Favorite or null
  */
-export async function getFavoriteByHotelId(userId, hotelId) {
+export async function getFavoriteByHotelId(hotelId) {
   try {
     if (!hotelId) {
       return null;
@@ -211,22 +205,17 @@ export async function getFavoriteByHotelId(userId, hotelId) {
 
     await ensureValidToken();
 
-    // Get user profile which includes liked collection
-    const profile = await apiClient.get('/me');
+    // Get all favorite places
+    const favoritePlaces = await apiClient.get('/me/favourites-places');
 
-    // Extract liked collection ID
-    const likedCollectionId = profile.liked_collection;
-
-    if (!likedCollectionId) {
+    if (!Array.isArray(favoritePlaces)) {
       return null;
     }
 
-    // Get the liked collection details
-    const collection = await apiClient.get(`/collections/${likedCollectionId}`);
-
-    // Find the place in collection
-    const places = collection.places || [];
-    const place = places.find(p => p.place_id === hotelId);
+    // Find the place in favorite places
+    const place = favoritePlaces.find(p => 
+      p.id === hotelId || p.place_id === hotelId
+    );
 
     if (!place) {
       return null;
@@ -234,18 +223,26 @@ export async function getFavoriteByHotelId(userId, hotelId) {
 
     // Transform to favorite format
     return {
-      id: place.place_id,
-      hotelId: place.place_id,
+      id: place.id || place.place_id,
+      hotelId: place.id || place.place_id,
       name: place.name || 'Unknown Hotel',
       location: place.address || '',
       rating: place.rating || 0,
-      pricePerNight: place.price || 0,
+      pricePerNight: place.pricePerNight || place.price || 0,
       currency: 'VND',
-      imageUrl: place.thumbnail || null,
+      imageUrl: place.images?.[0] || place.thumbnail || null,
+      images: place.images || [],
+      amenities: place.amenities || [],
+      coordinates: place.coordinates || null,
       addedAt: place.added_at ? new Date(place.added_at) : new Date(),
     };
   } catch (error) {
     console.error('Error getting favorite by hotel ID:', error);
+    
+    if (error.status === 401) {
+      return null; // Not authenticated
+    }
+    
     return null;
   }
 }
@@ -256,51 +253,46 @@ export async function getFavoriteByHotelId(userId, hotelId) {
 class FavoritesService {
   /**
    * Add hotel to favorites
-   * @param {string} userId - User ID
    * @param {Object} hotelData - Hotel data to save
-   * @returns {Promise<Object>} Created favorite
+   * @returns {Promise<void>}
    */
-  async addFavorite(userId, hotelData) {
-    return addFavorite(userId, hotelData);
+  async addFavorite(hotelData) {
+    return addFavoritePlace(hotelData);
   }
 
   /**
    * Remove hotel from favorites
-   * @param {string} userId - User ID
-   * @param {string} favoriteId - Favorite document ID
+   * @param {string} placeId - Place ID (hotel ID)
    * @returns {Promise<void>}
    */
-  async removeFavorite(userId, favoriteId) {
-    return removeFavorite(userId, favoriteId);
+  async removeFavorite(placeId) {
+    return removeFavoritePlace(placeId);
   }
 
   /**
    * Get all favorites for user
-   * @param {string} userId - User ID
    * @returns {Promise<Array>} List of favorites sorted by addedAt descending
    */
-  async getFavorites(userId) {
-    return getFavorites(userId);
+  async getFavorites() {
+    return getFavoritePlaces();
   }
 
   /**
    * Check if hotel is favorited
-   * @param {string} userId - User ID
    * @param {string} hotelId - Hotel ID
    * @returns {Promise<boolean>} True if favorited
    */
-  async isFavorite(userId, hotelId) {
-    return isFavorite(userId, hotelId);
+  async isFavorite(hotelId) {
+    return isFavorite(hotelId);
   }
 
   /**
    * Get favorite by hotel ID
-   * @param {string} userId - User ID
    * @param {string} hotelId - Hotel ID
    * @returns {Promise<Object|null>} Favorite or null
    */
-  async getFavoriteByHotelId(userId, hotelId) {
-    return getFavoriteByHotelId(userId, hotelId);
+  async getFavoriteByHotelId(hotelId) {
+    return getFavoriteByHotelId(hotelId);
   }
 }
 
