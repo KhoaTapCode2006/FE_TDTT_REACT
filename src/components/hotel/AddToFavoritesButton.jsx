@@ -22,6 +22,8 @@ import Icon from '@/components/ui/Icon';
  * @param {Object} props.hotelData - The hotel data object containing name, location, rating, etc.
  * @param {string} [props.className] - Additional CSS classes
  * @param {number} [props.size] - Icon size (default: 20)
+ * @param {boolean} [props.initialFavorited] - Initial favorited state (to avoid API call)
+ * @param {boolean} [props.skipInitialCheck] - Skip initial favorite status check (default: true for performance)
  * @param {Function} [props.onToggle] - Optional callback when favorite status changes
  */
 const AddToFavoritesButton = ({ 
@@ -29,24 +31,27 @@ const AddToFavoritesButton = ({
   hotelData, 
   className = '', 
   size = 20,
+  initialFavorited = false,
+  skipInitialCheck = true, // Default to true for better performance
   onToggle 
 }) => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   
-  const [isFavorited, setIsFavorited] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(initialFavorited);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
-  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [checkingStatus, setCheckingStatus] = useState(false);
 
-  // Check if hotel is already favorited on mount
+  // Check if hotel is already favorited on mount (only if skipInitialCheck is false)
   useEffect(() => {
     const checkFavoriteStatus = async () => {
-      if (!isAuthenticated || !hotelId) {
+      if (skipInitialCheck || !isAuthenticated || !hotelId) {
         setCheckingStatus(false);
         return;
       }
 
+      setCheckingStatus(true);
       try {
         const favorite = await getFavoriteByHotelId(hotelId);
         if (favorite) {
@@ -60,7 +65,7 @@ const AddToFavoritesButton = ({
     };
 
     checkFavoriteStatus();
-  }, [isAuthenticated, hotelId]);
+  }, [isAuthenticated, hotelId, skipInitialCheck]);
 
   // Auto-dismiss notifications after 3 seconds
   useEffect(() => {

@@ -12,6 +12,7 @@ import { apiClient } from '../api/apiClient.js';
 import { tokenManager } from '../../utils/tokenManager.js';
 import { sessionService } from '../profile/session.service.js';
 import { transformAuthRequest, transformAuthResponse } from '../../utils/schemaTransformers.js';
+import { geolocationService } from '../geolocation.service.js';
 
 /**
  * Authentication service for handling Firebase Auth operations
@@ -301,6 +302,9 @@ class AuthService {
       
       // Clear API client token
       apiClient.clearAuthToken();
+      
+      // Clear geolocation data (Task 7.2)
+      geolocationService.clearLocation();
       
       // Sign out from Firebase
       await signOut(auth);

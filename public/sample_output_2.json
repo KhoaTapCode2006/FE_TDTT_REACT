@@ -29,6 +29,23 @@
         "Đỗ xe miễn phí"
       ],
       "raw_rating": 0,
+      "ai_sentiment": {
+        "ai_score": 3.51,
+        "trust_weight": 0.9,
+        "analyzed_reviews": 15,
+        "ai_score_expiration_date": "2024-12-31T23:59:59Z"
+      },
+      "ai_summary": {
+        "overview": "A comfortable hotel with great location and clean rooms",
+        "pros": ["Clean rooms", "Great location", "Friendly staff"],
+        "cons": ["Small breakfast area", "Limited parking"],
+        "notes": "Best for short stays",
+        "ai_summary_expiration_date": "2024-12-31T23:59:59Z"
+      },
+      "views": {
+        "total_views": 1250,
+        "weekly_views": 85
+      },
       "user_reviews": [
         {
           "text": "clean comfortable hotel location great easily reachable tram services city, hotel walking distance tropenmuseum thought worth visiting hotel room moderate size not tiny, clean like color scheme use decorate room, furnishings not heavy, special pillow mattress gave good night sleep, breakfast not included night stay ca n't really comment, provide temporary lockers want check early want leave luggage hours til afternoon.overall satisfying stay hotel,  ",
@@ -398,9 +415,14 @@
           "adjusted_stars": 5
         }
       ],
-      "ai_score_expiration_date": "2026-04-21T09:34:24.767007Z",
-      "ai_summary_expiration_date": "2026-04-28T09:34:29.258366Z",
+      "ai_sentiment": {
+        "ai_score": 3.51,
+        "ai_score_expiration_date": "2026-04-21T09:34:24.767007Z",
+        "trust_weight": 0.9,
+        "analyzed_reviews": 32
+      },
       "ai_summary": {
+        "ai_summary_expiration_date": "2026-04-28T09:34:29.258366Z",
         "overview": "Không thể tải tóm tắt tổng quan lúc này.",
         "pros": [
           "Không thể tải tóm tắt ưu điểm lúc này."
@@ -409,6 +431,10 @@
           "Không thể tải tóm tắt nhược điểm lúc này."
         ],
         "notes": "Hệ thống AI đang bận, vui lòng thử lại sau."
+      },
+      "views": {
+        "total_views": 1250,
+        "weekly_views": 85
       },
       "last_updated": "2026-04-14T09:34:42.177040Z"
     },

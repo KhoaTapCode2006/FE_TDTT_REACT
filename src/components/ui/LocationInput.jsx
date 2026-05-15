@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import Icon from "@/components/ui/Icon";
+import { hotelSearchService } from "@/services/backend/hotelSearch.service";
 
 function LocationInput({ value, onChange, onSelect }) {
   const [suggestions, setSuggestions] = useState([]);
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const timerRef = useRef(null);
   const wrapRef = useRef(null);
 
@@ -25,23 +27,22 @@ function LocationInput({ value, onChange, onSelect }) {
       return;
     }
     timerRef.current = setTimeout(async () => {
-      // Check if window.API and autocomplete method exist
-      if (window.API && typeof window.API.autocomplete === 'function') {
-        try {
-          const results = await window.API.autocomplete(v);
-          setSuggestions(results || []);
-          setOpen((results || []).length > 0);
-        } catch (error) {
-          console.error('Error fetching autocomplete suggestions:', error);
-          setSuggestions([]);
-          setOpen(false);
-        }
-      } else {
-        // Fallback: no autocomplete available
+      setLoading(true);
+      try {
+        const results = await hotelSearchService.getAddressSuggestions(v);
+        console.log('LocationInput received suggestions:', results);
+        console.log('Suggestions length:', results?.length);
+        setSuggestions(results || []);
+        setOpen((results || []).length > 0);
+        console.log('Dropdown open:', (results || []).length > 0);
+      } catch (error) {
+        console.error('Error fetching address suggestions:', error);
         setSuggestions([]);
         setOpen(false);
+      } finally {
+        setLoading(false);
       }
-    }, 250);
+    }, 300);
   }
 
   return (
@@ -59,23 +60,35 @@ function LocationInput({ value, onChange, onSelect }) {
             className="border-0 focus:ring-0 w-full text-sm font-medium bg-transparent outline-none text-on-surface p-0"
           />
         </div>
+        {loading && (
+          <Icon name="progress_activity" size={16} className="text-on-surface-variant animate-spin flex-none" />
+        )}
       </div>
 
-      {open && (
-        <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-xl shadow-editorial border border-outline-variant/20 overflow-hidden z-[400]">
-          {suggestions.map((s, i) => (
+      {open && suggestions.length > 0 && (
+        <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-xl shadow-editorial border border-outline-variant/20 overflow-hidden z-[400] max-h-[300px] overflow-y-auto">
+          {suggestions.map((suggestion, i) => (
             <div
               key={i}
-              className="autocomplete-item flex items-center gap-3 px-4 py-3 cursor-pointer text-sm hover:bg-surface-container-low transition-colors"
+              className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-surface-container-low transition-colors border-b border-outline-variant/10 last:border-b-0"
               onClick={() => {
-                onChange(s);
-                onSelect(s);
+                onChange(suggestion.display || suggestion.address);
+                onSelect(suggestion);
                 setOpen(false);
                 setSuggestions([]);
               }}
             >
-              <Icon name="location_on" size={16} className="text-on-surface-variant flex-none" />
-              {s}
+              <Icon name="location_on" size={20} className="text-primary flex-none mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-on-surface truncate">
+                  {suggestion.display || suggestion.address}
+                </div>
+                {suggestion.address && suggestion.display !== suggestion.address && (
+                  <div className="text-xs text-on-surface-variant mt-0.5 truncate">
+                    {suggestion.address}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>

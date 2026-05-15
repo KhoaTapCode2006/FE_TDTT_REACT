@@ -305,31 +305,69 @@ export function clampRadius(radius) {
 
 /**
  * Validate hotel coordinates to filter out invalid entries
+ * Handles both new format (coordinates.latitude/longitude) and old format (lat/lng)
  * @param {Array} hotels - Array of hotel objects
  * @returns {Array} Array of hotels with valid coordinates
  */
 export function validateHotelCoordinates(hotels) {
   if (!Array.isArray(hotels)) {
-    console.warn('validateHotelCoordinates: hotels is not an array');
+    console.warn('validateHotelCoordinates: Expected array, received:', typeof hotels);
     return [];
   }
 
   return hotels.filter(hotel => {
-    if (!hotel) return false;
+    if (!hotel || typeof hotel !== 'object') {
+      return false;
+    }
     
-    const { lat, lng } = hotel;
+    let lat, lng;
+    
+    // Check for new format: coordinates.latitude/longitude
+    if (hotel.coordinates && typeof hotel.coordinates === 'object') {
+      lat = hotel.coordinates.latitude;
+      lng = hotel.coordinates.longitude;
+      
+      // Validate numeric values (not 0, not NaN, not null)
+      if (typeof lat === 'number' && typeof lng === 'number' && 
+          lat !== 0 && lng !== 0 && 
+          !isNaN(lat) && !isNaN(lng) &&
+          isFinite(lat) && isFinite(lng)) {
+        // Ensure flat lat/lng exist for marker creation
+        hotel.lat = lat;
+        hotel.lng = lng;
+        return true;
+      }
+    }
+    
+    // Fall back to flat format: lat/lng
+    lat = hotel.lat;
+    lng = hotel.lng;
     
     // Check if coordinates exist
-    if (lat == null || lng == null) return false;
+    if (lat == null || lng == null) {
+      return false;
+    }
     
     // Check if coordinates are numbers
-    if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      return false;
+    }
     
     // Check if coordinates are not NaN
-    if (isNaN(lat) || isNaN(lng)) return false;
+    if (isNaN(lat) || isNaN(lng)) {
+      return false;
+    }
     
     // Check if coordinates are finite
-    if (!isFinite(lat) || !isFinite(lng)) return false;
+    if (!isFinite(lat) || !isFinite(lng)) {
+      return false;
+    }
+    
+    // Check if coordinates are not zero (invalid)
+    if (lat === 0 && lng === 0) {
+      console.warn(`Invalid coordinates for hotel: ${hotel.name || hotel.id}`);
+      return false;
+    }
     
     return true;
   });

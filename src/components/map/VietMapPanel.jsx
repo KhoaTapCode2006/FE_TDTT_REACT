@@ -83,7 +83,20 @@ function VietMapPanel() {
     const map = mapObjRef.current;
     
     try {
-      const bounds = map.getBounds().toArray().flat();
+      // Check if map.getBounds() is available
+      const mapBounds = map.getBounds();
+      if (!mapBounds) {
+        console.warn('Map bounds not available yet');
+        return;
+      }
+      
+      // VietMap GL bounds format: [west, south, east, north]
+      const bounds = [
+        mapBounds.getWest(),
+        mapBounds.getSouth(),
+        mapBounds.getEast(),
+        mapBounds.getNorth()
+      ];
       const zoom = Math.floor(map.getZoom());
       
       const clusters = superclusterRef.current.getClusters(bounds, zoom);
