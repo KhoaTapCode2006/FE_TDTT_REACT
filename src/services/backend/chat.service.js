@@ -201,6 +201,26 @@ export async function getConversationFromFirestorePublic(conversationId) {
 }
 
 /**
+ * Search users by username or display_name.
+ * Endpoint: GET /users?search={query}
+ *
+ * @param {string} query - Search string
+ * @returns {Promise<Array<{uid, username, display_name, avatar_url}>>}
+ */
+export async function searchUsers(query) {
+  if (!query || !query.trim()) return [];
+  const response = await chatClient.get('/users', { params: { search: query.trim() } });
+  const raw = response.data?.data;
+  const list = Array.isArray(raw) ? raw : [];
+  return list.map((u) => ({
+    uid:          u.uid          ?? '',
+    username:     u.username     ?? '',
+    display_name: u.display_name ?? '',
+    avatar_url:   u.avatar_url   ?? null,
+  }));
+}
+
+/**
  * Fetch members for a conversation from REST API.
  * Endpoint: GET /conversations/{conversation_id}/members
  * Response: { status_code, message, data: [ { uid, username, display_name, avatar_url, role, joined_at } ] }
