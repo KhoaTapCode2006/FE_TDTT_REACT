@@ -314,29 +314,13 @@ function VietMapPanel() {
           console.log("✅ VietMap loaded successfully");
           
           try {
-            // Add search radius source and layers
+            // Add search radius source (keep for potential future use)
             map.addSource("search-radius", {
               type: "geojson",
               data: buildCircleGeoJSON(validUserLoc, radiusM),
             });
 
-            map.addLayer({
-              id: "search-radius-fill",
-              type: "fill",
-              source: "search-radius",
-              paint: { "fill-color": "#00346f", "fill-opacity": 0.08 },
-            });
-
-            map.addLayer({
-              id: "search-radius-line",
-              type: "line",
-              source: "search-radius",
-              paint: {
-                "line-color": "#00346f",
-                "line-opacity": 0.7,
-                "line-width": 2,
-              },
-            });
+            // Note: search-radius-fill and search-radius-line layers removed per requirements 5.7, 5.8
 
             // Add user location marker
             const locEl = document.createElement("div");

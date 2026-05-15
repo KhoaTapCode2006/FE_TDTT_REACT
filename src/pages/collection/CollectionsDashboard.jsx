@@ -4,6 +4,7 @@ import Icon from '@/components/ui/Icon';
 import CollectionCard from '@/components/collection/CollectionCard';
 import { collectionService } from '@/services/backend/collection.service';
 import { viewsService } from '@/services/backend/views.service';
+import { likedCollectionsService } from '@/services/profile/likedCollections.service';
 import { useAuth } from '@/contexts/AuthContext';
 
 const VALID_MAIN_TABS = ['my', 'global'];
@@ -66,6 +67,7 @@ function CollectionsDashboard() {
   const [loadingGlobal, setLoadingGlobal] = useState(false);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [notification, setNotification] = useState(null);
 
   const [topType, setTopType] = useState('all_time');
   const [globalPage, setGlobalPage] = useState(1);
