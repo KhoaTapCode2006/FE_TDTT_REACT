@@ -28,6 +28,7 @@ export default function GroupChatPage() {
     handleCreateGroup,
     handleUpdateGroup,
     handleDeleteGroup,
+    handleLeaveGroup,
     handleSend,
     handlePickImage,
     handleDeleteMessage,
@@ -119,6 +120,7 @@ export default function GroupChatPage() {
         onDeleteGroup={handleDeleteGroup}
         onUpdateGroup={handleUpdateGroup}
         onAddMember={handleAddMember}
+        onLeaveGroup={handleLeaveGroup}
         showAttach={showAttach}
         setShowAttach={setShowAttach}
         pendingImage={pendingImage}

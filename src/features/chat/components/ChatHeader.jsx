@@ -1,31 +1,38 @@
 import { useState } from "react";
+import { auth } from "../../../config/firebase";
 import UpdateGroupModal from "./modals/UpdateGroupModal";
 import AddMemberModal from "./modals/AddMemberModal";
 
 // ─── Chat Header ──────────────────────────────────────────────────────────────
-// Thanh tiêu đề phía trên vùng chat. 
-// Hiển thị tên nhóm, nút toggle RightPanel và menu 3 chấm (⋮) chứa các action: cập nhật nhóm, thêm thành viên, xóa nhóm. 
-// Tự quản lý việc mở/đóng UpdateGroupModal và AddMemberModal.
 function ChatHeader({
   groupName,
   groupDescription,
+  groupThumbnailUrl,
   groupId,
+  groupOwnerUid,
   groupMembers,
   showRightPanel,
   onToggleRightPanel,
   onDeleteGroup,
   onUpdateGroup,
   onAddMember,
+  onLeaveGroup,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
 
+  const currentUid = auth.currentUser?.uid;
+  const isOwner = currentUid && groupOwnerUid && currentUid === groupOwnerUid;
+
   return (
     <>
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-white">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col">
           <h2 className="font-bold text-gray-900 text-sm">{groupName}</h2>
+          {groupDescription && (
+            <p className="text-xs text-gray-400 truncate max-w-xs">{groupDescription}</p>
+          )}
         </div>
         <div className="flex items-center gap-3 text-gray-500">
           {/* Toggle right panel button */}
@@ -79,13 +86,23 @@ function ChatHeader({
                     <span className="text-base">👤</span>
                     Thêm thành viên
                   </button>
-                  <button
-                    onClick={() => { setMenuOpen(false); onDeleteGroup(); }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
-                  >
-                    <span className="text-base">🗑️</span>
-                    Xóa nhóm chat
-                  </button>
+                  {isOwner ? (
+                    <button
+                      onClick={() => { setMenuOpen(false); onDeleteGroup(); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <span className="text-base">🗑️</span>
+                      Xóa nhóm chat
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setMenuOpen(false); onLeaveGroup?.(); }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <span className="text-base">🚪</span>
+                      Rời nhóm chat
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -97,6 +114,7 @@ function ChatHeader({
         <UpdateGroupModal
           groupName={groupName}
           groupDescription={groupDescription}
+          groupThumbnailUrl={groupThumbnailUrl}
           groupId={groupId}
           onClose={() => setShowUpdateModal(false)}
           onUpdate={onUpdateGroup}

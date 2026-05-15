@@ -20,9 +20,9 @@ function MessageContent({ msg }) {
   switch (msg.type) {
     case "image":
       return (
-        <div className="flex flex-col gap-1">
+        <div className={`flex flex-col gap-1 ${msg.isMine ? "items-end" : "items-start"}`}>
           {msg.url ? (
-            <img src={msg.url} alt="ảnh" className="w-56 rounded-2xl object-cover shadow-card" />
+            <img src={msg.url} alt="ảnh" className="w-56 rounded-2xl object-cover shadow-card block" />
           ) : (
             <div className="rounded-2xl overflow-hidden w-56 shadow-card">
               <div
@@ -33,7 +33,7 @@ function MessageContent({ msg }) {
           )}
           {msg.text && (
             <div
-              className={`px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-card ${
+              className={`px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-xs ${
                 msg.isMine
                   ? "bg-primary text-white rounded-tr-sm"
                   : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
@@ -89,7 +89,7 @@ function MessageContent({ msg }) {
     default:
       return (
         <div
-          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-card ${
+          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-xs ${
             msg.isMine
               ? "bg-primary text-white rounded-tr-sm"
               : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"

@@ -240,8 +240,7 @@ export function useGroupChat() {
     }
   };
 
-  const handleDeleteGroup = async () => {
-    try {
+  const handleDeleteGroup = async () => {    try {
       await deleteConversation(activeGroup);
       const remaining = groups.filter((g) => g.id !== activeGroup);
       setGroups(remaining);
@@ -252,6 +251,23 @@ export function useGroupChat() {
       if (remaining.length > 0) setActiveGroupState(remaining[0].id);
     } catch (err) {
       console.error("handleDeleteGroup error:", err);
+    }
+  };
+
+  const handleLeaveGroup = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !activeGroup) return;
+    try {
+      await removeMembers(activeGroup, [uid]);
+      const remaining = groups.filter((g) => g.id !== activeGroup);
+      setGroups(remaining);
+      setMessagesByGroup((prev) => { const n = { ...prev }; delete n[activeGroup]; return n; });
+      setMembersByGroup((prev) => { const n = { ...prev }; delete n[activeGroup]; return n; });
+      setShowRightPanel(false);
+      setInput("");
+      if (remaining.length > 0) setActiveGroupState(remaining[0].id);
+    } catch (err) {
+      console.error("handleLeaveGroup error:", err);
     }
   };
 
@@ -430,5 +446,6 @@ export function useGroupChat() {
     handleDeleteMessage,
     handleAddMember,
     handleRemoveMember,
+    handleLeaveGroup,
   };
 }

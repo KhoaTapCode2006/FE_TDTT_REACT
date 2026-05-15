@@ -6,10 +6,10 @@ import { uploadFile } from "../../../services/backend/upload.service";
 // Xử lý: upload và preview ảnh thumbnail, validate tên nhóm (3–32 ký tự), nhập mô tả tùy chọn. 
 // Nhận initialName/initialDescription và submitLabel làm props để tái sử dụng linh hoạt.
 
-function GroupForm({ initialName = "", initialDescription = "", submitLabel = "Lưu", onSubmit, onClose }) {
+function GroupForm({ initialName = "", initialDescription = "", initialThumbnailUrl = "", submitLabel = "Lưu", onSubmit, onClose }) {
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
-  const [thumbnailPreview, setThumbnailPreview] = useState(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState(initialThumbnailUrl || null);
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
@@ -42,6 +42,9 @@ function GroupForm({ initialName = "", initialDescription = "", submitLabel = "L
       } finally {
         setUploading(false);
       }
+    } else {
+      // Giữ lại URL cũ nếu không chọn ảnh mới
+      thumbnailUrl = initialThumbnailUrl || undefined;
     }
 
     onSubmit({ name: name.trim(), description: description.trim(), thumbnailUrl });

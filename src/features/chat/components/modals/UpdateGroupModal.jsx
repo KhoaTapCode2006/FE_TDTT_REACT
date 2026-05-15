@@ -3,7 +3,7 @@ import GroupForm from "../GroupForm";
 // ─── Update Group Modal ───────────────────────────────────────────────────────
 // Modal chỉnh sửa nhóm đã có. 
 // Wrapper mỏng bọc GroupForm với dữ liệu nhóm hiện tại điền sẵn vào form và label "Lưu thay đổi".
-function UpdateGroupModal({ groupName, groupDescription, groupId, onClose, onUpdate }) {
+function UpdateGroupModal({ groupName, groupDescription, groupThumbnailUrl, groupId, onClose, onUpdate }) {
   const handleUpdate = ({ name, description, thumbnailUrl }) => {
     onUpdate({ id: groupId, name, description, thumbnailUrl });
   };
@@ -25,6 +25,7 @@ function UpdateGroupModal({ groupName, groupDescription, groupId, onClose, onUpd
           <GroupForm
             initialName={groupName}
             initialDescription={groupDescription ?? ""}
+            initialThumbnailUrl={groupThumbnailUrl ?? ""}
             submitLabel="Lưu thay đổi"
             onSubmit={handleUpdate}
             onClose={onClose}

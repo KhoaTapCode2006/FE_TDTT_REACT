@@ -94,6 +94,7 @@ function ChatArea({
   onDeleteGroup,
   onUpdateGroup,
   onAddMember,
+  onLeaveGroup,
   showAttach,
   setShowAttach,
   pendingImage,
@@ -113,6 +114,8 @@ function ChatArea({
       <ChatHeader
         groupName={group.name}
         groupDescription={group.description}
+        groupThumbnailUrl={group.thumbnail_url}
+        groupOwnerUid={group.owner_uid}
         groupId={group.id}
         groupMembers={groupMembers}
         showRightPanel={showRightPanel}
@@ -120,13 +123,14 @@ function ChatArea({
         onDeleteGroup={onDeleteGroup}
         onUpdateGroup={onUpdateGroup}
         onAddMember={onAddMember}
+        onLeaveGroup={onLeaveGroup}
       />
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
         <div className="flex items-center justify-center mb-6">
           <span className="bg-gray-200 text-gray-500 text-xs px-4 py-1 rounded-full font-medium">
-            TODAY
+            {new Date().toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}
           </span>
         </div>
 
@@ -173,8 +177,8 @@ function ChatArea({
           <button
             onClick={() => canSend && onSend()}
             disabled={!canSend}
-            className={`w-9 h-9 rounded-xl flex items-center justify-center text-white transition-colors shrink-0 ${
-              canSend ? "bg-primary hover:bg-primary-container" : "bg-gray-200 cursor-not-allowed"
+            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors shrink-0 ${
+              canSend ? "bg-primary text-white hover:bg-primary-container" : "bg-gray-400 text-white cursor-not-allowed"
             }`}
           >
             ▶
