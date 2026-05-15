@@ -42,6 +42,8 @@ import { auth } from '@/config/firebase';
  * @property {Date} created_at - Creation timestamp
  * @property {Date} updated_at - Last update timestamp
  * @property {number} saved_count - Number of users who saved this collection
+ * @property {number} [place_count] - Total places in collection
+ * @property {number} [contributor_count] - Total contributors
  * @property {CollectionVisibility} visibility - Collection visibility setting
  * @property {string[]} tags - Array of tag strings
  * @property {CollectionPlace[]} places - Array of places in collection
@@ -610,20 +612,15 @@ export const collectionService = {
   },
 
   /**
-   * Get place data for a collection (paginated)
-   * Endpoint: GET /collections/{collection_id}/places?page=&limit=
+   * Get full place data for a collection
+   * Endpoint: GET /collections/{collection_id}/places
    *
    * @param {string} collectionId - Collection ID
-   * @param {Object} [options]
-   * @param {number} [options.page=1] - Page number (1-based)
-   * @param {number} [options.limit=3] - Places per page
    * @returns {Promise<Array>} Array of place objects with full hotel data
    * @throws {Error} Network error
    */
-  async getCollectionPlaces(collectionId, { page = 1, limit = 3 } = {}) {
-    const response = await collectionClient.get(`/collections/${collectionId}/places`, {
-      params: { page, limit },
-    });
+  async getCollectionPlaces(collectionId) {
+    const response = await collectionClient.get(`/collections/${collectionId}/places`);
     const data = response.data?.data;
     if (!Array.isArray(data)) {
       return [];

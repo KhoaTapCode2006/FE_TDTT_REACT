@@ -2,20 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import PlaceListItem from './PlaceListItem';
 
-// Mock the dependencies
 vi.mock('@/components/ui/Icon', () => ({
   default: ({ name, size, className }) => (
     <span data-testid={`icon-${name}`} className={className} style={{ fontSize: size }}>
       {name}
     </span>
-  ),
-}));
-
-vi.mock('@/components/hotel/components/HotelCard', () => ({
-  default: ({ hotel }) => (
-    <div data-testid="hotel-card">
-      <h3>{hotel.name}</h3>
-    </div>
   ),
 }));
 
@@ -49,8 +40,23 @@ describe('PlaceListItem', () => {
     address: '123 Test Street',
   };
 
-  it('renders added-by avatar when avatar_url is provided', () => {
-    const onToggle = vi.fn();
+  it('renders compact view with place information', () => {
+    const onViewDetails = vi.fn();
+    render(
+      <PlaceListItem
+        place={mockPlace}
+        onViewDetails={onViewDetails}
+        isEditMode={false}
+      />
+    );
+
+    expect(screen.getByText('Test Hotel')).toBeInTheDocument();
+    expect(screen.getByText(/Thêm bởi: Test User/)).toBeInTheDocument();
+    expect(screen.getByText(/15 Jan 2024/)).toBeInTheDocument();
+  });
+
+  it('renders added-by avatar when avatar_url is valid', () => {
+    const onViewDetails = vi.fn();
     const placeWithAvatar = {
       ...mockPlace,
       added_by: {
@@ -62,8 +68,7 @@ describe('PlaceListItem', () => {
     render(
       <PlaceListItem
         place={placeWithAvatar}
-        isExpanded={false}
-        onToggle={onToggle}
+        onViewDetails={onViewDetails}
         isEditMode={false}
       />
     );
@@ -72,45 +77,36 @@ describe('PlaceListItem', () => {
     expect(avatar).toHaveAttribute('src', 'https://example.com/avatar.jpg');
   });
 
-  it('renders added-by initial when avatar_url is missing', () => {
-    const onToggle = vi.fn();
+  it('ignores invalid avatar_url placeholder from API', () => {
+    const onViewDetails = vi.fn();
+    const placeWithInvalidAvatar = {
+      ...mockPlace,
+      added_by: {
+        ...mockPlace.added_by,
+        avatar_url: 'string',
+      },
+    };
+
     render(
       <PlaceListItem
-        place={mockPlace}
-        isExpanded={false}
-        onToggle={onToggle}
+        place={placeWithInvalidAvatar}
+        onViewDetails={onViewDetails}
         isEditMode={false}
       />
     );
 
+    expect(screen.queryByAltText('Test User avatar')).not.toBeInTheDocument();
     expect(screen.getByText('T')).toBeInTheDocument();
-  });
-
-  it('renders compact view with place information', () => {
-    const onToggle = vi.fn();
-    render(
-      <PlaceListItem
-        place={mockPlace}
-        isExpanded={false}
-        onToggle={onToggle}
-        isEditMode={false}
-      />
-    );
-
-    expect(screen.getByText('Test Hotel')).toBeInTheDocument();
-    expect(screen.getByText(/Thêm bởi: Test User/)).toBeInTheDocument();
-    expect(screen.getByText(/15 Jan 2024/)).toBeInTheDocument();
   });
 
   it('displays placeholder image when images array is empty', () => {
     const placeWithoutImages = { ...mockPlace, images: [] };
-    const onToggle = vi.fn();
-    
+    const onViewDetails = vi.fn();
+
     render(
       <PlaceListItem
         place={placeWithoutImages}
-        isExpanded={false}
-        onToggle={onToggle}
+        onViewDetails={onViewDetails}
         isEditMode={false}
       />
     );
@@ -127,13 +123,12 @@ describe('PlaceListItem', () => {
       added_by: null,
       added_at: null,
     };
-    const onToggle = vi.fn();
+    const onViewDetails = vi.fn();
 
     render(
       <PlaceListItem
         place={placeWithMissingData}
-        isExpanded={false}
-        onToggle={onToggle}
+        onViewDetails={onViewDetails}
         isEditMode={false}
       />
     );
@@ -143,78 +138,45 @@ describe('PlaceListItem', () => {
     expect(screen.getByText('-')).toBeInTheDocument();
   });
 
-  it('calls onToggle when compact view is clicked', () => {
-    const onToggle = vi.fn();
+  it('calls onViewDetails when row is clicked', () => {
+    const onViewDetails = vi.fn();
     render(
       <PlaceListItem
         place={mockPlace}
-        isExpanded={false}
-        onToggle={onToggle}
+        onViewDetails={onViewDetails}
         isEditMode={false}
       />
     );
 
-    const compactView = screen.getByRole('button', { name: /Expand Test Hotel/ });
-    fireEvent.click(compactView);
+    const row = screen.getByRole('button', { name: /Xem chi tiết Test Hotel/ });
+    fireEvent.click(row);
 
-    expect(onToggle).toHaveBeenCalledTimes(1);
-  });
-
-  it('renders HotelCard when expanded', () => {
-    const onToggle = vi.fn();
-    render(
-      <PlaceListItem
-        place={mockPlace}
-        isExpanded={true}
-        onToggle={onToggle}
-        isEditMode={false}
-      />
-    );
-
-    expect(screen.getByTestId('hotel-card')).toBeInTheDocument();
-    expect(screen.getAllByText('Test Hotel')).toHaveLength(2); // One in compact view, one in HotelCard
-  });
-
-  it('does not render HotelCard when collapsed', () => {
-    const onToggle = vi.fn();
-    render(
-      <PlaceListItem
-        place={mockPlace}
-        isExpanded={false}
-        onToggle={onToggle}
-        isEditMode={false}
-      />
-    );
-
-    expect(screen.queryByTestId('hotel-card')).not.toBeInTheDocument();
+    expect(onViewDetails).toHaveBeenCalledWith(mockPlace);
   });
 
   it('shows remove button in edit mode', () => {
-    const onToggle = vi.fn();
+    const onViewDetails = vi.fn();
     const onRemove = vi.fn();
-    
+
     render(
       <PlaceListItem
         place={mockPlace}
-        isExpanded={false}
-        onToggle={onToggle}
+        onViewDetails={onViewDetails}
         isEditMode={true}
         onRemove={onRemove}
       />
     );
 
-    const removeButton = screen.getByTitle('Xóa khỏi collection');
-    expect(removeButton).toBeInTheDocument();
+    expect(screen.getByTitle('Xóa khỏi collection')).toBeInTheDocument();
   });
 
   it('does not show remove button in view mode', () => {
-    const onToggle = vi.fn();
-    
+    const onViewDetails = vi.fn();
+
     render(
       <PlaceListItem
         place={mockPlace}
-        isExpanded={false}
-        onToggle={onToggle}
+        onViewDetails={onViewDetails}
         isEditMode={false}
       />
     );
@@ -223,86 +185,51 @@ describe('PlaceListItem', () => {
   });
 
   it('calls onRemove when remove button is clicked', () => {
-    const onToggle = vi.fn();
+    const onViewDetails = vi.fn();
     const onRemove = vi.fn();
-    
+
     render(
       <PlaceListItem
         place={mockPlace}
-        isExpanded={false}
-        onToggle={onToggle}
+        onViewDetails={onViewDetails}
         isEditMode={true}
         onRemove={onRemove}
       />
     );
 
-    const removeButton = screen.getByTitle('Xóa khỏi collection');
-    fireEvent.click(removeButton);
+    fireEvent.click(screen.getByTitle('Xóa khỏi collection'));
 
     expect(onRemove).toHaveBeenCalledWith('place-123');
-    expect(onToggle).not.toHaveBeenCalled(); // Should not trigger toggle
-  });
-
-  it('shows expand_more icon when collapsed', () => {
-    const onToggle = vi.fn();
-    render(
-      <PlaceListItem
-        place={mockPlace}
-        isExpanded={false}
-        onToggle={onToggle}
-        isEditMode={false}
-      />
-    );
-
-    expect(screen.getByTestId('icon-expand_more')).toBeInTheDocument();
-  });
-
-  it('shows expand_less icon when expanded', () => {
-    const onToggle = vi.fn();
-    render(
-      <PlaceListItem
-        place={mockPlace}
-        isExpanded={true}
-        onToggle={onToggle}
-        isEditMode={false}
-      />
-    );
-
-    expect(screen.getByTestId('icon-expand_less')).toBeInTheDocument();
+    expect(onViewDetails).not.toHaveBeenCalled();
   });
 
   it('handles keyboard navigation with Enter key', () => {
-    const onToggle = vi.fn();
+    const onViewDetails = vi.fn();
     render(
       <PlaceListItem
         place={mockPlace}
-        isExpanded={false}
-        onToggle={onToggle}
+        onViewDetails={onViewDetails}
         isEditMode={false}
       />
     );
 
-    const compactView = screen.getByRole('button', { name: /Expand Test Hotel/ });
-    fireEvent.keyDown(compactView, { key: 'Enter' });
+    const row = screen.getByRole('button', { name: /Xem chi tiết Test Hotel/ });
+    fireEvent.keyDown(row, { key: 'Enter' });
 
-    expect(onToggle).toHaveBeenCalledTimes(1);
+    expect(onViewDetails).toHaveBeenCalledWith(mockPlace);
   });
 
   it('handles image load error by showing placeholder', () => {
-    const onToggle = vi.fn();
+    const onViewDetails = vi.fn();
     render(
       <PlaceListItem
         place={mockPlace}
-        isExpanded={false}
-        onToggle={onToggle}
+        onViewDetails={onViewDetails}
         isEditMode={false}
       />
     );
 
-    const img = screen.getByAltText('Test Hotel');
-    fireEvent.error(img);
-
-    // After error, the component should use placeholder
-    expect(img.src).toContain('unsplash.com');
+    fireEvent.error(screen.getByAltText('Test Hotel'));
+    expect(screen.getByAltText('Test Hotel').src).toContain('unsplash.com');
   });
 });

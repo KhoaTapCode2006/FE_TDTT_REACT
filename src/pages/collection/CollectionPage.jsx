@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
 import PlaceListItem from "@/components/collection/PlaceListItem";
+import PlaceDetailModal from "@/components/collection/PlaceDetailModal";
 import UserSuggestionAutocomplete from "@/components/autocomplete/UserSuggestionAutocomplete";
 import HotelSuggestionAutocomplete from "@/components/autocomplete/HotelSuggestionAutocomplete";
 import { collectionService } from "../../services/backend/collection.service";
@@ -149,11 +150,11 @@ function CollectionPage() {
 
   // Task 2: Places state management for collection-places-display feature
   // Requirements: REQ-4 (Load Places Data on Tab Navigation)
-  const [placesData, setPlacesData] = useState([]); // Current page of hotel data from API
+  const [allPlaces, setAllPlaces] = useState([]); // Full places list from API (paginate on client)
   const [placesPage, setPlacesPage] = useState(1); // Current page for places list
   const [placesLoading, setPlacesLoading] = useState(false); // Loading state for places fetch
   const [placesError, setPlacesError] = useState(null); // Error message for places fetch
-  const [expandedPlaces, setExpandedPlaces] = useState(new Set()); // Set of expanded place_ids
+  const [selectedPlace, setSelectedPlace] = useState(null);
 
   // Keyboard navigation handler for tab buttons
   const handleTabKeyDown = useCallback((event, tabId) => {
@@ -261,7 +262,7 @@ function CollectionPage() {
 
   // Task 2.5: Load places data callback function
   // Requirements: REQ-1 (Fetch Collection Places with Full Hotel Data), REQ-4 (Load Places Data on Tab Navigation)
-  const loadPlacesData = useCallback(async (page = 1) => {
+  const loadAllPlaces = useCallback(async () => {
     if (!collection || isCreateMode) {
       return;
     }
@@ -270,11 +271,8 @@ function CollectionPage() {
     setPlacesError(null);
 
     try {
-      const places = await collectionService.getCollectionPlaces(collection.id, {
-        page,
-        limit: PLACES_PER_PAGE,
-      });
-      setPlacesData(places || []);
+      const places = await collectionService.getCollectionPlaces(collection.id);
+      setAllPlaces(places || []);
     } catch (error) {
       console.error("Failed to load places data:", error);
       setPlacesError("Không thể tải danh sách địa điểm. Vui lòng thử lại.");
@@ -282,6 +280,18 @@ function CollectionPage() {
       setPlacesLoading(false);
     }
   }, [collection, isCreateMode]);
+
+  const getTotalPlaces = useCallback(() => {
+    if (collection?.place_count != null) {
+      return collection.place_count;
+    }
+    return allPlaces.length;
+  }, [collection?.place_count, allPlaces.length]);
+
+  const visiblePlaces = useMemo(() => {
+    const start = (placesPage - 1) * PLACES_PER_PAGE;
+    return allPlaces.slice(start, start + PLACES_PER_PAGE);
+  }, [allPlaces, placesPage]);
 
   // Task 2.2: Save/Unsave handler with optimistic updates
   // Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 3.1, 3.2, 3.3, 3.4, 3.5, 8.4
@@ -461,16 +471,24 @@ function CollectionPage() {
 
   useEffect(() => {
     setPlacesPage(1);
-    setPlacesData([]);
-    setExpandedPlaces(new Set());
+    setAllPlaces([]);
+    setSelectedPlace(null);
   }, [collectionId]);
 
-  // Load places when Places tab is active or page changes
   useEffect(() => {
     if (activeTab === 'places' && !isCreateMode && collection) {
-      loadPlacesData(placesPage);
+      loadAllPlaces();
     }
-  }, [activeTab, collection, isCreateMode, placesPage, loadPlacesData]);
+  }, [activeTab, collection?.id, isCreateMode, loadAllPlaces]);
+
+  useEffect(() => {
+    const totalPlaces = getTotalPlaces();
+    if (totalPlaces === 0) return;
+    const totalPages = Math.ceil(totalPlaces / PLACES_PER_PAGE);
+    if (placesPage > totalPages) {
+      setPlacesPage(totalPages);
+    }
+  }, [getTotalPlaces, placesPage]);
   const handleCancelEdit = () => {
     if (collection) {
       setEditValues({
@@ -567,6 +585,7 @@ function CollectionPage() {
       
       const totalPlaces = updatedCollection.place_count ?? updatedCollection.places?.length ?? 0;
       const lastPage = Math.max(1, Math.ceil(totalPlaces / PLACES_PER_PAGE));
+      await loadAllPlaces();
       setPlacesPage(lastPage);
 
       setPlaceInput("");
@@ -612,8 +631,9 @@ function CollectionPage() {
       
       const totalPlaces = updatedCollection.place_count ?? updatedCollection.places?.length ?? 0;
       const lastPage = Math.max(1, Math.ceil(totalPlaces / PLACES_PER_PAGE));
+      await loadAllPlaces();
       setPlacesPage(lastPage);
-      
+
       showToast("Thành công", "Đã thêm khách sạn vào collection.", "success");
     } catch (error) {
       console.error("Add hotel failed:", error);
@@ -633,20 +653,17 @@ function CollectionPage() {
       
       setCollection(updatedCollection);
 
-      setExpandedPlaces(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(placeId);
-        return newSet;
-      });
+      if (selectedPlace?.place_id === placeId) {
+        setSelectedPlace(null);
+      }
 
       const totalPlaces = updatedCollection.place_count ?? updatedCollection.places?.length ?? 0;
       const totalPages = Math.max(1, Math.ceil(totalPlaces / PLACES_PER_PAGE));
+      await loadAllPlaces();
       if (placesPage > totalPages) {
         setPlacesPage(totalPages);
-      } else {
-        await loadPlacesData(placesPage);
       }
-      
+
       showToast("Thành công", "Đã xóa địa điểm.", "success");
     } catch (error) {
       console.error("Remove place failed:", error);
@@ -846,21 +863,6 @@ function CollectionPage() {
     );
   };
 
-  const getTotalPlaces = () =>
-    collection?.place_count ?? collection?.places?.length ?? 0;
-
-  const togglePlaceExpanded = (placeId) => {
-    setExpandedPlaces(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(placeId)) {
-        newSet.delete(placeId);
-      } else {
-        newSet.add(placeId);
-      }
-      return newSet;
-    });
-  };
-
   const renderPlacesPagination = () => {
     const totalPlaces = getTotalPlaces();
     const totalPages = Math.ceil(totalPlaces / PLACES_PER_PAGE);
@@ -919,7 +921,7 @@ function CollectionPage() {
       );
     }
 
-    if (!placesData.length) {
+    if (getTotalPlaces() === 0) {
       return (
         <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
           Collection chưa có địa điểm nào
@@ -929,12 +931,11 @@ function CollectionPage() {
 
     return (
       <>
-        {placesData.map((place) => (
+        {visiblePlaces.map((place) => (
           <PlaceListItem
             key={place.place_id}
             place={place}
-            isExpanded={expandedPlaces.has(place.place_id)}
-            onToggle={() => togglePlaceExpanded(place.place_id)}
+            onViewDetails={setSelectedPlace}
             isEditMode={isEditMode}
             onRemove={isEditMode ? handleRemovePlace : undefined}
           />
@@ -1529,6 +1530,13 @@ function CollectionPage() {
   return (
     <div className="min-h-[calc(100vh-80px)] bg-background px-4 py-6 text-on-background sm:px-6 lg:px-10">
       <Toast toast={toast} />
+
+      {selectedPlace && (
+        <PlaceDetailModal
+          place={selectedPlace}
+          onClose={() => setSelectedPlace(null)}
+        />
+      )}
 
       {/* Login Warning Banner */}
       {/* Task 8.4: Enhanced login prompt for unauthenticated users */}
