@@ -23,9 +23,9 @@ function ChatHeader({
 
   return (
     <>
-      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-white">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 bg-white">
         <div className="flex items-center gap-3">
-          <h2 className="font-bold text-gray-900 text-base">{groupName}</h2>
+          <h2 className="font-bold text-gray-900 text-sm">{groupName}</h2>
         </div>
         <div className="flex items-center gap-3 text-gray-500">
           {/* Toggle right panel button */}

@@ -130,7 +130,9 @@ async function getConversationIdsFromFirestore() {
 
 /**
  * Fetch a single conversation document from Firestore, including its members subcollection.
+ * Members are enriched with profile data from /users/{uid}.
  * Returns null if the document does not exist.
+ * Also exported as getConversationFromFirestorePublic for use in hooks.
  *
  * @param {string} conversationId
  * @returns {Promise<Object|null>}
@@ -145,18 +147,37 @@ async function getConversationFromFirestore(conversationId) {
 
   const data = convSnap.data();
 
-  // Normalize members từ subcollection
-  const members = membersSnap.docs.map((d) => {
+  // Base member data từ subcollection
+  const baseMembers = membersSnap.docs.map((d) => {
     const m = d.data();
     return {
-      uid:          d.id,
-      role:         m.role         ?? '',
-      joined_at:    m.joined_at?.toDate?.()?.toISOString() ?? m.joined_at ?? '',
-      display_name: m.display_name ?? '',
-      username:     m.username     ?? '',
-      avatar_url:   m.avatar_url   ?? null,
+      uid:       d.id,
+      role:      m.role      ?? '',
+      joined_at: m.joined_at?.toDate?.()?.toISOString() ?? m.joined_at ?? '',
     };
   });
+
+  // Enrich với user profiles
+  let members = baseMembers;
+  if (baseMembers.length > 0) {
+    const profileSnaps = await Promise.allSettled(
+      baseMembers.map((m) => getDoc(doc(db, 'users', m.uid)))
+    );
+    members = baseMembers.map((m, i) => {
+      const result = profileSnaps[i];
+      const profile = result.status === 'fulfilled' && result.value.exists()
+        ? result.value.data()
+        : null;
+      return {
+        uid:          m.uid,
+        role:         m.role,
+        joined_at:    m.joined_at,
+        display_name: profile?.fullName ?? profile?.display_name ?? '',
+        username:     profile?.username ?? '',
+        avatar_url:   profile?.avatar?.url ?? profile?.avatar_url ?? null,
+      };
+    });
+  }
 
   return {
     id: convSnap.id,
@@ -169,25 +190,84 @@ async function getConversationFromFirestore(conversationId) {
 }
 
 /**
- * Fetch members for a conversation from Firestore subcollection.
+ * Public export of getConversationFromFirestore for use outside this module.
+ * @param {string} conversationId
+ * @returns {Promise<Group|null>}
+ */
+export async function getConversationFromFirestorePublic(conversationId) {
+  const raw = await getConversationFromFirestore(conversationId);
+  if (!raw) return null;
+  return normalizeConversation(raw);
+}
+
+/**
+ * Fetch members for a conversation from REST API.
+ * Endpoint: GET /conversations/{conversation_id}/members
+ * Response: { status_code, message, data: [ { uid, username, display_name, avatar_url, role, joined_at } ] }
+ *
+ * @param {string} conversationId
+ * @returns {Promise<Member[]>}
+ */
+export async function getMembersFromAPI(conversationId) {
+  const response = await chatClient.get(`/conversations/${conversationId}/members`);
+  // data là array trực tiếp
+  const raw = response.data?.data;
+  const list = Array.isArray(raw) ? raw : [];
+  return list.map(normalizeMember);
+}
+
+/**
+ * Fetch members for a conversation.
+ * Tries REST API first; falls back to Firestore subcollection + profile enrichment.
  * Used after add/remove member API calls to get the latest member list.
  *
  * @param {string} conversationId
  * @returns {Promise<Member[]>}
  */
 export async function getMembersFromFirestore(conversationId) {
+  // Thử REST API trước (nhanh hơn và đầy đủ hơn)
+  try {
+    const apiMembers = await getMembersFromAPI(conversationId);
+    if (apiMembers.length > 0) return apiMembers;
+  } catch (err) {
+    console.warn('[getMembersFromFirestore] REST API failed, falling back to Firestore:', err.message);
+  }
+
+  // Fallback: Firestore subcollection + enrich từ /users/{uid}
   const snap = await getDocs(
     collection(db, 'conversations', conversationId, 'members')
   );
-  return snap.docs.map((d) => {
+
+  // Base member data từ subcollection (chỉ có uid, role, joined_at)
+  const baseMembers = snap.docs.map((d) => {
     const m = d.data();
     return {
-      uid:          d.id,
-      role:         m.role         ?? '',
-      joined_at:    m.joined_at?.toDate?.()?.toISOString() ?? m.joined_at ?? '',
-      display_name: m.display_name ?? '',
-      username:     m.username     ?? '',
-      avatar_url:   m.avatar_url   ?? null,
+      uid:       d.id,
+      role:      m.role      ?? '',
+      joined_at: m.joined_at?.toDate?.()?.toISOString() ?? m.joined_at ?? '',
+    };
+  });
+
+  if (baseMembers.length === 0) return [];
+
+  // Batch-fetch user profiles từ /users/{uid} để lấy display_name, username, avatar_url
+  const profileSnaps = await Promise.allSettled(
+    baseMembers.map((m) => getDoc(doc(db, 'users', m.uid)))
+  );
+
+  return baseMembers.map((m, i) => {
+    const result = profileSnaps[i];
+    const profile = result.status === 'fulfilled' && result.value.exists()
+      ? result.value.data()
+      : null;
+
+    return {
+      uid:          m.uid,
+      role:         m.role,
+      joined_at:    m.joined_at,
+      display_name: profile?.fullName ?? profile?.display_name ?? '',
+      username:     profile?.username ?? '',
+      avatar_url:   profile?.avatar?.url ?? profile?.avatar_url ?? null,
     };
   });
 }
@@ -375,6 +455,9 @@ function normalizeConversation(data) {
     ? data.members.map(normalizeMember)
     : [];
 
+  // member_count từ backend (dùng khi members array không có)
+  const memberCount = data.member_count ?? members.length;
+
   return {
     id:            data.id            ?? '',
     owner_uid:     data.owner_uid     ?? '',
@@ -384,6 +467,7 @@ function normalizeConversation(data) {
     created_at:    data.created_at    ?? null,
     updated_at:    data.updated_at    ?? null,
     members,
+    member_count:  memberCount,
     lastMsg,
     time:   timeStr,
     unread,
@@ -775,8 +859,25 @@ export async function createConversation({ name, description, thumbnail_url } = 
   if (thumbnail_url !== undefined) payload.thumbnail_url = thumbnail_url;
 
   const response = await chatClient.post('/conversations', payload);
+
+  // Backend trả về data trực tiếp (không có wrapper conversation):
+  // { status_code, message, data: { id, owner_uid, name, description, thumbnail_url,
+  //   created_at, updated_at, member_count } }
+  // → extractConversation xử lý được, nhưng members sẽ rỗng vì chỉ có member_count.
+  // Sau khi tạo xong, fetch members từ Firestore để có danh sách đầy đủ.
   const group = extractConversation(response);
   addConversationId(group.id);
+
+  // Nếu backend không trả về members array, thử lấy từ Firestore
+  if (group.members.length === 0) {
+    try {
+      const freshMembers = await getMembersFromFirestore(group.id);
+      group.members = freshMembers;
+    } catch (err) {
+      console.warn('[createConversation] could not fetch members from Firestore:', err.message);
+    }
+  }
+
   return group;
 }
 
@@ -996,8 +1097,9 @@ export function subscribeToMessages(groupId, callback) {
 
 /**
  * Subscribe to real-time member updates for a conversation.
- * Calls callback with Member[] on every change.
- * Returns unsubscribe function.
+ * Uses Firestore onSnapshot to detect changes, then fetches full member data
+ * (including display_name) from REST API GET /conversations/{id}/members.
+ * Falls back to Firestore + profile enrichment if API fails.
  *
  * @param {string} groupId
  * @param {function(Member[]): void} callback
@@ -1006,19 +1108,56 @@ export function subscribeToMessages(groupId, callback) {
 export function subscribeToMembers(groupId, callback) {
   return onSnapshot(
     collection(db, 'conversations', groupId, 'members'),
-    (snapshot) => {
-      const members = snapshot.docs.map((d) => {
+    async (snapshot) => {
+      if (snapshot.empty) {
+        callback([]);
+        return;
+      }
+
+      // Dùng REST API để lấy members đầy đủ (có display_name, username, avatar_url)
+      try {
+        const apiMembers = await getMembersFromAPI(groupId);
+        if (apiMembers.length > 0) {
+          callback(apiMembers);
+          return;
+        }
+      } catch (err) {
+        console.warn('[subscribeToMembers] REST API failed, falling back to Firestore enrich:', err.message);
+      }
+
+      // Fallback: enrich từ /users/{uid}
+      const baseMembers = snapshot.docs.map((d) => {
         const m = d.data();
         return {
-          uid:          d.id,
-          role:         m.role         ?? '',
-          joined_at:    m.joined_at?.toDate?.()?.toISOString() ?? m.joined_at ?? '',
-          display_name: m.display_name ?? '',
-          username:     m.username     ?? '',
-          avatar_url:   m.avatar_url   ?? null,
+          uid:       d.id,
+          role:      m.role      ?? '',
+          joined_at: m.joined_at?.toDate?.()?.toISOString() ?? m.joined_at ?? '',
         };
       });
-      callback(members);
+
+      try {
+        const profileSnaps = await Promise.allSettled(
+          baseMembers.map((m) => getDoc(doc(db, 'users', m.uid)))
+        );
+        const members = baseMembers.map((m, i) => {
+          const result = profileSnaps[i];
+          const profile = result.status === 'fulfilled' && result.value.exists()
+            ? result.value.data()
+            : null;
+          return {
+            uid:          m.uid,
+            role:         m.role,
+            joined_at:    m.joined_at,
+            display_name: profile?.fullName ?? profile?.display_name ?? '',
+            username:     profile?.username ?? '',
+            avatar_url:   profile?.avatar?.url ?? profile?.avatar_url ?? null,
+          };
+        });
+        callback(members);
+      } catch (err) {
+        console.error('[subscribeToMembers] profile enrich failed:', err);
+        callback(baseMembers.map((m) => ({ ...m, display_name: '', username: '', avatar_url: null })));
+      }
     },
     (err) => console.error('[subscribeToMembers]', groupId, err)
   );

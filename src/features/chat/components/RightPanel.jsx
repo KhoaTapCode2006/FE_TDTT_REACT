@@ -6,16 +6,12 @@ import Avatar from "./Avatar";
 // Hiển thị avatar lớn, tên và mô tả nhóm, danh sách thành viên với khả năng thu gọn/mở rộng và xóa từng member. 
 // Reset về trạng thái ban đầu mỗi khi người dùng chuyển sang nhóm khác.
 function RightPanel({ group, initialMembers, onRemoveMember }) {
-  const [showAllMembers, setShowAllMembers] = useState(false);
   const [members, setMembers] = useState(initialMembers);
 
   // Reset khi đổi group
   useEffect(() => {
     setMembers(initialMembers);
-    setShowAllMembers(false);
   }, [group.id, initialMembers]);
-
-  const visibleMembers = showAllMembers ? members : members.slice(0, 2);
 
   const handleRemove = (uid) => {
     setMembers((prev) => prev.filter((m) => (m.uid || m.id) !== uid));
@@ -25,16 +21,16 @@ function RightPanel({ group, initialMembers, onRemoveMember }) {
   return (
     <aside className="w-64 bg-white border-l border-gray-100 flex flex-col h-full overflow-y-auto">
       {/* Group avatar & name */}
-      <div className="flex flex-col items-center py-6 px-4 border-b border-gray-100">
-        <div className="relative mb-3">
+      <div className="flex flex-col items-center py-4 px-4 border-b border-gray-100">
+        <div className="relative mb-2">
           {group.thumbnail_url ? (
             <img
               src={group.thumbnail_url}
               alt={group.name}
-              className="w-20 h-20 rounded-full object-cover shadow-card border-2 border-white"
+              className="w-14 h-14 rounded-full object-cover shadow-card border-2 border-white"
             />
           ) : (
-            <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center text-white text-3xl font-bold shadow-card select-none">
+            <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-white text-2xl font-bold shadow-card select-none">
               {group.name.slice(0, 2).toUpperCase()}
             </div>
           )}
@@ -51,18 +47,12 @@ function RightPanel({ group, initialMembers, onRemoveMember }) {
       </div>
 
       {/* Members */}
-      <div className="px-4 py-4 border-b border-gray-100">
+      <div className="px-4 py-3 border-b border-gray-100">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-semibold text-gray-800">Members ({members.length})</span>
-          <button
-            onClick={() => setShowAllMembers((v) => !v)}
-            className="text-xs font-semibold text-primary hover:underline"
-          >
-            {showAllMembers ? "THU GỌN" : "SEE ALL"}
-          </button>
         </div>
         <div className="space-y-3">
-          {visibleMembers.map((m) => (
+          {members.map((m) => (
             <div key={m.uid || m.id} className="flex items-center gap-3">
               <Avatar
                 initials={(m.display_name || m.name || m.uid || "?").slice(0, 2).toUpperCase()}

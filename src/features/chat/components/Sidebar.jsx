@@ -7,10 +7,10 @@ function Sidebar({ activeGroup, setActiveGroup, groups, onOpenCreate }) {
   return (
     <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between">
+      <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
         <div>
-          <h2 className="text-base font-bold text-gray-900">Nhóm của tôi</h2>
-          <p className="text-xs text-gray-400 mt-0.5">{groups.length} nhóm</p>
+          <h2 className="text-sm font-bold text-gray-900">Nhóm của tôi</h2>
+          <p className="text-xs text-gray-400">{groups.length} nhóm</p>
         </div>
         <button
           onClick={onOpenCreate}

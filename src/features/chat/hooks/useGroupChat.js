@@ -10,6 +10,7 @@ import {
   getMembersByGroup,
   getMessagesByGroup,
   getMembersFromFirestore,
+  getMembersFromAPI,
   appendCachedMessage,
   removeCachedMessage,
   createConversation,
@@ -23,6 +24,8 @@ import {
   sendConversation,
   subscribeToMessages,
   subscribeToMembers,
+  subscribeToConversationIds,
+  getConversationFromFirestorePublic,
 } from "../../../services/backend/chat.service";
 import { uploadFile } from "../../../services/backend/upload.service";
 
@@ -90,7 +93,95 @@ export function useGroupChat() {
   const currentGroup = groups.find((g) => g.id === activeGroup) ?? groups[0];
   const currentMembers = membersByGroup[activeGroup] ?? [];
 
-  // ── Real-time listener cho messages của activeGroup ─────────────────────────
+  // ── Real-time listener cho danh sách conversation IDs của user ─────────────
+  // ── Real-time listener cho danh sách conversation IDs của user ─────────────
+  // Khi acc khác add user này vào group, Firestore sẽ write vào
+  // /users/{uid}/conversations/{groupId} → listener này sẽ bắt được và load group mới.
+  useEffect(() => {
+    // Không dùng `loading` làm guard vì Firestore onSnapshot fire ngay lập tức
+    // trước khi loading=false, dẫn đến bỏ sót event.
+    // Thay vào đó, track các IDs đã biết để chỉ xử lý IDs thực sự mới.
+    let knownIds = new Set();
+    let initialized = false;
+
+    const unsub = subscribeToConversationIds(async (ids) => {
+      if (!initialized) {
+        // Lần fire đầu tiên: chỉ ghi nhận IDs hiện có, không fetch gì thêm
+        // (data đã được load trong useEffect init ở trên)
+        knownIds = new Set(ids);
+        initialized = true;
+        return;
+      }
+
+      const newIds = ids.filter((id) => !knownIds.has(id));
+      const removedIds = [...knownIds].filter((id) => !ids.includes(id));
+
+      // Cập nhật knownIds
+      ids.forEach((id) => knownIds.add(id));
+      removedIds.forEach((id) => knownIds.delete(id));
+
+      // Xử lý remove
+      if (removedIds.length > 0) {
+        const removedSet = new Set(removedIds);
+        setGroups((prev) => prev.filter((g) => !removedSet.has(g.id)));
+        setActiveGroupState((prev) => {
+          if (!removedSet.has(prev)) return prev;
+          // Chuyển sang group khác nếu activeGroup bị xóa
+          return null; // sẽ được set lại bởi derived state
+        });
+      }
+
+      if (newIds.length === 0) return;
+
+      console.log('[subscribeToConversationIds] new group IDs:', newIds);
+
+      // Fetch conversation + members cho các group mới
+      const results = await Promise.allSettled(
+        newIds.map((id) => getConversationFromFirestorePublic(id))
+      );
+
+      const newGroups = results
+        .filter((r) => r.status === 'fulfilled' && r.value)
+        .map((r) => r.value);
+
+      if (newGroups.length === 0) return;
+
+      console.log('[subscribeToConversationIds] fetched new groups:', newGroups.map((g) => g.id));
+
+      // Add groups vào state
+      setGroups((prev) => {
+        const existingSet = new Set(prev.map((g) => g.id));
+        const toAdd = newGroups.filter((g) => !existingSet.has(g.id));
+        if (toAdd.length === 0) return prev;
+        return [...toAdd, ...prev];
+      });
+
+      // Init messages
+      newGroups.forEach((g) => {
+        setMessagesByGroup((prev) => ({ ...prev, [g.id]: prev[g.id] ?? [] }));
+      });
+
+      // Gọi GET /conversations/{id}/members để lấy members đầy đủ
+      await Promise.allSettled(
+        newGroups.map(async (g) => {
+          try {
+            const freshMembers = await getMembersFromAPI(g.id);
+            console.log('[subscribeToConversationIds] members for', g.id, ':', freshMembers.length);
+            setMembersByGroup((prev) => ({
+              ...prev,
+              [g.id]: freshMembers.length > 0 ? freshMembers : (prev[g.id] ?? g.members),
+            }));
+          } catch (err) {
+            console.warn('[subscribeToConversationIds] getMembersFromAPI failed for', g.id, err.message);
+            setMembersByGroup((prev) => ({ ...prev, [g.id]: prev[g.id] ?? g.members }));
+          }
+        })
+      );
+    });
+
+    return () => unsub();
+  }, []); // Chạy một lần duy nhất khi mount
+  // ── Real-time listener cho messages và members của activeGroup ──────────────
   useEffect(() => {
     if (!activeGroup) return;
 
@@ -281,8 +372,8 @@ export function useGroupChat() {
   const handleAddMember = async (uid) => {
     try {
       await addMembers(activeGroup, [uid]);
-      // Re-fetch từ Firestore subcollection vì backend response không trả về members
-      const freshMembers = await getMembersFromFirestore(activeGroup);
+      // Gọi API lấy danh sách members mới nhất (có đầy đủ display_name, avatar_url)
+      const freshMembers = await getMembersFromAPI(activeGroup);
       setMembersByGroup((prev) => ({ ...prev, [activeGroup]: freshMembers }));
     } catch (err) {
       console.error("handleAddMember error:", err);
@@ -290,13 +381,22 @@ export function useGroupChat() {
   };
 
   const handleRemoveMember = async (uid) => {
+    // Optimistic: xóa khỏi UI ngay
+    setMembersByGroup((prev) => ({
+      ...prev,
+      [activeGroup]: (prev[activeGroup] ?? []).filter((m) => m.uid !== uid),
+    }));
     try {
       await removeMembers(activeGroup, [uid]);
-      // Re-fetch từ Firestore subcollection vì backend response không trả về members
-      const freshMembers = await getMembersFromFirestore(activeGroup);
-      setMembersByGroup((prev) => ({ ...prev, [activeGroup]: freshMembers }));
     } catch (err) {
       console.error("handleRemoveMember error:", err);
+      // Rollback: re-fetch từ Firestore nếu API thất bại
+      try {
+        const freshMembers = await getMembersFromFirestore(activeGroup);
+        setMembersByGroup((prev) => ({ ...prev, [activeGroup]: freshMembers }));
+      } catch (fetchErr) {
+        console.warn('[handleRemoveMember] rollback fetch failed:', fetchErr.message);
+      }
     }
   };
 
