@@ -610,6 +610,26 @@ export const collectionService = {
   },
 
   /**
+   * Get full place data for all places in a collection
+   * Endpoint: GET /collections/{collection_id}/places
+   *
+   * @param {string} collectionId - Collection ID
+   * @returns {Promise<Array>} Array of place objects with full hotel data
+   * @throws {Error} Network error
+   */
+  async getCollectionPlaces(collectionId) {
+    const response = await collectionClient.get(`/collections/${collectionId}/places`);
+    const data = response.data?.data;
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    return data.map(place => ({
+      ...place,
+      added_at: place.added_at ? new Date(place.added_at) : null,
+    }));
+  },
+
+  /**
    * Save/bookmark a collection (add to user's saved list)
    * Endpoint: POST /me/saved-collections
    * Body: { collection_id }

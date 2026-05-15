@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Icon from '@/components/ui/Icon';
+import AddressAutocomplete from '@/components/autocomplete/AddressAutocomplete';
 
 /**
  * CreateCollectionModal Component
@@ -15,6 +16,11 @@ const CreateCollectionModal = ({ isOpen, onClose, onCreate }) => {
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  
+  // New state for places
+  const [selectedPlaces, setSelectedPlaces] = useState([]);
+  const [isAddingPlaces, setIsAddingPlaces] = useState(false);
+  const [placesError, setPlacesError] = useState('');
 
   // Reset form when modal opens
   useEffect(() => {
@@ -23,6 +29,9 @@ const CreateCollectionModal = ({ isOpen, onClose, onCreate }) => {
       setDescription('');
       setError('');
       setIsSubmitting(false);
+      setSelectedPlaces([]);
+      setIsAddingPlaces(false);
+      setPlacesError('');
     }
   }, [isOpen]);
 
@@ -55,12 +64,48 @@ const CreateCollectionModal = ({ isOpen, onClose, onCreate }) => {
     
     setIsSubmitting(true);
     setError('');
+    setPlacesError('');
     
     try {
-      await onCreate({
+      // Step 1: Create the collection first
+      const newCollection = await onCreate({
         name: collectionName.trim(),
         description: description.trim(),
       });
+      
+      // Step 2: Add places sequentially if any were selected
+      if (selectedPlaces.length > 0 && newCollection?.id) {
+        setIsAddingPlaces(true);
+        
+        let successCount = 0;
+        let failCount = 0;
+        
+        // Import collectionService dynamically
+        const { collectionService } = await import('@/services/backend/collection.service');
+        
+        // Add places one by one
+        for (const place of selectedPlaces) {
+          try {
+            await collectionService.addPlacesToCollection(newCollection.id, [place.ref_id]);
+            successCount++;
+          } catch (placeError) {
+            console.error(`Failed to add place ${place.ref_id}:`, placeError);
+            failCount++;
+          }
+        }
+        
+        // Display appropriate message based on results
+        if (failCount === 0) {
+          // All places added successfully
+          console.log(`Collection created with ${successCount} places`);
+        } else if (successCount > 0) {
+          // Some places failed
+          setPlacesError(`Collection đã tạo nhưng không thể thêm một số địa điểm (${failCount}/${selectedPlaces.length} failed)`);
+        } else {
+          // All places failed
+          setPlacesError('Collection đã tạo nhưng không thể thêm một số địa điểm');
+        }
+      }
       
       // Close modal on success
       onClose();
@@ -69,6 +114,7 @@ const CreateCollectionModal = ({ isOpen, onClose, onCreate }) => {
       setError(err.message || 'Failed to create collection. Please try again.');
     } finally {
       setIsSubmitting(false);
+      setIsAddingPlaces(false);
     }
   };
 
@@ -84,6 +130,38 @@ const CreateCollectionModal = ({ isOpen, onClose, onCreate }) => {
     if (error) {
       setError('');
     }
+  };
+
+  /**
+   * Handle place selection from AddressAutocomplete
+   * Requirements: 5.2, 5.3, 5.4, 5.8
+   */
+  const handlePlaceSelect = (suggestion) => {
+    setPlacesError('');
+    
+    // Check maximum limit
+    if (selectedPlaces.length >= 20) {
+      setPlacesError('Maximum 20 places allowed');
+      return;
+    }
+    
+    // Check for duplicates
+    if (selectedPlaces.some(place => place.ref_id === suggestion.ref_id)) {
+      setPlacesError('This place is already added');
+      return;
+    }
+    
+    // Add to selected places
+    setSelectedPlaces(prev => [...prev, suggestion]);
+  };
+
+  /**
+   * Handle removing a place from selected places
+   * Requirements: 5.4
+   */
+  const handleRemovePlace = (ref_id) => {
+    setSelectedPlaces(prev => prev.filter(place => place.ref_id !== ref_id));
+    setPlacesError('');
   };
 
   if (!isOpen) return null;
@@ -158,6 +236,51 @@ const CreateCollectionModal = ({ isOpen, onClose, onCreate }) => {
             </p>
           </div>
 
+          {/* Optional Places Section */}
+          <div className="mb-6">
+            <label className="block text-sm font-bold uppercase tracking-wider text-on-surface-variant mb-2">
+              Thêm địa điểm ban đầu (Optional)
+            </label>
+            <AddressAutocomplete
+              onSelect={handlePlaceSelect}
+              placeholder="Tìm kiếm địa điểm..."
+              disabled={isSubmitting}
+            />
+            {placesError && (
+              <p className="text-red-500 text-sm mt-1.5 flex items-center gap-1">
+                <Icon name="error" size={14} />
+                {placesError}
+              </p>
+            )}
+            <p className="text-xs text-on-surface-variant mt-1.5">
+              {selectedPlaces.length}/20 places
+            </p>
+            
+            {/* Selected Places Chips */}
+            {selectedPlaces.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedPlaces.map((place) => (
+                  <div
+                    key={place.ref_id}
+                    className="inline-flex items-center gap-2 rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1.5 text-xs font-medium text-on-surface"
+                  >
+                    <Icon name="place" size={14} className="text-on-surface-variant" />
+                    <span className="max-w-[200px] truncate">{place.display}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePlace(place.ref_id)}
+                      disabled={isSubmitting}
+                      className="rounded-full p-0.5 text-on-surface hover:bg-surface-container-high transition-colors disabled:opacity-50"
+                      aria-label={`Remove ${place.display}`}
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Action Buttons */}
           <div className="flex gap-3">
             <button
@@ -176,7 +299,7 @@ const CreateCollectionModal = ({ isOpen, onClose, onCreate }) => {
               {isSubmitting && (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               )}
-              {isSubmitting ? 'Creating...' : 'Create Collection'}
+              {isAddingPlaces ? `Adding places...` : isSubmitting ? 'Creating...' : 'Create Collection'}
             </button>
           </div>
         </form>
