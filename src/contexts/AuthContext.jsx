@@ -18,7 +18,6 @@ const AuthContext = createContext({
   // Authentication methods
   login: async () => {},
   loginWithGoogle: async () => {},
-  loginWithFacebook: async () => {},
   register: async () => {},
   logout: async () => {},
   resetPassword: async () => {},
@@ -240,29 +239,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  /**
-   * Login with Facebook
-   */
-  const loginWithFacebook = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const userData = await authService.loginWithFacebook();
-      
-      // User state will be updated by the auth state listener
-      return userData;
-    } catch (error) {
-      console.error('Facebook login error:', error);
-      if (ErrorLogger?.logAuthError) {
-        ErrorLogger.logAuthError(error, { action: 'facebook_login' });
-      }
-      setError(error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+
 
   /**
    * Register new user
@@ -489,7 +466,6 @@ export const AuthProvider = ({ children }) => {
     // Authentication methods
     login,
     loginWithGoogle,
-    loginWithFacebook,
     register,
     logout,
     resetPassword,

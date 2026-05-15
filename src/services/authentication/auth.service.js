@@ -7,7 +7,7 @@ import {
   updateProfile,
   onAuthStateChanged
 } from 'firebase/auth';
-import { auth, googleProvider, facebookProvider } from '../../config/firebase.js';
+import { auth, googleProvider } from '../../config/firebase.js';
 import { apiClient } from '../api/apiClient.js';
 import { tokenManager } from '../../utils/tokenManager.js';
 import { sessionService } from '../profile/session.service.js';
@@ -223,58 +223,6 @@ class AuthService {
   }
 
   /**
-   * Sign in with Facebook OAuth
-   * @returns {Promise<Object>} User object
-   */
-  async loginWithFacebook() {
-    try {
-      // Authenticate with Firebase
-      const result = await signInWithPopup(auth, facebookProvider);
-      const user = result.user;
-      
-      // Get Firebase ID token
-      const idToken = await user.getIdToken();
-      
-      // Authenticate with backend (backend creates/updates profile, returns camelCase data)
-      const backendUser = await this.authenticateWithBackend(idToken);
-      
-      // Store session data
-      sessionService.setSession({
-        uid: user.uid,
-        email: user.email,
-        username: backendUser.username,
-        displayName: backendUser.displayName,
-        tokenExpiration: tokenManager.getTokenExpiration(),
-        rememberMe: false
-      });
-      
-      return {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        emailVerified: user.emailVerified,
-        username: backendUser.username,
-        displayName: backendUser.displayName
-      };
-    } catch (error) {
-      // Log authentication error with context
-      this.logAuthenticationError(error, {
-        method: 'loginWithFacebook',
-        provider: 'facebook'
-      });
-      
-      // Handle 401 errors from backend
-      if (error.status === 401 || error.message?.includes('session has expired')) {
-        sessionService.clearSession();
-        apiClient.clearAuthToken();
-      }
-      
-      throw this.translateFirebaseError(error);
-    }
-  }
-
-  /**
    * Register new user with email and password
    * @param {Object} userData - User registration data
    * @returns {Promise<Object>} User object
@@ -283,13 +231,16 @@ class AuthService {
     try {
       const { email, password, username } = userData;
       
+      // Auto-generate username from email if not provided
+      const finalUsername = username || email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+      
       // Create user account in Firebase
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
       // Update Firebase Auth profile with username as displayName
       await updateProfile(user, {
-        displayName: username
+        displayName: finalUsername
       });
       
       // Get Firebase ID token

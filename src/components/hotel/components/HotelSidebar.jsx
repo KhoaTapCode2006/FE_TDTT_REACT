@@ -3,7 +3,7 @@ import { useApp } from "@/app/AppContext";
 import HotelCard from "./HotelCard";
 import Icon from "@/components/ui/Icon";
 
-function HotelSidebar({ onFilterOpen, layoutMode = 'list' }) {
+function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
   const { hotels, loading, setActiveHotel, hasActiveFilters, activeFilterCount, clusterHotels, activeHotel } = useApp();
   const [idx, setIdx] = useState(0);
   const [viewMode, setViewMode] = useState('list'); // Internal view mode for grid toggle
@@ -23,6 +23,34 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list' }) {
       setViewMode('list');
     }
   }, [layoutMode]);
+
+  // Smart layout adjustment based on map width
+  useEffect(() => {
+    if (layoutMode === 'grid') {
+      // Determine optimal columns based on map width
+      setGridColumns(prevColumns => {
+        let newColumns;
+        
+        if (mapWidth >= 60) {
+          // Map is wide (>= 60%) → hotel list is narrow → use 1 column
+          newColumns = 1;
+        } else if (mapWidth >= 40) {
+          // Map is medium (40-60%) → hotel list is medium → use 2 columns
+          newColumns = 2;
+        } else {
+          // Map is narrow (< 40%) → hotel list is wide → use 3 columns
+          newColumns = 3;
+        }
+        
+        // Only update if columns changed
+        if (newColumns !== prevColumns) {
+          setGridPageIndex(0);
+          return newColumns;
+        }
+        return prevColumns;
+      });
+    }
+  }, [mapWidth, layoutMode]);
 
   const total = hotels.length;
   const current = hotels[idx] || null;
@@ -62,7 +90,9 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list' }) {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold uppercase tracking-widest text-secondary">
-              {loading ? "…" : total === 0 ? "0 Results" : `${isGridMode ? total : idx + 1 + ' / ' + total} Results`}
+              {loading ? "…" : total === 0 ? "0 Results" : 
+                isGridMode ? `Page ${gridPageIndex + 1} / ${totalPages}` : `${idx + 1} / ${total} Results`
+              }
             </span>
             {showMultiHotelButton && !hasCluster && total > 0 && (
               <button

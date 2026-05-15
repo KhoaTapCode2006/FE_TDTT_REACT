@@ -69,11 +69,13 @@ function HotelCard({ hotel, onClick }) {
           {/* Rating Badge - Top Right */}
           <div className="absolute top-3 right-3 glass px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
             <Icon name="star" filled size={14} className="text-amber-500" />
-            <span className="text-sm font-bold text-primary">{hotel?.rating ?? "-"}</span>
+            <span className="text-sm font-bold text-primary">
+              {hotel?.rating ? Number(hotel.rating).toFixed(1) : hotel?.rawRating ? Number(hotel.rawRating).toFixed(1) : "-"}
+            </span>
           </div>
 
           {/* AI Score Badge */}
-          {hotel?.ai_score && (
+          {hotel?.ai_score && hotel.ai_score > 0 && (
             <div className="absolute top-12 right-3 bg-blue-600/90 text-white px-2.5 py-1 rounded-full">
               <span className="text-xs font-bold">AI: {Number(hotel.ai_score).toFixed(1)}</span>
             </div>

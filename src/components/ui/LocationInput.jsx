@@ -25,9 +25,22 @@ function LocationInput({ value, onChange, onSelect }) {
       return;
     }
     timerRef.current = setTimeout(async () => {
-      const results = await window.API.autocomplete(v);
-      setSuggestions(results);
-      setOpen(results.length > 0);
+      // Check if window.API and autocomplete method exist
+      if (window.API && typeof window.API.autocomplete === 'function') {
+        try {
+          const results = await window.API.autocomplete(v);
+          setSuggestions(results || []);
+          setOpen((results || []).length > 0);
+        } catch (error) {
+          console.error('Error fetching autocomplete suggestions:', error);
+          setSuggestions([]);
+          setOpen(false);
+        }
+      } else {
+        // Fallback: no autocomplete available
+        setSuggestions([]);
+        setOpen(false);
+      }
     }, 250);
   }
 

@@ -7,25 +7,11 @@ import Icon from '@/components/ui/Icon';
  * 
  * @param {Object} props
  * @param {Object} props.user - User object (optional, defaults to AuthContext user)
- * @param {boolean} props.showActions - Show action buttons (default: true)
- * @param {Function} props.onEdit - Callback function when edit button is clicked
+ * @param {boolean} props.showActions - Show action buttons (default: false)
  */
-const ProfileHeader = ({ user: propUser, showActions = true, onEdit }) => {
+const ProfileHeader = ({ user: propUser, showActions = false }) => {
   const { user: authUser } = useAuth();
   const user = propUser || authUser;
-
-  const handleEditProfile = () => {
-    console.log('🖱️ Edit Profile button clicked in ProfileHeader');
-    console.log('onEdit prop:', onEdit);
-    console.log('onEdit type:', typeof onEdit);
-    
-    if (onEdit) {
-      console.log('✅ Calling onEdit handler');
-      onEdit();
-    } else {
-      console.warn('⚠️ Edit profile clicked - no onEdit handler provided');
-    }
-  };
 
   const handleShareProfile = () => {
     // Placeholder for share profile functionality
@@ -90,14 +76,6 @@ const ProfileHeader = ({ user: propUser, showActions = true, onEdit }) => {
             {/* Action Buttons */}
             {showActions && (
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-                <button
-                  onClick={handleEditProfile}
-                  className="flex items-center gap-2 bg-white text-on-surface px-4 py-2 rounded-lg font-semibold text-sm border border-outline-variant hover:bg-surface-container-low transition-colors shadow-sm"
-                >
-                  <Icon name="edit" size={18} />
-                  Edit Profile
-                </button>
-                
                 <button
                   onClick={handleShareProfile}
                   className="flex items-center gap-2 bg-white text-on-surface px-4 py-2 rounded-lg font-semibold text-sm border border-outline-variant hover:bg-surface-container-low transition-colors shadow-sm"
