@@ -295,11 +295,13 @@ export function useGroupChat() {
     console.log('[handleSend] pendingImage:', pendingImage);
 
     const tempId = `temp_${Date.now()}`;
+    const now = new Date();
     const optimisticMsg = {
       id: tempId,
       sender: "Me",
       avatar: "ME",
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      dateKey: now.toLocaleDateString('sv-SE'),
       isMine: true,
       seen: false,
       type: pendingImage ? "image" : "text",

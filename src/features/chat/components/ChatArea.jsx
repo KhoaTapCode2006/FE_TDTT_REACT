@@ -128,15 +128,38 @@ function ChatArea({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-6 py-4">
-        <div className="flex items-center justify-center mb-6">
-          <span className="bg-gray-200 text-gray-500 text-xs px-4 py-1 rounded-full font-medium">
-            {new Date().toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}
-          </span>
-        </div>
+        {messages.map((msg, idx) => {
+          const prevMsg = messages[idx - 1];
+          const showDateSep = msg.dateKey && msg.dateKey !== prevMsg?.dateKey;
+          const dateLabel = showDateSep
+            ? (() => {
+                try {
+                  const d = new Date(msg.dateKey);
+                  return d.toLocaleDateString('vi-VN', {
+                    weekday: 'long',
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric',
+                  });
+                } catch {
+                  return msg.dateKey;
+                }
+              })()
+            : null;
 
-        {messages.map((msg) => (
-          <MessageBubble key={msg.id} msg={msg} onDelete={onDeleteMessage} />
-        ))}
+          return (
+            <div key={msg.id}>
+              {showDateSep && (
+                <div className="flex items-center justify-center my-4">
+                  <span className="bg-gray-200 text-gray-500 text-xs px-4 py-1 rounded-full font-medium">
+                    {dateLabel}
+                  </span>
+                </div>
+              )}
+              <MessageBubble msg={msg} onDelete={onDeleteMessage} />
+            </div>
+          );
+        })}
         <div ref={messagesEndRef} />
       </div>
 

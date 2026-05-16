@@ -19,7 +19,7 @@ function RightPanel({ group, initialMembers, onRemoveMember }) {
   };
 
   return (
-    <aside className="w-64 bg-white border-l border-gray-100 flex flex-col h-full overflow-y-auto">
+    <aside className="w-80 bg-white border-l border-gray-100 flex flex-col h-full overflow-y-auto">
       {/* Group avatar & name */}
       <div className="flex flex-col items-center py-4 px-4 border-b border-gray-100">
         <div className="relative mb-2">

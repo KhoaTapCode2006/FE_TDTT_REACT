@@ -107,7 +107,7 @@ function MessageBubble({ msg, onDelete }) {
       <div className="flex flex-col items-end gap-1 mb-4">
         <div className="flex items-end gap-2 group">
           <DeleteBtn onDelete={onDelete} msgId={msg.id} />
-          <div className="max-w-xs">
+          <div className="max-w-xs flex flex-col items-end">
             <MessageContent msg={msg} />
             <div className="flex items-center justify-end gap-1 mt-1">
               <span className="text-xs text-gray-400">{msg.time}</span>

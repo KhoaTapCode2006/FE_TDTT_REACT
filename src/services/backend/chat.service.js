@@ -522,11 +522,23 @@ function normalizeMessage(data) {
   const type = firstAttachment?.type ?? data.type ?? 'text';
   const url  = firstAttachment?.value ?? data.url ?? null;
 
+  // dateKey: YYYY-MM-DD dùng để group tin nhắn theo ngày
+  let dateKey = '';
+  if (data.created_at) {
+    try {
+      const d = new Date(data.created_at);
+      if (!isNaN(d.getTime())) {
+        dateKey = d.toLocaleDateString('sv-SE'); // "YYYY-MM-DD"
+      }
+    } catch { /* ignore */ }
+  }
+
   return {
     id:          data.id       ?? '',
     sender:      senderName,
     avatar,
     time:        formatTime(data.created_at),
+    dateKey,
     text:        data.content  ?? '',
     isMine,
     type,
@@ -1094,11 +1106,17 @@ export function subscribeToMessages(groupId, callback) {
         const type = firstAttachment?.type ?? d.type ?? 'text';
         const url = firstAttachment?.value ?? d.url ?? null;
 
+        const sentDate = d.sent_at?.toDate?.();
+        const dateKey = sentDate
+          ? sentDate.toLocaleDateString('sv-SE')
+          : '';
+
         return {
           id:          docSnap.id,
           sender:      senderName,
           avatar,
-          time:        d.sent_at?.toDate?.()?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) ?? '',
+          time:        sentDate?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) ?? '',
+          dateKey,
           text:        d.content   ?? '',
           isMine,
           type,

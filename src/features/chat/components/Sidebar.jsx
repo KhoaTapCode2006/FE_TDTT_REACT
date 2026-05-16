@@ -5,7 +5,7 @@ import Avatar from "./Avatar";
 // Mỗi item hiển thị avatar, tên nhóm, tin nhắn cuối, thời gian và badge số tin chưa đọc. Có nút + để mở modal tạo nhóm mới.
 function Sidebar({ activeGroup, setActiveGroup, groups, onOpenCreate }) {
   return (
-    <aside className="w-80 bg-white border-r border-gray-100 flex flex-col h-full">
+    <aside className="w-100 bg-white border-r border-gray-100 flex flex-col h-full">
       {/* Header */}
       <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
         <div>
