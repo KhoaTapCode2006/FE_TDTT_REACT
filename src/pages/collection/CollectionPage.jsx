@@ -1282,7 +1282,7 @@ function CollectionPage() {
                   />
                 </label>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
                   <label className="grid gap-2 text-sm font-medium text-on-surface">
                     Ảnh đại diện
                     {isEditing ? (
@@ -1319,19 +1319,21 @@ function CollectionPage() {
                       )
                     )}
                   </label>
-                  <label className="grid gap-2 text-sm font-medium text-on-surface">
-                    Quyền truy cập
-                    <select
-                      value={editValues.visibility}
-                      onChange={(event) => setEditValues((prev) => ({ ...prev, visibility: event.target.value }))}
-                      disabled={!isEditing}
-                      className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80 disabled:cursor-not-allowed disabled:bg-surface-container-low"
-                    >
-                      <option value="public">Công khai</option>
-                      <option value="unlisted">Không để danh sách</option>
-                      <option value="private">Riêng tư</option>
-                    </select>
-                  </label>
+                  <div className="flex flex-col gap-4">
+                    <label className="grid gap-2 text-sm font-medium text-on-surface">
+                      Quyền truy cập
+                      <select
+                        value={editValues.visibility}
+                        onChange={(event) => setEditValues((prev) => ({ ...prev, visibility: event.target.value }))}
+                        disabled={!isEditing}
+                        className="h-12 w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 text-sm text-on-surface outline-none transition focus:border-primary/80 disabled:cursor-not-allowed disabled:bg-surface-container-low"
+                      >
+                        <option value="public">Công khai</option>
+                        <option value="unlisted">Không để danh sách</option>
+                        <option value="private">Riêng tư</option>
+                      </select>
+                    </label>
+                  </div>
                 </div>
               </div>
             </SectionCard>
