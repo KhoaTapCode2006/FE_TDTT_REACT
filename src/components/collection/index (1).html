@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Presigned Upload</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #f4f4f9; color: #333; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="text"], input[type="file"], select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        #log-area { background: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 4px; font-family: monospace; height: 300px; overflow-y: auto; white-space: pre-wrap; font-size: 13px; }
+        .success { color: #00ff00; }
+        .error { color: #ff4444; }
+        .info { color: #00bfff; }
+    </style>
+</head>
+<body>
+
+    <h2>Công cụ Test Upload R2 (Presigned URL)</h2>
+    
+    <div class="card">
+        <div class="form-group">
+            <label for="apiUrl">API Base URL</label>
+            <input type="text" id="apiUrl" value="http://localhost:8000" placeholder="VD: http://localhost:8000 hoặc https://api.domain.com">
+        </div>
+        <div class="form-group">
+            <label for="token">Access Token (Bearer)</label>
+            <input type="text" id="token" placeholder="Nhập JWT token của user vào đây...">
+        </div>
+        <div class="form-group">
+            <label for="category">Category</label>
+            <select id="category">
+                <option value="hotel">hotel</option>
+                <option value="avatar">avatar</option>
+                <option value="review">review</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="fileInput">Chọn File (Ảnh)</label>
+            <input type="file" id="fileInput" accept="image/jpeg, image/png, image/webp, image/gif">
+        </div>
+        <button id="uploadBtn">Bắt đầu Upload</button>
+    </div>
+
+    <div class="card">
+        <label>Console Log:</label>
+        <div id="log-area"></div>
+    </div>
+
+    <script>
+        const uploadBtn = document.getElementById('uploadBtn');
+        const logArea = document.getElementById('log-area');
+
+        function log(message, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const span = document.createElement('span');
+            span.className = type;
+            span.textContent = `[${time}] ${message}\n`;
+            logArea.appendChild(span);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        uploadBtn.addEventListener('click', async () => {
+            const baseUrl = document.getElementById('apiUrl').value.replace(/\/$/, "");
+            const token = document.getElementById('token').value;
+            const category = document.getElementById('category').value;
+            const fileInput = document.getElementById('fileInput');
+
+            if (!token) return log('Lỗi: Vui lòng nhập Token!', 'error');
+            if (fileInput.files.length === 0) return log('Lỗi: Vui lòng chọn một file!', 'error');
+
+            const file = fileInput.files[0];
+            uploadBtn.disabled = true;
+            logArea.innerHTML = ''; // Xóa log cũ
+
+            try {
+                // BƯỚC 1: Gọi API Presign
+                log(`[Bước 1] Đang gọi API Presign...`, 'info');
+                const presignPayload = {
+                    filename: file.name,
+                    content_type: file.type,
+                    file_size: file.size,
+                    category: category
+                };
+                
+                log(`Payload: ${JSON.stringify(presignPayload)}`, 'info');
+
+                const presignRes = await fetch(`${baseUrl}/uploads/presign`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(presignPayload)
+                });
+
+                if (!presignRes.ok) {
+                    const err = await presignRes.text();
+                    throw new Error(`API Presign thất bại (Status: ${presignRes.status}): ${err}`);
+                }
+
+                const presignData = await presignRes.json();
+                log(`[Bước 1] Thành công! Nhận được Presigned URL.`, 'success');
+                
+                // Trích xuất dữ liệu từ response (điều chỉnh key '.data.' nếu API của bạn trả về khác)
+                const uploadUrl = presignData.data?.upload_url || presignData.upload_url;
+                const fileKey = presignData.data?.file_key || presignData.file_key;
+
+                if (!uploadUrl || !fileKey) {
+                    throw new Error("Không tìm thấy upload_url hoặc file_key trong response của Bước 1.");
+                }
+
+                // BƯỚC 2: Upload trực tiếp lên Cloudflare R2
+                log(`\n[Bước 2] Đang tải file lên Cloudflare R2 bằng PUT...`, 'info');
+                const r2Res = await fetch(uploadUrl, {
+                    method: "PUT",
+                    headers: { 
+                        "Content-Type": file.type 
+                    },
+                    body: file
+                });
+
+                if (!r2Res.ok) {
+                    const err = await r2Res.text();
+                    throw new Error(`Upload R2 thất bại (Status: ${r2Res.status}): ${err}`);
+                }
+                log(`[Bước 2] Upload lên R2 thành công!`, 'success');
+
+                // BƯỚC 3: Xác nhận với Backend
+                log(`\n[Bước 3] Đang gọi API Confirm...`, 'info');
+                const confirmPayload = {
+                    file_key: fileKey,
+                    file_size: file.size
+                };
+
+                const confirmRes = await fetch(`${baseUrl}/uploads/confirm`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(confirmPayload)
+                });
+
+                if (!confirmRes.ok) {
+                    const err = await confirmRes.text();
+                    throw new Error(`API Confirm thất bại (Status: ${confirmRes.status}): ${err}`);
+                }
+
+                const confirmData = await confirmRes.json();
+                log(`[Bước 3] Xác nhận thành công!`, 'success');
+                
+                const publicUrl = confirmData.data?.public_url || confirmData.public_url;
+                log(`\nHOÀN TẤT! File của bạn đã có thể truy cập tại:\n${publicUrl}`, 'success');
+
+            } catch (error) {
+                log(`\n${error.message}`, 'error');
+            } finally {
+                uploadBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

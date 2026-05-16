@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
+import ImageUpload from "@/components/ui/ImageUpload";
 import PlaceListItem from "@/components/collection/PlaceListItem";
 import PlaceDetailModal from "@/components/collection/PlaceDetailModal";
 import UserSuggestionAutocomplete from "@/components/autocomplete/UserSuggestionAutocomplete";
@@ -1278,14 +1279,40 @@ function CollectionPage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="grid gap-2 text-sm font-medium text-on-surface">
-                    Thẻ ảnh đại diện
-                    <input
-                      value={editValues.thumbnail_url}
-                      onChange={(event) => setEditValues((prev) => ({ ...prev, thumbnail_url: event.target.value }))}
-                      disabled={!isEditing}
-                      className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80 disabled:cursor-not-allowed disabled:bg-surface-container-low"
-                      placeholder="URL ảnh thumbnail"
-                    />
+                    Ảnh đại diện
+                    {isEditing ? (
+                      <ImageUpload
+                        onUpload={(publicUrl) => {
+                          setEditValues((prev) => ({ ...prev, thumbnail_url: publicUrl }));
+                          showToast("Thành công", "Ảnh đã được tải lên", "success");
+                        }}
+                        onError={(errorMessage) => {
+                          showToast("Lỗi", errorMessage, "error");
+                        }}
+                        disabled={!isEditing}
+                        currentImageUrl={editValues.thumbnail_url}
+                        category="collection_cover"
+                      />
+                    ) : (
+                      editValues.thumbnail_url ? (
+                        <div className="rounded-2xl border border-outline-variant/40 bg-surface-container-low p-3">
+                          <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-surface-container">
+                            <img
+                              src={editValues.thumbnail_url}
+                              alt="Collection thumbnail"
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                e.target.src = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&h=300&fit=crop';
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex h-32 items-center justify-center rounded-2xl border border-outline-variant/40 bg-surface-container-low text-sm text-on-surface-variant">
+                          Chưa có ảnh đại diện
+                        </div>
+                      )
+                    )}
                   </label>
                   <label className="grid gap-2 text-sm font-medium text-on-surface">
                     Quyền truy cập
