@@ -59,6 +59,7 @@ function TripDateRangePicker({ dateFrom, dateTo, onChange, onDone }) {
   // ── Day click ──────────────────────────────────────────────────────────────
   function handleDay(d) {
     if (!d) return;
+    if (d < today) return; // không cho chọn ngày quá khứ
 
     if (!startD) {
       onChange({ dateFrom: toISO(d), dateTo: "" });
@@ -79,11 +80,16 @@ function TripDateRangePicker({ dateFrom, dateTo, onChange, onDone }) {
   // ── Day CSS ────────────────────────────────────────────────────────────────
   function dayClass(d) {
     if (!d) return "w-9 h-9";
+    const isPast     = d < today;
     const isStart    = startD && d.getTime() === startD.getTime();
     const isEnd      = endD   && d.getTime() === endD.getTime();
     const rangeEnd   = endD || hovered;
     const inRange    = startD && rangeEnd && d > startD && d < rangeEnd;
     const isToday    = d.getTime() === today.getTime();
+
+    if (isPast) {
+      return "w-9 h-9 flex items-center justify-center text-sm rounded-full text-gray-300 cursor-not-allowed select-none";
+    }
 
     let base = "w-9 h-9 flex items-center justify-center text-sm rounded-full cursor-pointer select-none transition-colors";
 
@@ -120,7 +126,7 @@ function TripDateRangePicker({ dateFrom, dateTo, onChange, onDone }) {
               key={i}
               className={dayClass(d)}
               onClick={() => d && handleDay(d)}
-              onMouseEnter={() => d && setHovered(d)}
+              onMouseEnter={() => d && d >= today && setHovered(d)}
               onMouseLeave={() => setHovered(null)}
             >
               {d ? d.getDate() : ""}

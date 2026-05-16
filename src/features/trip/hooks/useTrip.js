@@ -8,16 +8,15 @@ import { tripService } from "../../../services/backend/trip.service";
 import { useAuth } from "../../../contexts/AuthContext";
 
 export const NAV_ITEMS = [
-  { id: "all",     label: "All Trips", icon: "🗺️" },
-  { id: "waiting", label: "Waiting",   icon: "⏳" },
-  { id: "active",  label: "Active",    icon: "🟢" },
-  { id: "ended",   label: "Ended",     icon: "🏁" },
+  { id: "tripmap", label: "TripMap", icon: "🗺️" },
+  { id: "info",    label: "Info",    icon: "ℹ️" },
+  { id: "member",  label: "Member",  icon: "👥" },
 ];
 
 export function useTrip() {
   const { loading: authLoading, isAuthenticated } = useAuth();
 
-  const [activeNav, setActiveNav]         = useState("all");
+  const [activeNav, setActiveNav]         = useState("tripmap");
   const [trips, setTrips]                 = useState([]);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState(null);
@@ -27,6 +26,7 @@ export function useTrip() {
   const [viewingTrip, setViewingTrip]     = useState(null);
   const [infoTripId, setInfoTripId]       = useState(null);
   const [addMemberTrip, setAddMemberTrip] = useState(null);
+  const [selectedTripId, setSelectedTripId] = useState(null);
 
   // ── Fetch trips từ API ───────────────────────────────────────────────────────
   const fetchTrips = useCallback(async () => {
@@ -35,6 +35,10 @@ export function useTrip() {
       setError(null);
       const data = await tripService.getMyTrips();
       setTrips(data);
+      // Auto-select trip đầu tiên nếu chưa có selection
+      if (data.length > 0) {
+        setSelectedTripId((prev) => prev ?? data[0].id);
+      }
     } catch (err) {
       console.error("Failed to fetch trips:", err);
       setError(err.message || "Không thể tải danh sách chuyến đi");
@@ -67,9 +71,8 @@ export function useTrip() {
   const infoTrip = infoTripId ? trips.find((t) => t.id === infoTripId) ?? null : null;
 
   const filteredTrips = trips.filter((t) => {
-    const matchNav    = activeNav === "all" || t.status === activeNav;
     const matchSearch = t.title.toLowerCase().includes(search.toLowerCase());
-    return matchNav && matchSearch;
+    return matchSearch;
   });
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -85,6 +88,7 @@ export function useTrip() {
       };
       const newTrip = await tripService.createTrip(payload);
       setTrips((prev) => [newTrip, ...prev]);
+      setSelectedTripId(newTrip.id);
     } catch (err) {
       console.error("Failed to create trip:", err);
       setError(err.message || "Không thể tạo chuyến đi");
@@ -195,6 +199,9 @@ export function useTrip() {
     setInfoTripId,
     addMemberTrip,
     setAddMemberTrip,
+    selectedTripId,
+    setSelectedTripId,
+    selectedTrip: trips.find((t) => t.id === selectedTripId) ?? null,
     // Handlers
     handleCreate,
     handleDelete,

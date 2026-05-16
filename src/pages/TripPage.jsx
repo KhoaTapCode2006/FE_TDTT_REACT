@@ -3,6 +3,9 @@ import {
   NAV_ITEMS,
   useGpsTracking,
   TripCard,
+  TripInfoPanel,
+  TripMemberPanel,
+  TripMapPanel,
   CreateTripModal,
   EditTripModal,
   TripInfoModal,
@@ -35,6 +38,9 @@ export default function TripPage() {
     setInfoTripId,
     addMemberTrip,
     setAddMemberTrip,
+    selectedTripId,
+    setSelectedTripId,
+    selectedTrip,
     handleCreate,
     handleDelete,
     handleSaveEdit,
@@ -45,7 +51,6 @@ export default function TripPage() {
     handleScheduleStatus,
   } = useTrip();
 
-  // Push GPS lên Firestore cho tất cả trips khi đang ở trang này
   useGpsTracking(trips.map((t) => t.id));
 
   return (
@@ -81,92 +86,73 @@ export default function TripPage() {
       </div>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto px-8 py-6">
+      <div className="flex-1 min-h-0 overflow-hidden">
 
-          {/* Error banner */}
-          {error && (
-            <div className="mb-4 flex items-center justify-between gap-3 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
-              <span>{error}</span>
-              <button
-                onClick={refetch}
-                className="shrink-0 text-xs font-semibold underline hover:no-underline"
-              >
-                Thử lại
-              </button>
-            </div>
-          )}
+        {/* Error banner */}
+        {error && (
+          <div className="mx-8 mt-4 flex items-center justify-between gap-3 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
+            <span>{error}</span>
+            <button onClick={refetch} className="shrink-0 text-xs font-semibold underline hover:no-underline">Thử lại</button>
+          </div>
+        )}
 
-          {/* Loading skeleton */}
-          {loading ? (
-            <div className="grid grid-cols-2 gap-5">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="bg-white rounded-2xl border border-gray-100 h-48 animate-pulse" />
-              ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-5 items-stretch">
-              {filteredTrips.map((trip) => (
-                <TripCard
-                  key={trip.id}
-                  trip={trip}
-                  currentUid={currentUid}
-                  onDelete={handleDelete}
-                  onLeave={handleLeaveTrip}
-                  onEdit={setEditingTrip}
-                  onView={setViewingTrip}
-                  onInfo={(t) => setInfoTripId(t.id)}
-                  onAddMember={setAddMemberTrip}
-                  onScheduleStatus={handleScheduleStatus}
-                />
-              ))}
-              {filteredTrips.length === 0 && (
-                <div className="col-span-2 flex flex-col items-center justify-center py-20 text-gray-400">
-                  <span className="text-4xl mb-3">🗺️</span>
-                  <p className="text-sm font-medium">Chưa có chuyến đi nào</p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        {/* ── Tab: TripMap ── */}
+        {activeNav === "tripmap" && (
+          <div className="flex flex-col h-full min-h-0 p-4">
+            {loading ? (
+              <div className="bg-gray-100 rounded-2xl h-full animate-pulse" />
+            ) : !selectedTrip ? (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                <span className="text-3xl mb-2">🗺️</span>
+                <p className="text-xs font-medium">Chưa có chuyến đi nào</p>
+              </div>
+            ) : (
+              <TripCard
+                trip={selectedTrip}
+                currentUid={currentUid}
+                onDelete={handleDelete}
+                onLeave={handleLeaveTrip}
+                onEdit={setEditingTrip}
+                onView={setViewingTrip}
+                onInfo={(t) => setInfoTripId(t.id)}
+                onAddMember={setAddMemberTrip}
+                onScheduleStatus={handleScheduleStatus}
+                mapPanel={<TripMapPanel trip={selectedTrip} />}
+              />
+            )}
+          </div>
+        )}
+
+        {/* ── Tab: Info ── */}
+        {activeNav === "info" && (
+          <div className="overflow-y-auto h-full px-8 py-6">
+            <TripInfoPanel trip={selectedTrip} onRemoveMember={handleRemoveMember} />
+          </div>
+        )}
+
+        {/* ── Tab: Member ── */}
+        {activeNav === "member" && (
+          <div className="overflow-y-auto h-full px-8 py-6">
+            <TripMemberPanel trip={selectedTrip} onRemoveMember={handleRemoveMember} />
+          </div>
+        )}
+
       </div>
 
       {addMemberTrip && (
-        <AddMemberModal
-          trip={addMemberTrip}
-          onClose={() => setAddMemberTrip(null)}
-          onAdd={handleAddMember}
-        />
+        <AddMemberModal trip={addMemberTrip} onClose={() => setAddMemberTrip(null)} onAdd={handleAddMember} />
       )}
-
       {infoTrip && (
-        <TripInfoModal
-          trip={infoTrip}
-          onClose={() => setInfoTripId(null)}
-          onRemoveMember={handleRemoveMember}
-        />
+        <TripInfoModal trip={infoTrip} onClose={() => setInfoTripId(null)} onRemoveMember={handleRemoveMember} />
       )}
-
       {viewingTrip && (
-        <TripMapModal
-          trip={viewingTrip}
-          onClose={() => setViewingTrip(null)}
-        />
+        <TripMapModal trip={viewingTrip} onClose={() => setViewingTrip(null)} />
       )}
-
       {showCreate && (
-        <CreateTripModal
-          onClose={() => setShowCreate(false)}
-          onCreate={handleCreate}
-        />
+        <CreateTripModal onClose={() => setShowCreate(false)} onCreate={handleCreate} />
       )}
-
       {editingTrip && (
-        <EditTripModal
-          trip={editingTrip}
-          onClose={() => setEditingTrip(null)}
-          onSave={handleSaveEdit}
-        />
+        <EditTripModal trip={editingTrip} onClose={() => setEditingTrip(null)} onSave={handleSaveEdit} />
       )}
     </div>
   );

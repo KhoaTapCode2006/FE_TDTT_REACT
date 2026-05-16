@@ -10,5 +10,8 @@ export { default as NewTripCard }      from "./components/NewTripCard";
 export { default as CreateTripModal }  from "./components/modals/CreateTripModal";
 export { default as EditTripModal }    from "./components/modals/EditTripModal";
 export { default as TripInfoModal }    from "./components/modals/TripInfoModal";
+export { default as TripInfoPanel }    from "./components/TripInfoPanel";
+export { default as TripMemberPanel }  from "./components/TripMemberPanel";
+export { default as TripMapPanel }     from "./components/TripMapPanel";
 export { default as TripMapModal }     from "./components/modals/TripMapModal";
 export { default as AddMemberModal }   from "./components/modals/AddMemberModal";

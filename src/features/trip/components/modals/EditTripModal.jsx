@@ -89,12 +89,17 @@ function EditTripModal({ trip, onClose, onSave }) {
                 </button>
 
                 {showPicker && (
-                  <TripDateRangePicker
-                    dateFrom={dateFrom}
-                    dateTo={dateTo}
-                    onChange={({ dateFrom: f, dateTo: t }) => { setDateFrom(f); setDateTo(t); }}
-                    onDone={() => setShowPicker(false)}
-                  />
+                  <div className="fixed inset-0 z-[60] flex items-center justify-center">
+                    <div className="fixed inset-0 bg-black/20" onClick={() => setShowPicker(false)} />
+                    <div className="relative z-10 bg-white rounded-2xl shadow-2xl">
+                      <TripDateRangePicker
+                        dateFrom={dateFrom}
+                        dateTo={dateTo}
+                        onChange={({ dateFrom: f, dateTo: t }) => { setDateFrom(f); setDateTo(t); }}
+                        onDone={() => setShowPicker(false)}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

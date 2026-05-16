@@ -5,7 +5,7 @@ import { useTripMembers } from "../hooks/useTripMembers";
 
 // ─── TripCard ─────────────────────────────────────────────────────────────────
 // currentUid: uid của user đang đăng nhập — dùng để phân biệt owner vs member
-function TripCard({ trip, currentUid, onDelete, onLeave, onEdit, onView, onInfo, onAddMember, onScheduleStatus }) {
+function TripCard({ trip, currentUid, onDelete, onLeave, onEdit, onView, onInfo, onAddMember, onScheduleStatus, mapPanel }) {
   const isEnded   = trip.status === "ended";
   const isWaiting = trip.status === "waiting";
   const isActive  = trip.status === "active";
@@ -36,10 +36,10 @@ function TripCard({ trip, currentUid, onDelete, onLeave, onEdit, onView, onInfo,
   return (
     <>
     <div
-      className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex flex-col"
-      style={{ minHeight: "200px" }}
+      className={`bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-shadow flex flex-col ${mapPanel ? "h-full" : ""}`}
+      style={mapPanel ? {} : { minHeight: "200px" }}
     >
-      <div className="p-4 flex flex-col flex-1">
+      <div className="p-4 flex flex-col flex-shrink-0">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -53,29 +53,6 @@ function TripCard({ trip, currentUid, onDelete, onLeave, onEdit, onView, onInfo,
 
           {/* Action buttons */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Info */}
-            <button
-              onClick={() => onInfo(trip)}
-              className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
-              title="Info"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 4a1.25 1.25 0 1 1 0 2.5A1.25 1.25 0 0 1 12 6zm1.5 10.5h-3a.75.75 0 0 1 0-1.5h.75v-4H10.5a.75.75 0 0 1 0-1.5H12a.75.75 0 0 1 .75.75v4.75h.75a.75.75 0 0 1 0 1.5z" />
-              </svg>
-            </button>
-
-            {/* View map */}
-            <button
-              onClick={() => onView(trip)}
-              className="w-7 h-7 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
-              title="View map"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-            </button>
-
             {/* Edit — chỉ owner */}
             {isOwner && (
               <button
@@ -207,6 +184,13 @@ function TripCard({ trip, currentUid, onDelete, onLeave, onEdit, onView, onInfo,
           </div>
         </div>
       </div>
+
+      {/* Map panel — nằm trong card */}
+      {mapPanel && (
+        <div className="flex-1 min-h-0 border-t border-gray-100">
+          {mapPanel}
+        </div>
+      )}
     </div>
 
       {/* Schedule modal */}
