@@ -137,17 +137,6 @@ function CollectionCard({
             e.target.src = placeholderImage;
           }}
         />
-        
-        {/* Visibility Badge */}
-        <div className="absolute top-3 left-3">
-          <span className="inline-flex items-center gap-1 rounded-full bg-black/60 backdrop-blur-sm px-3 py-1 text-xs font-semibold text-white">
-            <Icon 
-              name={collection.visibility === 'public' ? 'public' : collection.visibility === 'private' ? 'lock' : 'link'} 
-              size={14} 
-            />
-            {collection.visibility === 'public' ? 'Public' : collection.visibility === 'private' ? 'Private' : 'Unlisted'}
-          </span>
-        </div>
 
         {/* Save Button (for non-owners) */}
         {/* Task 8.1: Added hover animation, scale transition, and loading spinner */}
