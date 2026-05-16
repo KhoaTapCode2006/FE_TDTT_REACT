@@ -146,7 +146,7 @@ function CollectionPage() {
   const [savers, setSavers] = useState([]); // List of users who saved this collection
   const [saversPage, setSaversPage] = useState(1); // Current page for savers list
   const [saversLoading, setSaversLoading] = useState(false); // Loading state for savers fetch
-  const SAVERS_PER_PAGE = 3; // Number of savers per page
+  const SAVERS_PER_PAGE = 6; // Number of savers per page
   const PLACES_PER_PAGE = 3; // Number of places per page
 
   // Task 2: Places state management for collection-places-display feature
@@ -1016,7 +1016,8 @@ function CollectionPage() {
               />
 
               {/* Current Contributors List (Requirement 15.5) */}
-              <div className="space-y-3">
+              {/* 2-column grid layout: 1 column on mobile, 2 columns on md+ screens */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {collection.contributors?.length ? (
                   collection.contributors.map((contributor) => {
                     // Handle both owner_uid (string) and owner.uid (object) formats
@@ -1026,7 +1027,7 @@ function CollectionPage() {
                       contributor.display_name || contributor.username || contributor.uid;
 
                     return (
-                      <div key={contributor.uid} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div key={contributor.uid} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
                           {/* Avatar (Requirement 15.5) */}
                           {contributor.avatar_url ? (
@@ -1053,7 +1054,7 @@ function CollectionPage() {
                         
                         {/* Remove Button or Owner Badge (Requirement 15.5) */}
                         {isOwnerRow ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">
+                          <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">
                             Owner
                           </span>
                         ) : (
@@ -1061,7 +1062,7 @@ function CollectionPage() {
                             type="button"
                             onClick={() => handleRemoveContributor(contributor.uid)}
                             disabled={actionBusy}
-                            className="inline-flex items-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <Icon name="close" size={16} /> Xóa
                           </button>
@@ -1070,7 +1071,7 @@ function CollectionPage() {
                     );
                   })
                 ) : (
-                  <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
+                  <div className="col-span-full rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
                     Chưa có người đóng góp nào
                   </div>
                 )}
@@ -1087,7 +1088,8 @@ function CollectionPage() {
             title="Người đóng góp"
             description="Danh sách người đóng góp hiện tại của collection."
           >
-            <div className="space-y-3">
+            {/* 2-column grid layout: 1 column on mobile, 2 columns on md+ screens */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {collection.contributors?.length ? (
                 collection.contributors.map((contributor) => {
                   const displayLabel =
@@ -1119,7 +1121,7 @@ function CollectionPage() {
                   );
                 })
               ) : (
-                <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
+                <div className="col-span-full rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
                   Chưa có người đóng góp nào
                 </div>
               )}
@@ -1171,34 +1173,37 @@ function CollectionPage() {
               </div>
             ) : currentSavers.length ? (
               <>
-                {currentSavers.map((saver) => {
-                  const displayLabel = saver.display_name || saver.username || saver.uid;
-                  return (
-                    <div key={saver.uid} className="flex items-center gap-3 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3">
-                      {/* Avatar */}
-                      {saver.avatar_url ? (
-                        <img 
-                          src={saver.avatar_url} 
-                          alt={`${displayLabel} avatar`}
-                          className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-medium flex-shrink-0">
-                          {(saver.username || saver.uid).charAt(0).toUpperCase()}
+                {/* 2-column grid layout: 1 column on mobile, 2 columns on md+ screens */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {currentSavers.map((saver) => {
+                    const displayLabel = saver.display_name || saver.username || saver.uid;
+                    return (
+                      <div key={saver.uid} className="flex items-center gap-3 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3">
+                        {/* Avatar */}
+                        {saver.avatar_url ? (
+                          <img 
+                            src={saver.avatar_url} 
+                            alt={`${displayLabel} avatar`}
+                            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-medium flex-shrink-0">
+                            {(saver.username || saver.uid).charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        
+                        {/* User Info */}
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <p className="text-sm font-semibold text-on-surface truncate">{displayLabel}</p>
+                          <p className="text-xs text-on-surface-variant font-mono truncate">@{saver.username || saver.uid}</p>
+                          <p className="text-xs text-on-surface-variant truncate">
+                            Đã lưu: {formatDate(saver.saved_at)}
+                          </p>
                         </div>
-                      )}
-                      
-                      {/* User Info */}
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <p className="text-sm font-semibold text-on-surface truncate">{displayLabel}</p>
-                        <p className="text-xs text-on-surface-variant font-mono truncate">@{saver.username || saver.uid}</p>
-                        <p className="text-xs text-on-surface-variant truncate">
-                          Đã lưu: {formatDate(saver.saved_at)}
-                        </p>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
                 
                 {/* Pagination */}
                 {totalPages > 1 && (
