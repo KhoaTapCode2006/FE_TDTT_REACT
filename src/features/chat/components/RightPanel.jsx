@@ -2,24 +2,40 @@ import { useState, useEffect } from "react";
 import Avatar from "./Avatar";
 
 // ─── Right Panel ──────────────────────────────────────────────────────────────
-// Panel thông tin nhóm bên phải. 
-// Hiển thị avatar lớn, tên và mô tả nhóm, danh sách thành viên với khả năng thu gọn/mở rộng và xóa từng member. 
-// Reset về trạng thái ban đầu mỗi khi người dùng chuyển sang nhóm khác.
 function RightPanel({ group, initialMembers, onRemoveMember }) {
   const [members, setMembers] = useState(initialMembers);
+  const [toast, setToast] = useState(null); // { message: string }
 
   // Reset khi đổi group
   useEffect(() => {
     setMembers(initialMembers);
   }, [group.id, initialMembers]);
 
+  const showToast = (message) => {
+    setToast({ message });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const handleRemove = (uid) => {
+    const member = members.find((m) => (m.uid || m.id) === uid);
+    const displayName = member?.display_name || member?.name || uid;
     setMembers((prev) => prev.filter((m) => (m.uid || m.id) !== uid));
     if (onRemoveMember) onRemoveMember(uid);
+    showToast(`Đã xóa ${displayName} khỏi nhóm`);
   };
 
   return (
-    <aside className="w-80 bg-white border-l border-gray-100 flex flex-col h-full overflow-y-auto">
+    <aside className="w-80 bg-white border-l border-gray-100 flex flex-col h-full overflow-y-auto relative">
+      {/* Toast */}
+      {toast && (
+        <div
+          className="fixed top-1/2 left-1/2 z-50 bg-gray-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg"
+          style={{ transform: 'translate(-50%, -50%)', animation: 'fadeIn 0.2s ease' }}
+        >
+          {toast.message}
+        </div>
+      )}
+
       {/* Group avatar & name */}
       <div className="flex flex-col items-center py-4 px-4 border-b border-gray-100">
         <div className="relative mb-2">

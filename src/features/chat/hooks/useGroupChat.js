@@ -2,9 +2,10 @@
 // Quản lý mọi state (danh sách nhóm, tin nhắn, members, UI toggles) 
 // và xử lý toàn bộ business logic: load dữ liệu ban đầu, tạo/sửa/xóa nhóm, gửi tin nhắn (bao gồm gọi AI qua sendConversation), thêm/xóa member.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../../../config/firebase";
+import { auth, db } from "../../../config/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import {
   getGroups,
   getMembersByGroup,
@@ -25,6 +26,7 @@ import {
   subscribeToMessages,
   subscribeToMembers,
   subscribeToConversationIds,
+  subscribeToUserConversations,
   getConversationFromFirestorePublic,
 } from "../../../services/backend/chat.service";
 import { uploadFile } from "../../../services/backend/upload.service";
@@ -97,6 +99,7 @@ export function useGroupChat() {
   // ── Real-time listener cho danh sách conversation IDs của user ─────────────
   // Khi acc khác add user này vào group, Firestore sẽ write vào
   // /users/{uid}/conversations/{groupId} → listener này sẽ bắt được và load group mới.
+  // Đồng thời khi latest_msg thay đổi (tin nhắn mới), cập nhật sidebar ngay lập tức.
   useEffect(() => {
     // Không dùng `loading` làm guard vì Firestore onSnapshot fire ngay lập tức
     // trước khi loading=false, dẫn đến bỏ sót event.
@@ -104,7 +107,9 @@ export function useGroupChat() {
     let knownIds = new Set();
     let initialized = false;
 
-    const unsub = subscribeToConversationIds(async (ids) => {
+    const unsub = subscribeToUserConversations(async (docs) => {
+      const ids = docs.map((d) => d.id);
+
       if (!initialized) {
         // Lần fire đầu tiên: chỉ ghi nhận IDs hiện có, không fetch gì thêm
         // (data đã được load trong useEffect init ở trên)
@@ -131,9 +136,66 @@ export function useGroupChat() {
         });
       }
 
+      // Cập nhật latest_msg cho các group đã biết (tin nhắn mới)
+      const existingDocs = docs.filter((d) => !newIds.includes(d.id) && !removedIds.includes(d.id));
+      if (existingDocs.length > 0) {
+        const currentUid = auth.currentUser?.uid;
+
+        // Resolve sender names cho tất cả existingDocs
+        const senderUids = new Set(
+          existingDocs
+            .map((d) => d.latest_msg?.sender_uid)
+            .filter((uid) => uid && uid !== currentUid)
+        );
+        const senderNameMap = {};
+        await Promise.allSettled(
+          [...senderUids].map(async (senderUid) => {
+            try {
+              const snap = await getDoc(doc(db, 'users', senderUid));
+              if (snap.exists()) {
+                const p = snap.data();
+                senderNameMap[senderUid] = p?.fullName ?? p?.display_name ?? p?.username ?? senderUid.slice(0, 6);
+              }
+            } catch { /* ignore */ }
+          })
+        );
+
+        setGroups((prev) => prev.map((g) => {
+          const userCache = existingDocs.find((d) => d.id === g.id);
+          if (!userCache?.latest_msg) return g;
+          const lm = userCache.latest_msg;
+          // Normalize sent_at từ Firestore Timestamp
+          const sentAt = lm.sent_at?.toDate?.()?.toISOString?.() ?? lm.sent_at ?? null;
+          // Tính time string
+          const timeStr = sentAt ? (() => {
+            const d = new Date(sentAt);
+            if (isNaN(d.getTime())) return g.time;
+            const now = new Date();
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const yesterdayStart = new Date(todayStart.getTime() - 86_400_000);
+            const sevenDaysAgo = new Date(todayStart.getTime() - 6 * 86_400_000);
+            if (d >= todayStart) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            if (d >= yesterdayStart) return 'Yesterday';
+            if (d >= sevenDaysAgo) return d.toLocaleDateString([], { weekday: 'short' });
+            return `${String(d.getDate()).padStart(2, '0')} ${d.toLocaleDateString([], { month: 'short' })}`;
+          })() : g.time;
+          const senderUid = lm.sender_uid ?? '';
+          const senderName = senderUid
+            ? (senderUid === currentUid ? 'Bạn' : (senderNameMap[senderUid] ?? senderUid.slice(0, 6)))
+            : g.lastMsgSender;
+          return {
+            ...g,
+            lastMsg: lm.content ?? g.lastMsg,
+            lastMsgSender: senderName,
+            time: timeStr,
+            unread: lm.unread_count ?? g.unread,
+          };
+        }));
+      }
+
       if (newIds.length === 0) return;
 
-      console.log('[subscribeToConversationIds] new group IDs:', newIds);
+      console.log('[subscribeToUserConversations] new group IDs:', newIds);
 
       // Fetch conversation + members cho các group mới
       const results = await Promise.allSettled(
@@ -146,7 +208,7 @@ export function useGroupChat() {
 
       if (newGroups.length === 0) return;
 
-      console.log('[subscribeToConversationIds] fetched new groups:', newGroups.map((g) => g.id));
+      console.log('[subscribeToUserConversations] fetched new groups:', newGroups.map((g) => g.id));
 
       // Add groups vào state
       setGroups((prev) => {
@@ -166,13 +228,13 @@ export function useGroupChat() {
         newGroups.map(async (g) => {
           try {
             const freshMembers = await getMembersFromAPI(g.id);
-            console.log('[subscribeToConversationIds] members for', g.id, ':', freshMembers.length);
+            console.log('[subscribeToUserConversations] members for', g.id, ':', freshMembers.length);
             setMembersByGroup((prev) => ({
               ...prev,
               [g.id]: freshMembers.length > 0 ? freshMembers : (prev[g.id] ?? g.members),
             }));
           } catch (err) {
-            console.warn('[subscribeToConversationIds] getMembersFromAPI failed for', g.id, err.message);
+            console.warn('[subscribeToUserConversations] getMembersFromAPI failed for', g.id, err.message);
             setMembersByGroup((prev) => ({ ...prev, [g.id]: prev[g.id] ?? g.members }));
           }
         })
@@ -181,15 +243,59 @@ export function useGroupChat() {
 
     return () => unsub();
   }, []); // Chạy một lần duy nhất khi mount
+  // Cache uid → display_name để resolve sender name
+  const userNameCacheRef = useRef({});
+
+  /**
+   * Resolve display name cho một uid.
+   * Dùng cache trước, nếu miss thì fetch /users/{uid} từ Firestore.
+   */
+  const resolveDisplayName = async (uid) => {
+    if (!uid) return uid;
+    if (userNameCacheRef.current[uid]) return userNameCacheRef.current[uid];
+    try {
+      const snap = await getDoc(doc(db, 'users', uid));
+      if (snap.exists()) {
+        const profile = snap.data();
+        const name = profile?.fullName ?? profile?.display_name ?? profile?.username ?? uid;
+        userNameCacheRef.current[uid] = name;
+        return name;
+      }
+    } catch { /* ignore */ }
+    return uid;
+  };
+
   // ── Real-time listener cho messages và members của activeGroup ──────────────
   useEffect(() => {
     if (!activeGroup) return;
 
-    const unsubMessages = subscribeToMessages(activeGroup, (newMessages) => {
-      setMessagesByGroup((prev) => ({ ...prev, [activeGroup]: newMessages }));
+    const unsubMessages = subscribeToMessages(activeGroup, async (rawMessages) => {
+      // Enrich sender name cho các tin nhắn không phải của mình
+      const enriched = await Promise.all(
+        rawMessages.map(async (msg) => {
+          if (msg.isMine) return msg;
+          // Nếu đã có tên đẹp (sender_name từ Firestore) thì giữ nguyên
+          const uid = msg.senderUid;
+          if (!uid || msg.sender !== uid) return msg; // sender đã được resolve
+          const name = await resolveDisplayName(uid);
+          if (name === uid) return msg;
+          return {
+            ...msg,
+            sender: name,
+            avatar: name.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase() || '??',
+          };
+        })
+      );
+      setMessagesByGroup((prev) => ({ ...prev, [activeGroup]: enriched }));
     });
 
     const unsubMembers = subscribeToMembers(activeGroup, (newMembers) => {
+      // Populate cache từ members list
+      newMembers.forEach((m) => {
+        if (m.uid && m.display_name) {
+          userNameCacheRef.current[m.uid] = m.display_name;
+        }
+      });
       setMembersByGroup((prev) => ({ ...prev, [activeGroup]: newMembers }));
     });
 
@@ -251,23 +357,6 @@ export function useGroupChat() {
       if (remaining.length > 0) setActiveGroupState(remaining[0].id);
     } catch (err) {
       console.error("handleDeleteGroup error:", err);
-    }
-  };
-
-  const handleLeaveGroup = async () => {
-    const uid = auth.currentUser?.uid;
-    if (!uid || !activeGroup) return;
-    try {
-      await removeMembers(activeGroup, [uid]);
-      const remaining = groups.filter((g) => g.id !== activeGroup);
-      setGroups(remaining);
-      setMessagesByGroup((prev) => { const n = { ...prev }; delete n[activeGroup]; return n; });
-      setMembersByGroup((prev) => { const n = { ...prev }; delete n[activeGroup]; return n; });
-      setShowRightPanel(false);
-      setInput("");
-      if (remaining.length > 0) setActiveGroupState(remaining[0].id);
-    } catch (err) {
-      console.error("handleLeaveGroup error:", err);
     }
   };
 
@@ -415,6 +504,24 @@ export function useGroupChat() {
       } catch (fetchErr) {
         console.warn('[handleRemoveMember] rollback fetch failed:', fetchErr.message);
       }
+    }
+  };
+
+  const handleLeaveGroup = async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !activeGroup) return;
+    try {
+      await removeMembers(activeGroup, [uid]);
+      const remaining = groups.filter((g) => g.id !== activeGroup);
+      setGroups(remaining);
+      setMessagesByGroup((prev) => { const n = { ...prev }; delete n[activeGroup]; return n; });
+      setMembersByGroup((prev) => { const n = { ...prev }; delete n[activeGroup]; return n; });
+      setShowRightPanel(false);
+      setInput("");
+      if (remaining.length > 0) setActiveGroupState(remaining[0].id);
+      else setActiveGroupState(null);
+    } catch (err) {
+      console.error("handleLeaveGroup error:", err);
     }
   };
 

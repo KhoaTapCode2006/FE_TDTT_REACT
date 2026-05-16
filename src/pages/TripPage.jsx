@@ -133,7 +133,11 @@ export default function TripPage() {
         {/* ── Tab: Member ── */}
         {activeNav === "member" && (
           <div className="overflow-y-auto h-full px-8 py-6">
-            <TripMemberPanel trip={selectedTrip} onRemoveMember={handleRemoveMember} />
+            <TripMemberPanel
+              trip={selectedTrip}
+              onRemoveMember={handleRemoveMember}
+              onAddMember={setAddMemberTrip}
+            />
           </div>
         )}
 

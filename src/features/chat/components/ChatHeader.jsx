@@ -76,14 +76,12 @@ function ChatHeader({
                     onClick={() => { setMenuOpen(false); setShowUpdateModal(true); }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                   >
-                    <span className="text-base">✏️</span>
                     Cập nhật nhóm
                   </button>
                   <button
                     onClick={() => { setMenuOpen(false); setShowAddMemberModal(true); }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                   >
-                    <span className="text-base">👤</span>
                     Thêm thành viên
                   </button>
                   {isOwner ? (
@@ -91,7 +89,6 @@ function ChatHeader({
                       onClick={() => { setMenuOpen(false); onDeleteGroup(); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
                     >
-                      <span className="text-base">🗑️</span>
                       Xóa nhóm chat
                     </button>
                   ) : (
@@ -99,7 +96,6 @@ function ChatHeader({
                       onClick={() => { setMenuOpen(false); onLeaveGroup?.(); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
                     >
-                      <span className="text-base">🚪</span>
                       Rời nhóm chat
                     </button>
                   )}

@@ -282,6 +282,20 @@ function TripMapModal({ trip, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, memberIdsKey]);
 
+  // ── UI helpers ────────────────────────────────────────────────────────────
+  const statusLabel = {
+    active:          { text: "Đang di chuyển", color: "text-green-600" },
+    lost_signal:     { text: "Mất tín hiệu",   color: "text-yellow-600" },
+    wrong_direction: { text: "Sai hướng",       color: "text-red-500" },
+    arrived:         { text: "Đã đến",          color: "text-blue-600" },
+    left:            { text: "Đã rời",           color: "text-gray-400" },
+    no_share:        { text: "Không chia sẻ",   color: "text-gray-400" },
+  };
+
+  const meAccident = members.find((m) => m.isMe)?.accident === true;
+  const meArrived  = members.find((m) => m.isMe)?.status === "arrived";
+  const canArrive  = distToDestM !== null && distToDestM < 5;
+
   // ── 8. Accident handler — chỉ ghi field accident, không đụng status ──────
   const handleAccident = useCallback(async () => {
     if (!currentUid || !tripId) return;
@@ -289,14 +303,14 @@ function TripMapModal({ trip, onClose }) {
       const ref = doc(db, "trips", tripId, "members", currentUid);
       await setDoc(ref, {
         tracking: {
-          accident:    true,
-          updated_at:  serverTimestamp(),
+          accident:   !meAccident,
+          updated_at: serverTimestamp(),
         },
       }, { merge: true });
     } catch (err) {
       console.warn("[TripMapModal] handleAccident failed:", err);
     }
-  }, [currentUid, tripId]);
+  }, [currentUid, tripId, meAccident]);
 
   // ── 9. Arrive handler ─────────────────────────────────────────────────────
   const handleArrive = useCallback(async () => {
@@ -313,20 +327,6 @@ function TripMapModal({ trip, onClose }) {
       console.warn("[TripMapModal] handleArrive failed:", err);
     }
   }, [currentUid, tripId]);
-
-  // ── UI helpers ────────────────────────────────────────────────────────────
-  const statusLabel = {
-    active:          { text: "Đang di chuyển", color: "text-green-600" },
-    lost_signal:     { text: "Mất tín hiệu",   color: "text-yellow-600" },
-    wrong_direction: { text: "Sai hướng",       color: "text-red-500" },
-    arrived:         { text: "Đã đến",          color: "text-blue-600" },
-    left:            { text: "Đã rời",           color: "text-gray-400" },
-    no_share:        { text: "Không chia sẻ",   color: "text-gray-400" },
-  };
-
-  const meAccident = members.find((m) => m.isMe)?.accident === true;
-  const meArrived  = members.find((m) => m.isMe)?.status === "arrived";
-  const canArrive  = distToDestM !== null && distToDestM < 5;
 
   return (
     <>
@@ -347,14 +347,13 @@ function TripMapModal({ trip, onClose }) {
                 <>
                   <button
                     onClick={handleAccident}
-                    disabled={meAccident}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                       meAccident
-                        ? "bg-red-100 text-red-400 cursor-not-allowed"
+                        ? "bg-red-100 text-red-600 hover:bg-red-200"
                         : "bg-red-500 hover:bg-red-600 text-white"
                     }`}
                   >
-                    🚨 Accident
+                    {meAccident ? "🚨 Hủy báo" : "🚨 Accident"}
                   </button>
                   <button
                     onClick={handleArrive}
@@ -384,7 +383,8 @@ function TripMapModal({ trip, onClose }) {
               </p>
               <div className="flex-1 overflow-y-auto">
                 {members.map((m) => {
-                  const sl = statusLabel[m.status] || statusLabel.no_share;
+                  const sl   = statusLabel[m.status] || statusLabel.no_share;
+                  const info = routeInfoMap[m.id];
                   return (
                     <button
                       key={m.id}
@@ -405,7 +405,7 @@ function TripMapModal({ trip, onClose }) {
                           <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-600 border-2 border-white rounded-full animate-pulse" />
                         )}
                       </div>
-                      <div className="flex flex-col min-w-0">
+                      <div className="flex flex-col min-w-0 flex-1">
                         <span className={`text-sm truncate ${
                           selectedMember?.id === m.id ? "font-semibold text-primary"
                           : m.accident ? "font-semibold text-red-600"
@@ -417,6 +417,18 @@ function TripMapModal({ trip, onClose }) {
                           {m.accident ? "Tai nạn" : sl.text}
                         </span>
                       </div>
+                      {/* Route info — bên phải */}
+                      <div className="shrink-0 flex flex-col items-end gap-0.5 ml-1">
+                        {loadingRoutes ? (
+                          <span className="text-[10px] text-gray-300">...</span>
+                        ) : info ? (
+                          <>
+                            <span className="text-[10px] text-gray-500 font-medium">📍 {info.distKm} km</span>
+                            <span className="text-[10px] text-gray-400">⏱ ~{info.timeMin} ph</span>
+                            {!info.hasRealGps && <span className="text-[9px] text-yellow-500">⚠ ước tính</span>}
+                          </>
+                        ) : null}
+                      </div>
                     </button>
                   );
                 })}
@@ -426,18 +438,6 @@ function TripMapModal({ trip, onClose }) {
                 <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                   <span className="text-xs text-gray-500">Đang tải tuyến đường...</span>
-                </div>
-              )}
-              {!loadingRoutes && selectedMember && routeInfoMap[selectedMember.id] && (
-                <div className="px-4 py-3 border-t border-gray-100 bg-gray-50 space-y-1">
-                  <p className="text-xs font-semibold text-gray-700 truncate" style={{ color: selectedMember.color }}>
-                    {selectedMember.isMe ? "Bạn" : selectedMember.name.slice(0, 12) + "..."}
-                  </p>
-                  <p className="text-xs text-gray-500">📍 {routeInfoMap[selectedMember.id].distKm} km</p>
-                  <p className="text-xs text-gray-500">⏱ ~{routeInfoMap[selectedMember.id].timeMin} phút</p>
-                  {!routeInfoMap[selectedMember.id].hasRealGps && (
-                    <p className="text-[10px] text-yellow-500">⚠ Vị trí ước tính</p>
-                  )}
                 </div>
               )}
             </div>

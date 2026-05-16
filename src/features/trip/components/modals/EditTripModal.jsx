@@ -3,10 +3,10 @@ import TripDateRangePicker from "../TripDateRangePicker";
 
 // ─── EditTripModal ────────────────────────────────────────────────────────────
 function EditTripModal({ trip, onClose, onSave }) {
-  const [title,      setTitle]      = useState(trip.title);
-  const [placeId,    setPlaceId]    = useState(trip.place_id ?? trip.description ?? "");
-  const [dateFrom,   setDateFrom]   = useState(trip.dateFrom ?? "");
-  const [dateTo,     setDateTo]     = useState(trip.dateTo ?? "");
+  const [title,      setTitle]     = useState(trip.title);
+  const [placeId,    setPlaceId]   = useState(trip.place_id ?? "");
+  const [dateFrom,   setDateFrom]  = useState(trip.dateFrom ?? "");
+  const [dateTo,     setDateTo]    = useState(trip.dateTo ?? "");
   const [showPicker, setShowPicker] = useState(false);
 
   const handleSubmit = (e) => {
@@ -14,8 +14,8 @@ function EditTripModal({ trip, onClose, onSave }) {
     if (!title.trim()) return;
     onSave({
       ...trip,
-      title:       title.trim(),
-      description: placeId.trim(),
+      title:    title.trim(),
+      place_id: placeId,
       dateFrom,
       dateTo,
       dateRange: dateFrom && dateTo ? `${dateFrom} - ${dateTo}` : trip.dateRange,

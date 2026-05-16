@@ -77,12 +77,12 @@ export function useTrip() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
-  const handleCreate = async ({ title, description, dateFrom, dateTo }) => {
+  const handleCreate = async ({ title, place_id, dateFrom, dateTo }) => {
     try {
       const toISO = (dateStr) => dateStr ? new Date(dateStr).toISOString() : undefined;
       const payload = {
         name:     title,
-        place_id: description || undefined,
+        place_id: place_id || undefined,
         start_at: toISO(dateFrom),
         end_at:   toISO(dateTo),
       };
@@ -110,7 +110,7 @@ export function useTrip() {
       const toISO = (dateStr) => dateStr ? new Date(dateStr).toISOString() : undefined;
       const payload = {
         name:     updated.title,
-        place_id: updated.description || undefined,
+        place_id: updated.place_id || undefined,
         status:   updated.status,
         start_at: toISO(updated.dateFrom),
         end_at:   toISO(updated.dateTo),

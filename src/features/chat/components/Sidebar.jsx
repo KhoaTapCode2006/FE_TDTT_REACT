@@ -52,10 +52,15 @@ function Sidebar({ activeGroup, setActiveGroup, groups, onOpenCreate }) {
                 <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">{group.time}</span>
               </div>
               <div className="flex items-center justify-between gap-1 mt-0.5">
-                <p className="text-xs text-gray-500 truncate">{group.description || group.lastMsg}</p>
+                <p className="text-xs text-gray-500 truncate">
+                  {group.lastMsgSender
+                    ? <><span className="font-medium text-gray-700">{group.lastMsgSender}:</span> {group.lastMsg}</>
+                    : (group.description || group.lastMsg)
+                  }
+                </p>
                 {group.unread > 0 && (
-                  <span className="shrink-0 w-5 h-5 rounded-full bg-primary text-white text-xs flex items-center justify-center font-semibold">
-                    {group.unread}
+                  <span className="shrink-0 min-w-5 h-5 px-1 rounded-full bg-primary text-white text-xs flex items-center justify-center font-semibold">
+                    {group.unread > 99 ? '99+' : group.unread}
                   </span>
                 )}
               </div>

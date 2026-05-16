@@ -15,6 +15,7 @@ import {
   getDocs,
   doc,
   getDoc,
+  setDoc,
   onSnapshot,
 } from 'firebase/firestore';
 // ============================================================================
@@ -126,6 +127,68 @@ async function getConversationIdsFromFirestore() {
     collection(db, 'users', uid, 'conversations')
   );
   return snap.docs.map((d) => d.id);
+}
+
+/**
+ * Fetch conversation user-cache docs from /users/{uid}/conversations.
+ * Each doc contains latest_msg, unread_count, etc. written by backend.
+ * Enriches latest_msg with sender_name by fetching /users/{sender_uid}.
+ * Returns a map of { [conversationId]: docData }.
+ *
+ * @returns {Promise<Object.<string, Object>>}
+ */
+async function getUserConversationCacheMap() {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return {};
+
+  const snap = await getDocs(
+    collection(db, 'users', uid, 'conversations')
+  );
+
+  const map = {};
+  snap.docs.forEach((d) => {
+    map[d.id] = d.data();
+  });
+
+  // Collect unique sender_uids to batch-fetch display names
+  const senderUids = new Set();
+  Object.values(map).forEach((cacheDoc) => {
+    const senderUid = cacheDoc?.latest_msg?.sender_uid;
+    if (senderUid && senderUid !== uid) senderUids.add(senderUid);
+  });
+
+  // Batch-fetch sender profiles
+  const senderNameMap = {};
+  if (senderUids.size > 0) {
+    await Promise.allSettled(
+      [...senderUids].map(async (senderUid) => {
+        try {
+          const userSnap = await getDoc(doc(db, 'users', senderUid));
+          if (userSnap.exists()) {
+            const profile = userSnap.data();
+            senderNameMap[senderUid] =
+              profile?.fullName ?? profile?.display_name ?? profile?.username ?? senderUid.slice(0, 6);
+          }
+        } catch { /* ignore */ }
+      })
+    );
+  }
+
+  // Enrich each cache doc with resolved sender_name
+  Object.keys(map).forEach((id) => {
+    const cacheDoc = map[id];
+    const senderUid = cacheDoc?.latest_msg?.sender_uid;
+    if (!senderUid) return;
+    const senderName = senderUid === uid
+      ? 'Bạn'
+      : (senderNameMap[senderUid] ?? senderUid.slice(0, 6));
+    map[id] = {
+      ...cacheDoc,
+      latest_msg: { ...cacheDoc.latest_msg, _sender_name: senderName },
+    };
+  });
+
+  return map;
 }
 
 /**
@@ -314,6 +377,29 @@ export function subscribeToConversationIds(callback) {
   );
 }
 
+/**
+ * Subscribe to real-time updates for the current user's conversation list,
+ * including the full doc data (latest_msg, unread_count, etc.).
+ * Calls `callback` with an array of { id, ...docData } whenever the list changes.
+ * Returns an unsubscribe function.
+ *
+ * @param {function(Array<{id: string, latest_msg?: Object}>): void} callback
+ * @returns {function} unsubscribe
+ */
+export function subscribeToUserConversations(callback) {
+  const uid = auth.currentUser?.uid;
+  if (!uid) {
+    callback([]);
+    return () => {};
+  }
+
+  return onSnapshot(
+    collection(db, 'users', uid, 'conversations'),
+    (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    (err) => console.error('[subscribeToUserConversations]', err)
+  );
+}
+
 // ============================================================================
 // LOCAL STORAGE HELPERS (legacy — kept for addConversationId / removeConversationId)
 // ============================================================================
@@ -466,17 +552,27 @@ function normalizeMember(m) {
  * @returns {Group}
  */
 function normalizeConversation(data) {
-  console.debug('[normalizeConversation] raw:', data);
+  // latest_msg là map object từ Firestore: { content, sender_uid, sent_at, unread_count, ... }
+  const latestMsg = data.latest_msg ?? null;
 
-  const lastMsg = data.last_message ?? data.last_message_content ?? '';
-  const timeStr = formatTime(data.last_message_at ?? data.updated_at);
-  const unread  = data.unread_counts?.[auth.currentUser?.uid] ?? 0;
-  const members = Array.isArray(data.members)
-    ? data.members.map(normalizeMember)
-    : [];
-
-  // member_count từ backend (dùng khi members array không có)
+  // Normalize members trước để resolve sender name
+  const members = Array.isArray(data.members) ? data.members.map(normalizeMember) : [];
   const memberCount = data.member_count ?? members.length;
+
+  const lastMsgContent = latestMsg?.content ?? data.last_message ?? data.last_message_content ?? '';
+
+  // _sender_name được enrich sẵn bởi getUserConversationCacheMap
+  const lastMsgSender = latestMsg?._sender_name ?? '';
+
+  // Ưu tiên sent_at từ latest_msg, fallback về last_message_at / updated_at
+  const lastMsgAt = latestMsg?.sent_at
+    ? (latestMsg.sent_at?.toDate?.()?.toISOString?.() ?? latestMsg.sent_at)
+    : (data.last_message_at ?? data.updated_at);
+  const timeStr = formatTime(lastMsgAt);
+
+  const currentUid = auth.currentUser?.uid;
+  // unread_count từ latest_msg (per-user cache), fallback về unread_counts map
+  const unread = latestMsg?.unread_count ?? data.unread_counts?.[currentUid] ?? 0;
 
   return {
     id:            data.id            ?? '',
@@ -488,8 +584,9 @@ function normalizeConversation(data) {
     updated_at:    data.updated_at    ?? null,
     members,
     member_count:  memberCount,
-    lastMsg,
-    time:   timeStr,
+    lastMsg:       lastMsgContent,
+    lastMsgSender,
+    time:          timeStr,
     unread,
     active: false,
   };
@@ -501,10 +598,13 @@ function normalizeConversation(data) {
  * @returns {Message}
  */
 function normalizeMessage(data) {
-  const isMine = data.sender_uid === auth.currentUser?.uid;
+  // API mới trả về sender object: { uid, username, display_name, avatar_url, role, joined_at }
+  // Firestore message chỉ có sender_uid (flat field)
+  const senderUid = data.sender?.uid ?? data.sender_uid ?? '';
+  const isMine = senderUid === auth.currentUser?.uid;
   const senderName = isMine
     ? 'Me'
-    : (data.sender_name ?? data.sender_uid ?? 'Unknown');
+    : (data.sender?.display_name ?? data.sender?.username ?? data.sender_name ?? senderUid ?? 'Unknown');
 
   // Avatar: 2-char uppercase initials from sender name
   const avatar = senderName
@@ -523,12 +623,13 @@ function normalizeMessage(data) {
   const url  = firstAttachment?.value ?? data.url ?? null;
 
   // dateKey: YYYY-MM-DD dùng để group tin nhắn theo ngày
+  const rawDate = data.sent_at ?? data.created_at;
   let dateKey = '';
-  if (data.created_at) {
+  if (rawDate) {
     try {
-      const d = new Date(data.created_at);
+      const d = new Date(rawDate);
       if (!isNaN(d.getTime())) {
-        dateKey = d.toLocaleDateString('sv-SE'); // "YYYY-MM-DD"
+        dateKey = d.toLocaleDateString('sv-SE');
       }
     } catch { /* ignore */ }
   }
@@ -536,8 +637,9 @@ function normalizeMessage(data) {
   return {
     id:          data.id       ?? '',
     sender:      senderName,
+    senderUid,
     avatar,
-    time:        formatTime(data.created_at),
+    time:        formatTime(rawDate),
     dateKey,
     text:        data.content  ?? '',
     isMine,
@@ -773,10 +875,12 @@ async function getMessages(groupId) {
  * @returns {Promise<Group[]>}
  */
 export async function getGroups() {
-  // ── Bước 1: Lấy danh sách IDs từ Firestore ──────────────────────────────
+  // ── Bước 1: Lấy danh sách IDs + user-cache data từ Firestore ────────────
   let ids = [];
+  let userCacheMap = {}; // { [id]: { latest_msg, ... } }
   try {
-    ids = await getConversationIdsFromFirestore();
+    userCacheMap = await getUserConversationCacheMap();
+    ids = Object.keys(userCacheMap);
   } catch (err) {
     console.warn('[getGroups] Firestore IDs fetch failed, falling back to localStorage:', err);
   }
@@ -799,7 +903,9 @@ export async function getGroups() {
         const fsData = await getConversationFromFirestore(id);
         if (fsData) {
           console.debug('[getGroups] Firestore hit:', id);
-          return normalizeConversation(fsData);
+          // Merge latest_msg từ user-cache vào conversation data
+          const userCache = userCacheMap[id] ?? {};
+          return normalizeConversation({ ...fsData, latest_msg: userCache.latest_msg ?? fsData.latest_msg });
         }
       } catch (err) {
         console.warn('[getGroups] Firestore read failed for', id, err);
@@ -808,7 +914,17 @@ export async function getGroups() {
       // Fallback: REST API
       console.debug('[getGroups] REST fallback:', id);
       const response = await chatClient.get(`/conversations/${id}`);
-      return extractConversation(response);
+      const group = extractConversation(response);
+      // Merge latest_msg từ user-cache nếu có
+      const userCache = userCacheMap[id];
+      if (userCache?.latest_msg) {
+        const merged = normalizeConversation({
+          ...response.data?.data?.conversation ?? response.data?.data,
+          latest_msg: userCache.latest_msg,
+        });
+        return merged;
+      }
+      return group;
     })
   );
 
@@ -910,6 +1026,14 @@ export async function createConversation({ name, description, thumbnail_url } = 
     }
   }
 
+  // Enrich Firestore member documents với username + display_name cho owner
+  const ownerUid = group.owner_uid || auth.currentUser?.uid;
+  if (ownerUid) {
+    enrichMembersInFirestore(group.id, [ownerUid]).catch((err) =>
+      console.warn('[createConversation] enrichMembersInFirestore failed:', err.message)
+    );
+  }
+
   return group;
 }
 
@@ -968,6 +1092,38 @@ export async function deleteConversation(id) {
 // ─── MEMBERS ───
 
 /**
+ * Fetch user profile from Firestore /users/{uid} and write username + display_name
+ * into /conversations/{groupId}/members/{uid}.
+ * Fire-and-forget — caller should .catch() errors.
+ *
+ * @param {string} groupId
+ * @param {string[]} uids
+ * @returns {Promise<void>}
+ */
+async function enrichMembersInFirestore(groupId, uids) {
+  await Promise.allSettled(
+    uids.map(async (uid) => {
+      // Fetch user profile
+      const profileSnap = await getDoc(doc(db, 'users', uid));
+      if (!profileSnap.exists()) return;
+
+      const profile = profileSnap.data();
+      const display_name = profile?.fullName ?? profile?.display_name ?? '';
+      const username     = profile?.username ?? '';
+
+      if (!display_name && !username) return;
+
+      // Merge vào member document (chỉ thêm field, không ghi đè joined_at/role)
+      await setDoc(
+        doc(db, 'conversations', groupId, 'members', uid),
+        { display_name, username },
+        { merge: true }
+      );
+    })
+  );
+}
+
+/**
  * Add members to a group conversation.
  * Validates UIDs before making the API call.
  * The backend handles deduplication — the returned Group reflects the actual member list.
@@ -983,7 +1139,14 @@ export async function addMembers(groupId, uids) {
   const response = await chatClient.post(`/conversations/${groupId}/members`, {
     member_uids: uids,
   });
-  return extractConversation(response);
+  const group = extractConversation(response);
+
+  // Enrich Firestore member documents với username + display_name
+  enrichMembersInFirestore(groupId, uids).catch((err) =>
+    console.warn('[addMembers] enrichMembersInFirestore failed:', err.message)
+  );
+
+  return group;
 }
 
 /**
@@ -1086,7 +1249,17 @@ export async function markAsRead(groupId) {
  * @param {function(Message[]): void} callback
  * @returns {function} unsubscribe
  */
-export function subscribeToMessages(groupId, callback) {
+/**
+ * Subscribe to real-time messages for a conversation.
+ * Calls callback with normalized Message[] on every change.
+ * Returns unsubscribe function.
+ *
+ * @param {string} groupId
+ * @param {function(Message[]): void} callback
+ * @param {Object.<string, string>} [membersDisplayNames] - Map of uid → display_name for name resolution
+ * @returns {function} unsubscribe
+ */
+export function subscribeToMessages(groupId, callback, membersDisplayNames = {}) {
   const q = query(
     collection(db, 'conversations', groupId, 'messages'),
     orderBy('sent_at', 'asc')
@@ -1098,7 +1271,11 @@ export function subscribeToMessages(groupId, callback) {
       const messages = snapshot.docs.map((docSnap) => {
         const d = docSnap.data();
         const isMine = d.sender_uid === auth.currentUser?.uid;
-        const senderName = isMine ? 'Me' : (d.sender_name ?? d.sender_uid ?? 'Unknown');
+        // Priority: isMine → 'Me', sender_name field, membersDisplayNames lookup, sender_uid fallback
+        const resolvedName = isMine
+          ? 'Me'
+          : (d.sender_name || membersDisplayNames[d.sender_uid] || d.sender_uid || 'Unknown');
+        const senderName = resolvedName;
         const avatar = senderName.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase() || '??';
 
         const attachments = Array.isArray(d.attachments) ? d.attachments : [];
@@ -1114,6 +1291,7 @@ export function subscribeToMessages(groupId, callback) {
         return {
           id:          docSnap.id,
           sender:      senderName,
+          senderUid:   d.sender_uid ?? '',
           avatar,
           time:        sentDate?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) ?? '',
           dateKey,

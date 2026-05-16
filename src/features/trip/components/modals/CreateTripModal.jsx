@@ -3,16 +3,16 @@ import TripDateRangePicker from "../TripDateRangePicker";
 
 // ─── CreateTripModal ──────────────────────────────────────────────────────────
 function CreateTripModal({ onClose, onCreate }) {
-  const [title,       setTitle]       = useState("");
-  const [description, setDescription] = useState("");
-  const [dateFrom,    setDateFrom]    = useState("");
-  const [dateTo,      setDateTo]      = useState("");
-  const [showPicker,  setShowPicker]  = useState(false);
+  const [title,      setTitle]     = useState("");
+  const [placeId,    setPlaceId]   = useState("");
+  const [dateFrom,   setDateFrom]  = useState("");
+  const [dateTo,     setDateTo]    = useState("");
+  const [showPicker, setShowPicker] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onCreate({ title: title.trim(), description: description.trim(), dateFrom, dateTo });
+    onCreate({ title: title.trim(), place_id: placeId, dateFrom, dateTo });
     onClose();
   };
 
@@ -55,8 +55,8 @@ function CreateTripModal({ onClose, onCreate }) {
                 <label className="text-sm font-bold text-gray-900">Place ID</label>
                 <input
                   type="text"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  value={placeId}
+                  onChange={(e) => setPlaceId(e.target.value)}
                   placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
                   maxLength={300}
                   className="border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-300 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition bg-gray-50"

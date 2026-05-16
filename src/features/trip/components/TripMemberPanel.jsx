@@ -5,7 +5,7 @@ import { useTripMembers } from "../hooks/useTripMembers";
 // Hiển thị danh sách thành viên của trip dưới dạng panel inline.
 // Dùng cho tab "Member" trong TripPage.
 
-export default function TripMemberPanel({ trip, onRemoveMember }) {
+export default function TripMemberPanel({ trip, onRemoveMember, onAddMember }) {
   const { members: firestoreMembers } = useTripMembers(trip?.id ?? null);
 
   if (!trip) {
@@ -27,7 +27,18 @@ export default function TripMemberPanel({ trip, onRemoveMember }) {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <h2 className="text-base font-bold text-gray-900 mb-1">{trip.title}</h2>
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-base font-bold text-gray-900">{trip.title}</h2>
+          <button
+            onClick={() => onAddMember?.(trip)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-700 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Member
+          </button>
+        </div>
         <p className="text-xs text-gray-400 mb-4">
           {firestoreMembers.length} thành viên
         </p>
