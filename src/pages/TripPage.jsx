@@ -14,6 +14,16 @@ import {
 } from "../features/trip";
 import { useAuth } from "../contexts/AuthContext";
 
+// ─── Empty state dùng chung khi chưa có trip ─────────────────────────────────
+function NoTripState() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-gray-400">
+      <span className="text-5xl mb-4">🗺️</span>
+      <p className="text-lg font-medium">Chưa có chuyến đi nào</p>
+    </div>
+  );
+}
+
 // ─── TripPage ─────────────────────────────────────────────────────────────────
 
 export default function TripPage() {
@@ -70,7 +80,6 @@ export default function TripPage() {
                     : "border-transparent text-gray-500 hover:text-gray-700"
                 }`}
               >
-                <span>{item.icon}</span>
                 {item.label}
               </button>
             ))}
@@ -102,10 +111,7 @@ export default function TripPage() {
             {loading ? (
               <div className="bg-gray-100 rounded-2xl h-full animate-pulse" />
             ) : !selectedTrip ? (
-              <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                <span className="text-3xl mb-2">🗺️</span>
-                <p className="text-xs font-medium">Chưa có chuyến đi nào</p>
-              </div>
+              <NoTripState />
             ) : (
               <TripCard
                 trip={selectedTrip}
@@ -126,18 +132,22 @@ export default function TripPage() {
         {/* ── Tab: Info ── */}
         {activeNav === "info" && (
           <div className="overflow-y-auto h-full px-8 py-6">
-            <TripInfoPanel trip={selectedTrip} onRemoveMember={handleRemoveMember} />
+            {!selectedTrip ? <NoTripState /> : (
+              <TripInfoPanel trip={selectedTrip} onRemoveMember={handleRemoveMember} />
+            )}
           </div>
         )}
 
         {/* ── Tab: Member ── */}
         {activeNav === "member" && (
           <div className="overflow-y-auto h-full px-8 py-6">
-            <TripMemberPanel
-              trip={selectedTrip}
-              onRemoveMember={handleRemoveMember}
-              onAddMember={setAddMemberTrip}
-            />
+            {!selectedTrip ? <NoTripState /> : (
+              <TripMemberPanel
+                trip={selectedTrip}
+                onRemoveMember={handleRemoveMember}
+                onAddMember={setAddMemberTrip}
+              />
+            )}
           </div>
         )}
 

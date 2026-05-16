@@ -82,7 +82,6 @@ function EditTripModal({ trip, onClose, onSave }) {
                   onClick={() => setShowPicker((v) => !v)}
                   className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 hover:border-blue-300 hover:ring-2 hover:ring-blue-100 transition text-left"
                 >
-                  <span className="text-blue-500">📅</span>
                   <span className={dateFrom ? "text-gray-700 font-medium" : "text-gray-400"}>
                     {fmtRange()}
                   </span>

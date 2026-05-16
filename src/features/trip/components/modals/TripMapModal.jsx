@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
 import { useTripMembers } from "../../hooks/useTripMembers";
+import { useAccidentAlert } from "../../hooks/useAccidentAlert";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -27,9 +28,13 @@ function TripMapModal({ trip, onClose }) {
 
   const currentUid = auth.currentUser?.uid;
   const tripId     = trip.id;
+  const isActive   = trip.status === "active";
 
   // Realtime members + tracking từ Firestore
   const { members: firestoreMembers } = useTripMembers(tripId);
+
+  // Phát âm thanh cảnh báo khi có member mới bị accident (chỉ khi active)
+  useAccidentAlert(isActive ? firestoreMembers : [], currentUid);
 
   // memberTracking: { [uid]: { lat, lng, status, accident } } — derive từ firestoreMembers
   const memberTracking = Object.fromEntries(
@@ -118,7 +123,12 @@ function TripMapModal({ trip, onClose }) {
   // ── 3. Subscribe realtime tracking — handled by useTripMembers hook ─────────
 
   // ── 4. Build members list ─────────────────────────────────────────────────
-  const members = firestoreMembers.map((m, i) => {
+  // Khi chưa active: chỉ hiển thị bản thân
+  const visibleFirestoreMembers = isActive
+    ? firestoreMembers
+    : firestoreMembers.filter((m) => m.uid === currentUid);
+
+  const members = visibleFirestoreMembers.map((m, i) => {
     const t = memberTracking[m.uid];
     const hasRealGps = !!(t?.lat != null && t?.lng != null);
     const angle = (i / (firestoreMembers.length || 1)) * 2 * Math.PI;
@@ -275,7 +285,7 @@ function TripMapModal({ trip, onClose }) {
   }, [mapReady]);
 
   // Load routes khi map ready hoặc member list thay đổi (không re-load mỗi lần GPS update)
-  const memberIdsKey = firestoreMembers.map((m) => m.uid).join(",");
+  const memberIdsKey = visibleFirestoreMembers.map((m) => m.uid).join(",");
   useEffect(() => {
     if (!mapReady || members.length === 0) return;
     loadAllRoutes(members);
@@ -342,8 +352,18 @@ function TripMapModal({ trip, onClose }) {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {/* Nút Accident — chỉ hiện cho user hiện tại */}
-              {members.some((m) => m.isMe) && (
+              {/* Badge khi chưa active */}
+              {!isActive && (
+                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                  trip.status === "ended"
+                    ? "bg-gray-100 text-gray-500"
+                    : "bg-yellow-100 text-yellow-700"
+                }`}>
+                  {trip.status === "ended" ? "Đã kết thúc" : "⏳ Chờ bắt đầu"}
+                </span>
+              )}
+              {/* Nút Accident + Arrive — chỉ khi active */}
+              {isActive && members.some((m) => m.isMe) && (
                 <>
                   <button
                     onClick={handleAccident}
@@ -379,7 +399,7 @@ function TripMapModal({ trip, onClose }) {
             {/* Member list */}
             <div className="w-52 shrink-0 border-r border-gray-100 flex flex-col">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 pt-3 pb-2">
-                Thành viên ({members.length})
+                {isActive ? `Thành viên (${members.length})` : "Vị trí của bạn"}
               </p>
               <div className="flex-1 overflow-y-auto">
                 {members.map((m) => {

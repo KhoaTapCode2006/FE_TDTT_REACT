@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
 import { useTripMembers } from "../hooks/useTripMembers";
+import { useAccidentAlert } from "../hooks/useAccidentAlert";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
 
 // ─── TripMapPanel ─────────────────────────────────────────────────────────────
@@ -29,10 +30,14 @@ export default function TripMapPanel({ trip }) {
   const [loadingRoutes, setLoadingRoutes]   = useState(false);
   const [distToDestM, setDistToDestM]       = useState(null);
 
-  const currentUid = auth.currentUser?.uid;
-  const tripId     = trip?.id;
+  const currentUid  = auth.currentUser?.uid;
+  const tripId      = trip?.id;
+  const isActive    = trip?.status === "active";
 
   const { members: firestoreMembers } = useTripMembers(tripId ?? null);
+
+  // Chỉ alert accident khi trip đang active
+  useAccidentAlert(isActive ? firestoreMembers : [], currentUid);
 
   const memberTracking = Object.fromEntries(
     firestoreMembers
@@ -94,7 +99,13 @@ export default function TripMapPanel({ trip }) {
   }, [currentUid, tripId]);
 
   // ── Build members ─────────────────────────────────────────────────────────
-  const members = firestoreMembers.map((m, i) => {
+  // Khi trip chưa active: chỉ hiển thị bản thân
+  // Khi active: hiển thị tất cả members
+  const visibleFirestoreMembers = isActive
+    ? firestoreMembers
+    : firestoreMembers.filter((m) => m.uid === currentUid);
+
+  const members = visibleFirestoreMembers.map((m, i) => {
     const t = memberTracking[m.uid];
     const hasRealGps = !!(t?.lat != null && t?.lng != null);
     const angle = (i / (firestoreMembers.length || 1)) * 2 * Math.PI;
@@ -231,7 +242,7 @@ export default function TripMapPanel({ trip }) {
     mapObjRef.current.flyTo({ center: [member.lng, member.lat], zoom: 14, duration: 800 });
   }, [mapReady]);
 
-  const memberIdsKey = firestoreMembers.map((m) => m.uid).join(",");
+  const memberIdsKey = visibleFirestoreMembers.map((m) => m.uid).join(",");
   useEffect(() => {
     if (!mapReady || members.length === 0) return;
     loadAllRoutes(members);
@@ -274,7 +285,19 @@ export default function TripMapPanel({ trip }) {
         <div className="px-4 pt-4 pb-3 border-b border-gray-100">
           <p className="text-sm font-bold text-gray-900 truncate">{trip.title}</p>
           <p className="text-xs text-gray-400 mt-0.5">Điểm đến: <span className="text-primary font-semibold">{DEST.name}</span></p>
-          {members.some((m) => m.isMe) && (
+
+          {/* Badge trạng thái trip */}
+          {!isActive && (
+            <div className="mt-2 flex items-center gap-1.5 bg-yellow-50 border border-yellow-200 rounded-lg px-2.5 py-1.5">
+              <span className="text-yellow-500 text-xs">⏳</span>
+              <span className="text-xs text-yellow-700 font-medium">
+                {trip.status === "ended" ? "Chuyến đi đã kết thúc" : "Chờ owner bắt đầu"}
+              </span>
+            </div>
+          )}
+
+          {/* Nút Accident + Arrive — chỉ khi active */}
+          {isActive && members.some((m) => m.isMe) && (
             <div className="flex gap-2 mt-2">
               <button
                 onClick={handleAccident}
@@ -295,7 +318,7 @@ export default function TripMapPanel({ trip }) {
         </div>
 
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 pt-3 pb-2">
-          Thành viên ({members.length})
+          {isActive ? `Thành viên (${members.length})` : "Vị trí của bạn"}
         </p>
         <div className="flex-1 overflow-y-auto">
           {members.map((m) => {

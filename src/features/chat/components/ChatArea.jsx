@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import ChatHeader from "./ChatHeader";
 import MessageBubble from "./MessageBubble";
 
@@ -102,15 +102,36 @@ function ChatArea({
   imageUploading,
 }) {
   const messagesEndRef = useRef(null);
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const showToast = (message) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleDeleteGroup = () => {
+    const name = group.name;
+    onDeleteGroup();
+    showToast(`Đã xóa nhóm chat ${name}`);
+  };
+
   const canSend = (input.trim().length > 0 || !!pendingImage) && !imageUploading;
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
+      {/* Toast */}
+      {toast && (
+        <div
+          className="fixed top-1/2 left-1/2 z-50 bg-gray-800 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg"
+          style={{ transform: 'translate(-50%, -50%)', animation: 'fadeIn 0.2s ease' }}
+        >
+          {toast}
+        </div>
+      )}
       <ChatHeader
         groupName={group.name}
         groupDescription={group.description}
@@ -120,7 +141,7 @@ function ChatArea({
         groupMembers={groupMembers}
         showRightPanel={showRightPanel}
         onToggleRightPanel={onToggleRightPanel}
-        onDeleteGroup={onDeleteGroup}
+        onDeleteGroup={handleDeleteGroup}
         onUpdateGroup={onUpdateGroup}
         onAddMember={onAddMember}
         onLeaveGroup={onLeaveGroup}
