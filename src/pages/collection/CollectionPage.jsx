@@ -1625,7 +1625,23 @@ function CollectionPage() {
       <div className="mx-auto grid w-full max-w-7xl gap-6">
         <div className="flex flex-col gap-6 rounded-4xl border border-outline-variant/40 bg-surface-container-low p-6 shadow-lg">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
+            {/* Thumbnail Image */}
+            {collection.thumbnail_url && !isCreateMode && (
+              <div className="w-full lg:w-48 flex-shrink-0">
+                <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-surface-container">
+                  <img
+                    src={collection.thumbnail_url}
+                    alt={`${collection.name} thumbnail`}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      e.target.src = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&h=300&fit=crop';
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            
+            <div className="flex-1 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                   <Icon name="collections" size={16} /> Collection
@@ -1663,7 +1679,6 @@ function CollectionPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 justify-end">
-              {!isCreateMode && <span className="text-sm text-on-surface-variant">Owner: {collection.owner_uid || collection.owner?.uid || 'N/A'}</span>}
               
               {/* Save button - only show for non-owners when not editing (Requirements 1.1, 1.2, 6.1, 6.2, 6.3, 6.4, 9.1, 9.2, 9.3, 9.4, 9.5) */}
               {/* Task 8.1: Added hover animation and transitions */}
