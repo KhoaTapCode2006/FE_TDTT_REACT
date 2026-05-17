@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import Avatar from "./Avatar";
+import ConfirmModal from "./modals/ConfirmModal";
 
 // ─── Right Panel ──────────────────────────────────────────────────────────────
 function RightPanel({ group, initialMembers, onRemoveMember }) {
   const [members, setMembers] = useState(initialMembers);
   const [toast, setToast] = useState(null); // { message: string }
+  const [confirmRemove, setConfirmRemove] = useState(null); // uid | null
 
   // Reset khi đổi group
   useEffect(() => {
@@ -24,6 +26,9 @@ function RightPanel({ group, initialMembers, onRemoveMember }) {
     showToast(`Đã xóa ${displayName} khỏi nhóm`);
   };
 
+  const confirmingMember = confirmRemove
+    ? members.find((m) => (m.uid || m.id) === confirmRemove)
+    : null;
   return (
     <aside className="w-80 bg-white border-l border-gray-100 flex flex-col h-full overflow-y-auto relative">
       {/* Toast */}
@@ -86,7 +91,7 @@ function RightPanel({ group, initialMembers, onRemoveMember }) {
                 </p>
               </div>
               <button
-                onClick={() => handleRemove(m.uid || m.id)}
+                onClick={() => setConfirmRemove(m.uid || m.id)}
                 title="Xóa khỏi nhóm"
                 className="text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition-colors whitespace-nowrap"
               >
@@ -96,6 +101,16 @@ function RightPanel({ group, initialMembers, onRemoveMember }) {
           ))}
         </div>
       </div>
+
+      {confirmRemove && (
+        <ConfirmModal
+          title="Xóa thành viên"
+          message={`Bạn có chắc muốn xóa ${confirmingMember?.display_name || confirmingMember?.name || confirmRemove} khỏi nhóm?`}
+          confirmLabel="Xóa"
+          onConfirm={() => { handleRemove(confirmRemove); setConfirmRemove(null); }}
+          onCancel={() => setConfirmRemove(null)}
+        />
+      )}
     </aside>
   );
 }

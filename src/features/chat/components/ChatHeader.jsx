@@ -2,6 +2,7 @@ import { useState } from "react";
 import { auth } from "../../../config/firebase";
 import UpdateGroupModal from "./modals/UpdateGroupModal";
 import AddMemberModal from "./modals/AddMemberModal";
+import ConfirmModal from "./modals/ConfirmModal";
 
 // ─── Chat Header ──────────────────────────────────────────────────────────────
 function ChatHeader({
@@ -21,6 +22,7 @@ function ChatHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null); // 'delete' | 'leave' | null
 
   const currentUid = auth.currentUser?.uid;
   const isOwner = currentUid && groupOwnerUid && currentUid === groupOwnerUid;
@@ -86,14 +88,14 @@ function ChatHeader({
                   </button>
                   {isOwner ? (
                     <button
-                      onClick={() => { setMenuOpen(false); onDeleteGroup(); }}
+                      onClick={() => { setMenuOpen(false); setConfirmAction('delete'); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
                     >
                       Xóa nhóm chat
                     </button>
                   ) : (
                     <button
-                      onClick={() => { setMenuOpen(false); onLeaveGroup?.(); }}
+                      onClick={() => { setMenuOpen(false); setConfirmAction('leave'); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
                     >
                       Rời nhóm chat
@@ -120,6 +122,26 @@ function ChatHeader({
         <AddMemberModal
           onClose={() => setShowAddMemberModal(false)}
           onAdd={onAddMember}
+        />
+      )}
+
+      {confirmAction === 'delete' && (
+        <ConfirmModal
+          title="Xóa nhóm chat"
+          message={`Bạn có chắc muốn xóa nhóm "${groupName}"?`}
+          confirmLabel="Xóa nhóm"
+          onConfirm={() => { setConfirmAction(null); onDeleteGroup(); }}
+          onCancel={() => setConfirmAction(null)}
+        />
+      )}
+
+      {confirmAction === 'leave' && (
+        <ConfirmModal
+          title="Rời nhóm chat"
+          message={`Bạn có chắc muốn rời khỏi nhóm "${groupName}"?`}
+          confirmLabel="Rời nhóm"
+          onConfirm={() => { setConfirmAction(null); onLeaveGroup?.(); }}
+          onCancel={() => setConfirmAction(null)}
         />
       )}
     </>
