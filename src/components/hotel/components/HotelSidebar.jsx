@@ -4,7 +4,8 @@ import HotelCard from "./HotelCard";
 import Icon from "@/components/ui/Icon";
 
 function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
-  const { hotels, loading, setActiveHotel, hasActiveFilters, activeFilterCount, clusterHotels, activeHotel } = useApp();
+  // Task 3.1: Use filteredHotels instead of hotels for client-side filtering
+  const { filteredHotels, loading, setActiveHotel, hasActiveFilters, activeFilterCount, clusterHotels, activeHotel } = useApp();
   const [idx, setIdx] = useState(0);
   const [viewMode, setViewMode] = useState('list'); // Internal view mode for grid toggle
   const [gridColumns, setGridColumns] = useState(1); // 1, 2, or 3 columns
@@ -13,7 +14,7 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
   useEffect(() => {
     setIdx(0);
     setGridPageIndex(0); // Reset grid page when hotels change
-  }, [hotels]);
+  }, [filteredHotels]);
 
   // Update view mode when layout mode changes
   useEffect(() => {
@@ -52,8 +53,8 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
     }
   }, [mapWidth, layoutMode]);
 
-  const total = hotels.length;
-  const current = hotels[idx] || null;
+  const total = filteredHotels.length;
+  const current = filteredHotels[idx] || null;
   const isFirst = idx === 0;
   const isLast = idx === total - 1;
   const hasCluster = clusterHotels && clusterHotels.length > 0;
@@ -64,8 +65,8 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
   const hotelsPerPage = gridColumns;
   const startIndex = gridPageIndex * hotelsPerPage;
   const endIndex = startIndex + hotelsPerPage;
-  const paginatedHotels = hotels.slice(startIndex, endIndex);
-  const totalPages = Math.ceil(hotels.length / hotelsPerPage);
+  const paginatedHotels = filteredHotels.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(filteredHotels.length / hotelsPerPage);
   const isFirstPage = gridPageIndex === 0;
   const isLastPage = gridPageIndex === totalPages - 1;
   
@@ -247,7 +248,7 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
             </div>
 
             <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-2">
-              {hotels.map((_, i) => (
+              {filteredHotels.map((_, i) => (
                 <button
                   key={i}
                   type="button"

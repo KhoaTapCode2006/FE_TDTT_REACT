@@ -1,6 +1,5 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { useApp } from "@/app/AppContext";
-import { searchHotels } from "@/services/backend/hotel.service";
 import { hotelSearchService } from "@/services/backend/hotelSearch.service";
 import Icon from "@/components/ui/Icon";
 import DateRangePicker from "@/components/ui/DateRangePicker";
@@ -26,10 +25,10 @@ function SearchBar() {
   const [showCal, setShowCal] = useState(false);
   const [showGuests, setShowGuests] = useState(false);
   const [personality, setPersonality] = useState('');
-  const [addressInput, setAddressInput] = useState(location || '');
+  const [addressInput, setAddressInput] = useState(location?.display || location?.address || '');
   const [addressSuggestions, setAddressSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedRefId, setSelectedRefId] = useState('');
+  const [selectedRefId, setSelectedRefId] = useState(location?.ref_id || '');
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   
   const calRef = useRef(null);
@@ -57,7 +56,13 @@ function SearchBar() {
   // Fetch address suggestions when user types
   const handleAddressChange = (value) => {
     setAddressInput(value);
-    setLocation(value);
+    
+    // Update location state with just the address string for now
+    setLocation(prev => ({
+      ...prev,
+      address: value,
+      display: value
+    }));
     
     // Clear previous timer
     if (suggestionTimerRef.current) {
@@ -90,9 +95,23 @@ function SearchBar() {
 
   // Handle suggestion selection
   const handleSuggestionSelect = (suggestion) => {
-    setAddressInput(suggestion.display || suggestion.address);
-    setLocation(suggestion.display || suggestion.address);
-    setSelectedRefId(suggestion.ref_id);
+    // Use the full display text as address input
+    const fullAddress = suggestion.display || suggestion.address;
+    setAddressInput(fullAddress);
+    setSelectedRefId(suggestion.ref_id || '');
+    
+    // Update location state with full suggestion data including GPS and ref_id
+    setLocation({
+      address: fullAddress, // Use full address
+      display: fullAddress,
+      gps: {
+        latitude: suggestion.latitude || 0,
+        longitude: suggestion.longitude || 0,
+        geohash: suggestion.geohash || ''
+      },
+      ref_id: suggestion.ref_id || ''
+    });
+    
     setShowSuggestions(false);
     setAddressSuggestions([]);
   };
@@ -110,7 +129,17 @@ function SearchBar() {
   })();
 
   async function handleSearch() {
-    if (!location || !checkIn || !checkOut) {
+    // Extract location data - use full address from input if location object doesn't have it
+    const addressStr = addressInput || location?.address || location?.display || '';
+    
+    // Use user's current location for GPS if location.gps is not set
+    const gpsData = location?.gps?.latitude && location?.gps?.longitude 
+      ? location.gps 
+      : { latitude: userLoc.lat, longitude: userLoc.lng, geohash: '' };
+    
+    const refId = location?.ref_id || '';
+    
+    if (!addressStr || !checkIn || !checkOut) {
       console.warn('Missing required search parameters');
       return;
     }
@@ -119,24 +148,49 @@ function SearchBar() {
     setActiveHotel(null); // Clear active hotel when searching
     
     try {
-      // Convert filters to priceRange format
-      const priceRange = {};
-      if (filters.priceMin !== null) priceRange.minPrice = filters.priceMin;
-      if (filters.priceMax !== null) priceRange.maxPrice = filters.priceMax;
+      // Format dates as ISO strings (YYYY-MM-DD) using local timezone
+      // Fix: toISOString() converts to UTC which can shift the date by timezone offset
+      const formatLocalDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      const checkInStr = formatLocalDate(checkIn);
+      const checkOutStr = formatLocalDate(checkOut);
+      
+      // Format children as array of ages
+      const childrenArray = Array.isArray(guests.children) 
+        ? guests.children 
+        : (guests.children > 0 ? Array(guests.children).fill(0) : []);
 
-      const results = await searchHotels({
-        location,
-        checkIn,
-        checkOut,
-        guests,
-        priceRange,
-        radius: radiusM,
-        filters,
-        personality, // Add personality to search params
-        refId: selectedRefId // Add ref_id from address suggestion
+      // Simple geohash calculation (precision 5 for ~5km accuracy)
+      const calculateGeohash = (lat, lon) => {
+        if (!lat || !lon) return '';
+        // This is a simplified geohash - in production, use a proper geohash library
+        // For now, return empty string as backend may calculate it
+        return '';
+      };
+
+      const geohash = calculateGeohash(gpsData.latitude, gpsData.longitude);
+
+      // Build request body matching API schema order
+      const results = await hotelSearchService.searchHotels({
+        address: addressStr,
+        gps: {
+          latitude: gpsData.latitude,
+          longitude: gpsData.longitude,
+          geohash: geohash
+        },
+        ref_id: refId,
+        check_in: checkInStr,
+        check_out: checkOutStr,
+        children: childrenArray,
+        adults: guests.adults || 2,
+        personality: personality || ''
       });
       
-      console.log('Search results:', results.length, 'hotels found');
       setHotels(results);
     } catch (error) {
       console.error("SearchBar searchHotels failed:", error);

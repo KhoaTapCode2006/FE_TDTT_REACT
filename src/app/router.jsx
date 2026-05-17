@@ -35,11 +35,7 @@
         },
         {
           path: '/account/liked-places',
-          element: (
-            <RequireAuth>
-              <LikedPlacesPage />
-            </RequireAuth>
-          )
+          element: <Navigate to="/account/information" replace />
         },
         // Redirect old routes
         {

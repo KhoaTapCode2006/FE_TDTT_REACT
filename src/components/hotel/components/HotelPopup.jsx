@@ -253,8 +253,21 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
     setShowSaveModal(true);
   };
 
-  // Ensure images array exists
-  const images = hotel.images?.length ? hotel.images : ["https://via.placeholder.com/640x480?text=No+Image"];
+  // Process images - extract URLs with fallback from thumbnail to original
+  const images = hotel.images?.length 
+    ? hotel.images.map(img => {
+        // Handle object format with thumbnail and original
+        if (typeof img === 'object' && img !== null) {
+          // Try original first (high quality), fallback to thumbnail, then url
+          return img.original || img.thumbnail || img.url || null;
+        }
+        // Handle string format
+        if (typeof img === 'string') {
+          return img;
+        }
+        return null;
+      }).filter(Boolean) // Remove nulls
+    : ["https://via.placeholder.com/640x480?text=No+Image"];
 
   const prevImg = () => {
     setImgIndex((i) => (i - 1 + images.length) % images.length);

@@ -118,6 +118,7 @@ const AddToFavoritesButton = ({
         // Add to favorites
         await addFavoritePlace({
           id: hotelId,
+          propertyToken: hotelId, // Map id to propertyToken
           name: hotelData.name,
           address: hotelData.address || hotelData.location,
           rating: hotelData.rating || hotelData.ai_score || 0,

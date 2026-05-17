@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useMemo, useEffect, useCallback } from 'react';
-import { MOCK_HOTELS, DEFAULT_FILTER_STATE } from '@/constants/enums';
+import { MOCK_HOTELS, DEFAULT_FILTER_STATE, AMENITY_META } from '@/constants/enums';
 import { AuthProvider } from '../contexts/AuthContext.jsx';
 import { geolocationService } from '../services/geolocation.service.js';
 
@@ -9,7 +9,17 @@ const AppContext = createContext();
 const FILTER_STORAGE_KEY = 'hotel-filter-state';
 
 const AppContextProvider = ({ children }) => {
-  const [location, setLocation] = useState("Ho Chi Minh City, Vietnam");
+  // Location state with GPS and ref_id fields (Task 1.1 - Requirement 6.1, 6.2, 8.1, 8.2)
+  const [location, setLocation] = useState({
+    address: "Ho Chi Minh City, Vietnam",
+    display: "Ho Chi Minh City, Vietnam",
+    gps: {
+      latitude: 10.7719,
+      longitude: 106.6983,
+      geohash: ''
+    },
+    ref_id: ''
+  });
   
   // Tọa độ mặc định (Chợ Bến Thành, TP.HCM) để bản đồ không bị trắng
   const [userLoc, setUserLoc] = useState({ lat: 10.7719, lng: 106.6983 }); 
@@ -21,8 +31,11 @@ const AppContextProvider = ({ children }) => {
 
   const [guests, setGuests] = useState({ adults: 2, children: 0, childrenAges: [] });
   
-  // Start with empty hotels array, will be populated by search
-  const [hotels, setHotels] = useState([]);
+  // Client-side filtering state (Task 1.1 - Requirement 4.1, 4.2, 5.1)
+  const [hotels, setHotels] = useState([]); // Unfiltered API results
+  const [filteredHotels, setFilteredHotels] = useState([]); // Client-filtered results
+  const [availableAmenities, setAvailableAmenities] = useState(new Set()); // Dynamic amenity tracking
+  
   const [loading, setLoading] = useState(false);
   const [activeHotel, setActiveHotel] = useState(null);
 
@@ -93,6 +106,103 @@ const AppContextProvider = ({ children }) => {
     return count;
   }, [filters]);
 
+  // Client-side filter application function (Task 1.2 - Requirement 4.1, 4.3)
+  const applyFilters = useCallback((hotelsToFilter, currentFilters) => {
+    try {
+      // Validate input
+      if (!Array.isArray(hotelsToFilter)) {
+        console.error('Invalid hotels array:', hotelsToFilter);
+        return [];
+      }
+
+      let filtered = [...hotelsToFilter];
+
+      // Star rating filter - hotel must have rating >= selected star rating
+      if (currentFilters.starRating !== null && typeof currentFilters.starRating === 'number') {
+        filtered = filtered.filter(hotel => {
+          const hotelStarRating = hotel?.starRating || 0;
+          return hotelStarRating >= currentFilters.starRating;
+        });
+      }
+
+      // Property type filter - hotel type must be in selected types
+      if (Array.isArray(currentFilters.types) && currentFilters.types.length > 0) {
+        filtered = filtered.filter(hotel => {
+          const hotelType = hotel?.type || '';
+          return currentFilters.types.includes(hotelType);
+        });
+      }
+
+      // Amenities filter (AND logic - hotel must have ALL selected amenities)
+      if (Array.isArray(currentFilters.amenities) && currentFilters.amenities.length > 0) {
+        filtered = filtered.filter(hotel => {
+          const hotelAmenities = Array.isArray(hotel?.amenities) ? hotel.amenities : [];
+          // Check if hotel has ALL selected amenities
+          return currentFilters.amenities.every(amenity => 
+            hotelAmenities.includes(amenity)
+          );
+        });
+      }
+
+      // Price range filter - minimum price
+      if (currentFilters.priceMin !== null && typeof currentFilters.priceMin === 'number') {
+        filtered = filtered.filter(hotel => {
+          const hotelPrice = hotel?.pricePerNight || 0;
+          return hotelPrice >= currentFilters.priceMin;
+        });
+      }
+
+      // Price range filter - maximum price
+      if (currentFilters.priceMax !== null && typeof currentFilters.priceMax === 'number') {
+        filtered = filtered.filter(hotel => {
+          const hotelPrice = hotel?.pricePerNight || 0;
+          return hotelPrice <= currentFilters.priceMax;
+        });
+      }
+
+      // Available rooms filter - only show hotels with available rooms
+      if (currentFilters.availableOnly === true) {
+        filtered = filtered.filter(hotel => {
+          // Check both 'available' boolean flag and 'availableRooms' count
+          const isAvailable = hotel?.available === true;
+          const hasAvailableRooms = (hotel?.availableRooms || 0) > 0;
+          return isAvailable || hasAvailableRooms;
+        });
+      }
+
+      return filtered;
+
+    } catch (error) {
+      console.error('Error applying filters:', error);
+      // Return unfiltered results on error to prevent breaking the UI
+      return hotelsToFilter;
+    }
+  }, []);
+
+  // Amenity extraction function (Task 1.3 - Requirement 5.1, 5.2, 5.6)
+  const extractAvailableAmenities = useCallback((hotelList) => {
+    const amenitiesSet = new Set();
+    
+    // Handle empty or invalid hotel list
+    if (!Array.isArray(hotelList) || hotelList.length === 0) {
+      return amenitiesSet;
+    }
+    
+    hotelList.forEach(hotel => {
+      // Handle hotels with no amenities gracefully
+      if (Array.isArray(hotel?.amenities)) {
+        hotel.amenities.forEach(amenity => {
+          // Only add amenities that exist in AMENITY_META
+          if (AMENITY_META[amenity]) {
+            amenitiesSet.add(amenity);
+          }
+        });
+      }
+    });
+    
+    return amenitiesSet;
+  }, []);
+
   // Load mock backend data on mount for demo purposes
   // DISABLED: HomePage now loads data from sample_output_2.json via loadMockHotels()
   // useEffect(() => {
@@ -140,6 +250,22 @@ const AppContextProvider = ({ children }) => {
     };
   }, [location, clearFilters]);
 
+  // Task 1.4: Auto-apply filters when hotels or filters change (Requirement 4.1, 4.5)
+  useEffect(() => {
+    const filtered = applyFilters(hotels, filters);
+    setFilteredHotels(filtered);
+  }, [hotels, filters, applyFilters]);
+
+  // Task 1.4: Extract amenities when hotels change (Requirement 5.3)
+  useEffect(() => {
+    if (hotels.length > 0) {
+      const amenities = extractAvailableAmenities(hotels);
+      setAvailableAmenities(amenities);
+    } else {
+      setAvailableAmenities(new Set());
+    }
+  }, [hotels, extractAvailableAmenities]);
+
   // Cluster hotels state for sidebar integration
   const [clusterHotels, setClusterHotels] = useState([]);
 
@@ -175,12 +301,16 @@ const AppContextProvider = ({ children }) => {
     dates, setDates,
     guests, setGuests,
     hotels, setHotels,
+    filteredHotels, setFilteredHotels, // Client-filtered results (Task 1.1)
+    availableAmenities, setAvailableAmenities, // Dynamic amenity tracking (Task 1.1)
     loading, setLoading,
     activeHotel, setActiveHotel,
     radiusM, setRadiusM,
     // Filter state and functions
     filters, setFilters,
     updateFilter, clearFilters,
+    applyFilters, // Client-side filter application (Task 1.2)
+    extractAvailableAmenities, // Amenity extraction function (Task 1.3)
     hasActiveFilters, activeFilterCount,
     // Cluster and hover state
     clusterHotels, setClusterHotels,

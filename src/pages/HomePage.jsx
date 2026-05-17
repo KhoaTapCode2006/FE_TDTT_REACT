@@ -7,14 +7,14 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import Icon from '@/components/ui/Icon';
 import Splitter from '@/components/ui/Splitter';
 import { useApp } from '@/app/AppContext';
-import { searchHotels } from '@/services/backend/hotel.service';
+import { hotelSearchService } from '@/services/backend/hotelSearch.service';
 
 
 const HomePage = () => {
   const { 
     activeHotel, setActiveHotel, 
     filters, setFilters,
-    location, dates, guests, radiusM,
+    location, dates, guests, userLoc,
     setHotels, setLoading
   } = useApp();
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -87,37 +87,71 @@ const HomePage = () => {
   const performHotelSearch = useCallback(async (searchFilters) => {
     try {
       setLoading(true);
-      setError(null); // Clear previous errors
+      setError(null); // Xóa lỗi cũ
       
-      // Cancel previous request if it exists
+      // Hủy request trước đó nếu có
       if (currentRequestRef.current) {
         currentRequestRef.current.cancelled = true;
       }
       
-      // Create new request tracker
       const requestTracker = { cancelled: false };
       currentRequestRef.current = requestTracker;
       
-      // Convert price filter to priceRange format
-      const priceRange = {};
-      if (searchFilters.priceMin !== null) priceRange.minPrice = searchFilters.priceMin;
-      if (searchFilters.priceMax !== null) priceRange.maxPrice = searchFilters.priceMax;
+      // 1. Chuẩn hóa chuỗi Address từ global state `location`
+      const addressStr = location?.address || location?.display || '';
       
-      const results = await searchHotels({
-        location,
-        checkIn: dates.checkIn,
-        checkOut: dates.checkOut,
-        guests,
-        priceRange,
-        radius: radiusM,
-        filters: searchFilters
+      // 2. Use user's current location for GPS if location.gps is not set
+      const gpsData = location?.gps?.latitude && location?.gps?.longitude 
+        ? location.gps 
+        : { latitude: userLoc.lat, longitude: userLoc.lng, geohash: '' };
+
+      // 3. Trích xuất ref_id
+      const refId = location?.ref_id || '';
+
+      // Chốt chặn bảo vệ: Nếu chưa chọn địa điểm hoặc thiếu ngày, không gọi API để tránh lỗi crash validation
+      if (!addressStr || !dates?.checkIn || !dates?.checkOut) {
+        console.warn('⚠️ Chưa đủ tham số bắt buộc để tìm kiếm:', { addressStr, gpsData, dates });
+        setHotels([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Format dates as ISO strings (YYYY-MM-DD)
+      const checkInStr = dates.checkIn.toISOString().split('T')[0];
+      const checkOutStr = dates.checkOut.toISOString().split('T')[0];
+      
+      // Format children as array of ages
+      const childrenArray = Array.isArray(guests?.children) 
+        ? guests.children 
+        : (guests?.children > 0 ? Array(guests.children).fill(0) : []);
+      
+      // Calculate total party size
+      const partySize = (guests?.adults || 2) + childrenArray.length;
+      
+      // 4. Gọi hàm searchHotels từ đúng hotelSearchService mới
+      const results = await hotelSearchService.searchHotels({
+        address: addressStr,
+        gps: gpsData,
+        ref_id: refId,
+        check_in: checkInStr,
+        check_out: checkOutStr,
+        adults: guests?.adults || 2,
+        children: childrenArray,
+        personality: searchFilters?.personality || '',
+        trip_style: 'kham_pha', // Default trip style
+        trip_criteria: {
+          budget_min: 0,
+          budget_max: 0,
+          trip_style: 'kham_pha',
+          party_size: partySize
+        },
+        max_ranked_hotels: 50
       });
       
-      // Only update state if request wasn't cancelled
+      // Chỉ cập nhật state nếu request không bị hủy giữa chừng
       if (!requestTracker.cancelled) {
         setHotels(results);
         
-        // Reset active hotel when results change
         if (activeHotel) {
           setActiveHotel(null);
         }
@@ -126,9 +160,7 @@ const HomePage = () => {
       if (!currentRequestRef.current?.cancelled) {
         console.error('Error applying filters:', error);
         
-        // Set user-friendly error message
         let errorMessage = 'Có lỗi xảy ra khi tìm kiếm khách sạn. Vui lòng thử lại.';
-        
         if (error.code === 'NETWORK_ERROR' || !navigator.onLine) {
           errorMessage = 'Không thể kết nối mạng. Vui lòng kiểm tra kết nối internet.';
         } else if (error.response?.status === 429) {
@@ -144,7 +176,7 @@ const HomePage = () => {
         setLoading(false);
       }
     }
-  }, [location, dates, guests, radiusM, setHotels, setLoading, activeHotel, setActiveHotel]);
+  }, [location, dates, guests, userLoc, setHotels, setLoading, activeHotel, setActiveHotel]);
 
   const debouncedHotelSearch = useCallback((searchFilters) => {
     // Clear existing timeout
@@ -158,17 +190,17 @@ const HomePage = () => {
     }, 300); // 300ms debounce delay
   }, [performHotelSearch]);
 
+  // Task 2.1: Remove filter-triggered API calls
+  // Filters now only update AppContext state, client-side filtering happens automatically
   const handleFilterApply = async (newFilters) => {
     setFilters(newFilters);
     setFilterModalOpen(false);
-    
-    // Use debounced search to prevent excessive API calls
-    debouncedHotelSearch(newFilters);
+    // NO API call - filtering is done client-side in AppContext
   };
 
   const handleRetry = async () => {
     setError(null);
-    // Retry the filter search
+    // Retry the hotel search (not filter search)
     debouncedHotelSearch(filters);
   };
 

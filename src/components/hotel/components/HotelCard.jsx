@@ -14,18 +14,23 @@ function HotelCard({ hotel, onClick }) {
   const navigate = useNavigate();
   const [showSaveModal, setShowSaveModal] = useState(false);
   
-  // Debug: Log hotel data to check user_reviews
   const reviews = hotel?.userReviews || hotel?.reviews || hotel?.user_reviews || [];
-  console.log('HotelCard hotel data:', {
-    name: hotel?.name,
-    hasUserReviews: !!hotel?.userReviews,
-    hasReviews: !!hotel?.reviews,
-    hasOldFormat: !!hotel?.user_reviews,
-    reviewsLength: reviews.length,
-    firstReview: reviews[0]
-  });
   
-  const imageSrc = hotel?.images?.[0] || "https://via.placeholder.com/640x480?text=No+Image";
+  // Handle image objects with thumbnail and original
+  const imageSrc = (() => {
+    const firstImage = hotel?.images?.[0];
+    if (!firstImage) return "https://via.placeholder.com/640x480?text=No+Image";
+    
+    // New format: object with thumbnail and original
+    if (typeof firstImage === 'object') {
+      return firstImage.thumbnail || firstImage.url || firstImage.original || "https://via.placeholder.com/640x480?text=No+Image";
+    }
+    
+    // Fallback: string URL
+    if (typeof firstImage === 'string') return firstImage;
+    
+    return "https://via.placeholder.com/640x480?text=No+Image";
+  })();
   const amenityIcons = (hotel?.amenities || []).slice(0, 3).map((a) => {
     const meta = AMENITY_META[a];
     return meta ? meta : { icon: "check", label: String(a) };

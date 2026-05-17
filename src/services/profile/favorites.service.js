@@ -41,16 +41,19 @@ export async function addFavoritePlace(hotelData) {
       name: hotelData?.name
     });
 
-    if (!hotelData || !hotelData.propertyToken) {
-      console.error('❌ Missing propertyToken in hotelData:', hotelData);
-      throw new Error('Hotel data with propertyToken is required');
+    // Use id as fallback for propertyToken
+    const propertyToken = hotelData?.propertyToken || hotelData?.id;
+    
+    if (!hotelData || !propertyToken) {
+      console.error('❌ Missing propertyToken/id in hotelData:', hotelData);
+      throw new Error('Hotel data with propertyToken or id is required');
     }
 
     await ensureValidToken();
 
-    // Prepare hotel data for backend - use propertyToken as place_id
+    // Prepare hotel data for backend - use propertyToken (or id as fallback) as place_id
     const favoriteData = {
-      place_id: hotelData.propertyToken,
+      place_id: propertyToken,
       name: hotelData.name || 'Unknown Hotel',
       address: hotelData.address || hotelData.location || '',
       rating: hotelData.rating || hotelData.ai_score || 0,

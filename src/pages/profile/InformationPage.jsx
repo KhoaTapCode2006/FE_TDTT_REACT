@@ -7,7 +7,7 @@ import InfoSection from '@/components/profile/InfoSection';
 import EditInfoModal from '@/components/profile/EditInfoModal';
 import Icon from '@/components/ui/Icon';
 import { profileService } from '@/services/profile/profile.service';
-
+import FavoritesSection from '@/components/profile/FavoritesSection';
 /**
  * InformationPage Component
  * User profile information page
@@ -159,6 +159,9 @@ const InformationPage = () => {
               />
             </>
           )}
+
+
+          <FavoritesSection/>
         </div>
       </main>
 

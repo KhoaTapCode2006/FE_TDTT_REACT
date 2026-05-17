@@ -92,20 +92,16 @@ class HotelSearchService {
    * - check-in/check-out dates
    * - number of adults and children
    * - personality (user requirements)
-   * - trip_style, trip_criteria, max_ranked_hotels
    * 
    * @param {Object} searchParams - Search parameters
    * @param {string} searchParams.address - Address string
    * @param {Object} searchParams.gps - GPS coordinates {latitude, longitude, geohash}
    * @param {string} searchParams.ref_id - Reference ID from address suggestion
-   * @param {string} searchParams.check_in - Check-in date (ISO format)
-   * @param {string} searchParams.check_out - Check-out date (ISO format)
+   * @param {string} searchParams.check_in - Check-in date (YYYY-MM-DD format)
+   * @param {string} searchParams.check_out - Check-out date (YYYY-MM-DD format)
    * @param {Array<number>} searchParams.children - Array of children ages
    * @param {number} searchParams.adults - Number of adults
    * @param {string} searchParams.personality - User requirements/preferences
-   * @param {string|null} searchParams.trip_style - Trip style preference
-   * @param {Object|null} searchParams.trip_criteria - Trip criteria object
-   * @param {number} searchParams.max_ranked_hotels - Maximum number of hotels to return
    * @returns {Promise<Array>} Array of hotel search results with hotel_id, latitude, longitude
    * @throws {Error} If API call fails
    * 
@@ -126,10 +122,7 @@ class HotelSearchService {
         check_out,
         children = [],
         adults = 2,
-        personality = '',
-        trip_style = null,
-        trip_criteria = null,
-        max_ranked_hotels = 50
+        personality = ''
       } = searchParams;
 
       // Validate required fields
@@ -137,48 +130,200 @@ class HotelSearchService {
         throw new Error('Address is required');
       }
 
-      if (!gps || !gps.latitude || !gps.longitude) {
-        throw new Error('GPS coordinates are required');
-      }
+      // GPS validation with fallback to default values (Requirement 8.7)
+      const gpsData = {
+        latitude: gps?.latitude || 0,
+        longitude: gps?.longitude || 0,
+        geohash: gps?.geohash || ''
+      };
 
       if (!check_in || !check_out) {
         throw new Error('Check-in and check-out dates are required');
       }
 
-      // Prepare request body
       const requestBody = {
         address,
-        gps: {
-          latitude: gps.latitude,
-          longitude: gps.longitude,
-          geohash: gps.geohash || ''
-        },
+        gps: gpsData,
         ref_id: ref_id || '',
         check_in,
         check_out,
         children: Array.isArray(children) ? children : [],
         adults,
         personality,
-        trip_style,
-        trip_criteria,
-        max_ranked_hotels
       };
 
       const response = await apiClient.post('/discover', requestBody);
       
-      // Response should be an array of hotel results
-      if (!Array.isArray(response)) {
-        console.warn('Hotel search response is not an array:', response);
+      // Extract hotels array from response
+      let hotelsArray = [];
+      
+      if (Array.isArray(response)) {
+        // Response is already an array
+        hotelsArray = response;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        // Response has a data property containing the array
+        hotelsArray = response.data;
+      } else {
+        console.warn('Hotel search response is not an array and has no data property:', response);
         return [];
       }
 
-      return response.map(hotel => ({
-        hotel_id: hotel.hotel_id || hotel.hotelId || hotel.id,
-        latitude: hotel.latitude || hotel.lat || 0,
-        longitude: hotel.longitude || hotel.lng || hotel.lon || 0,
-        // Include any additional fields from response
-        ...hotel
-      }));
+      // Amenity normalization mapping - maps backend amenity strings to frontend constants
+      const normalizeAmenity = (amenity) => {
+        if (!amenity || typeof amenity !== 'string') return null;
+        
+        const normalized = amenity.toLowerCase().trim();
+        
+        // Direct matches
+        if (normalized === 'wifi' || normalized === 'wi-fi') return 'wifi';
+        if (normalized === 'pool' || normalized === 'hồ bơi' || normalized === 'bể bơi' || normalized === 'swimming pool') return 'pool';
+        if (normalized === 'gym' || normalized === 'fitness center' || normalized === 'fitness_center' || normalized === 'phòng gym') return 'fitness_center';
+        if (normalized === 'spa') return 'spa';
+        if (normalized === 'restaurant' || normalized === 'nhà hàng') return 'restaurant';
+        if (normalized === 'bar' || normalized === 'quầy bar') return 'bar';
+        if (normalized === 'breakfast' || normalized === 'ăn sáng' || normalized === 'free breakfast') return 'breakfast';
+        if (normalized === 'parking' || normalized === 'đỗ xe' || normalized === 'bãi đỗ xe') return 'parking';
+        if (normalized === 'ac' || normalized === 'air conditioning' || normalized === 'điều hòa' || normalized === 'máy lạnh') return 'ac';
+        if (normalized === 'pet friendly' || normalized === 'pet_friendly' || normalized === 'thú cưng') return 'pet_friendly';
+        if (normalized === 'laundry' || normalized === 'giặt ủi') return 'laundry';
+        if (normalized === 'shuttle' || normalized === 'airport shuttle' || normalized === 'đưa đón') return 'shuttle';
+        if (normalized === 'kitchen' || normalized === 'bếp') return 'kitchen';
+        
+        // Partial matches
+        if (normalized.includes('wifi') || normalized.includes('wi-fi')) return 'wifi';
+        if (normalized.includes('pool') || normalized.includes('hồ bơi') || normalized.includes('bể bơi')) return 'pool';
+        if (normalized.includes('gym') || normalized.includes('fitness')) return 'fitness_center';
+        if (normalized.includes('spa')) return 'spa';
+        if (normalized.includes('restaurant') || normalized.includes('nhà hàng')) return 'restaurant';
+        if (normalized.includes('bar') || normalized.includes('quầy bar')) return 'bar';
+        if (normalized.includes('breakfast') || normalized.includes('ăn sáng')) return 'breakfast';
+        if (normalized.includes('parking') || normalized.includes('đỗ xe')) return 'parking';
+        if (normalized.includes('air conditioning') || normalized.includes('điều hòa') || normalized.includes('ac')) return 'ac';
+        if (normalized.includes('pet') || normalized.includes('thú cưng')) return 'pet_friendly';
+        if (normalized.includes('laundry') || normalized.includes('giặt')) return 'laundry';
+        if (normalized.includes('shuttle') || normalized.includes('đưa đón')) return 'shuttle';
+        if (normalized.includes('kitchen') || normalized.includes('bếp')) return 'kitchen';
+        
+        // If no match found, return null to filter out
+        return null;
+      };
+
+      // Transform hotels to match HotelCard expected format
+      return hotelsArray.map(hotel => {
+        // Extract GPS coordinates with proper fallbacks
+        const gpsLat = hotel.gps_coordinates?.latitude || hotel.latitude || null;
+        const gpsLng = hotel.gps_coordinates?.longitude || hotel.longitude || null;
+        
+        // Extract images - store both thumbnail and original for fallback
+        const images = Array.isArray(hotel.images) ? hotel.images.map(img => {
+          // Handle string URLs
+          if (typeof img === 'string') {
+            return { url: img, thumbnail: img, original: img };
+          }
+          // Handle image objects - keep both thumbnail and original
+          return {
+            url: img.original_image || img.original || img.url || img.thumbnail || '',
+            thumbnail: img.thumbnail || img.url || '',
+            original: img.original_image || img.original || img.url || img.thumbnail || ''
+          };
+        }).filter(img => img.url) : [];
+        
+        // Normalize amenities to match frontend constants
+        const normalizedAmenities = Array.isArray(hotel.amenities) 
+          ? hotel.amenities
+              .map(normalizeAmenity)
+              .filter(Boolean) // Remove nulls
+              .filter((amenity, index, self) => self.indexOf(amenity) === index) // Remove duplicates
+          : [];
+
+        return {
+          // IDs
+          id: hotel.property_token || hotel.hotel_id || hotel.hotelId || hotel.id,
+          propertyToken: hotel.property_token,
+          hotel_id: hotel.property_token,
+          
+          // Basic info
+          name: hotel.name || 'Unknown Hotel',
+          description: hotel.description || null,
+          address: hotel.address || null,
+          location: hotel.address || null,
+          phone: hotel.phone || null,
+          link: hotel.link || null,
+          
+          // GPS - use null instead of 0 for invalid coordinates
+          latitude: gpsLat,
+          longitude: gpsLng,
+          lat: gpsLat,
+          lng: gpsLng,
+          coordinates: {
+            latitude: gpsLat || 0,
+            longitude: gpsLng || 0,
+            geohash: hotel.gps_coordinates?.geohash || ''
+          },
+          
+          // Pricing
+          price: hotel.price || 0,
+          pricePerNight: hotel.price || 0,
+          deal: hotel.deal || null,
+          currency: 'VND',
+          
+          // Rating - use ai_score from ai_sentiment
+          rating: hotel.ai_sentiment?.ai_score || hotel.raw_rating || 0,
+          rawRating: hotel.raw_rating || 0,
+          ai_score: hotel.ai_sentiment?.ai_score || 0,
+          trustWeight: hotel.ai_sentiment?.trust_weight || 0,
+          
+          // AI Sentiment (for popup display)
+          aiSentiment: hotel.ai_sentiment ? {
+            aiScore: hotel.ai_sentiment.ai_score || 0,
+            trustWeight: hotel.ai_sentiment.trust_weight || 0,
+            analyzedReviews: hotel.ai_sentiment.analyzed_reviews?.length || 0
+          } : null,
+          
+          // Images - store as objects with both thumbnail and original for fallback
+          images: images,
+          thumbnail: images.length > 0 ? images[0].thumbnail : null,
+          
+          // Amenities - normalized to match frontend constants
+          amenities: normalizedAmenities,
+          
+          // Reviews - map to both userReviews AND reviews for compatibility
+          userReviews: Array.isArray(hotel.user_reviews) ? hotel.user_reviews : [],
+          reviews: Array.isArray(hotel.user_reviews) ? hotel.user_reviews : [],
+          analyzedReviews: Array.isArray(hotel.ai_sentiment?.analyzed_reviews) ? hotel.ai_sentiment.analyzed_reviews : [],
+          
+          // AI Summary
+          aiSummary: hotel.ai_summary ? {
+            overview: hotel.ai_summary.overview || '',
+            pros: Array.isArray(hotel.ai_summary.pros) ? hotel.ai_summary.pros : [],
+            cons: Array.isArray(hotel.ai_summary.cons) ? hotel.ai_summary.cons : [],
+            notes: hotel.ai_summary.notes || ''
+          } : null,
+          
+          // Additional info
+          nearbyPlaces: Array.isArray(hotel.nearby_places) ? hotel.nearby_places : [],
+          nearbyLandmarks: Array.isArray(hotel.nearby_places) ? hotel.nearby_places.map(place => ({
+            name: place.name || place,
+            distance: place.distance || 'N/A'
+          })) : [],
+          distance: hotel.distance || 0,
+          checkInTime: hotel.check_in_time || null,
+          checkOutTime: hotel.check_out_time || null,
+          bookingSources: Array.isArray(hotel.booking_sources) ? hotel.booking_sources : [],
+          
+          // Metadata
+          lastUpdated: hotel.last_updated || null,
+          views: hotel.views ? {
+            totalViews: hotel.views.total_views || 0,
+            weeklyViews: hotel.views.weekly_views || 0
+          } : { totalViews: 0, weeklyViews: 0 },
+          totalViews: hotel.views?.total_views || 0, // Add flat property for easier access
+          weeklyViews: hotel.views?.weekly_views || 0,
+          
+          // Include all original fields for compatibility
+          ...hotel
+        };
+      });
     } catch (error) {
       console.error('Error searching hotels:', error);
       throw error;

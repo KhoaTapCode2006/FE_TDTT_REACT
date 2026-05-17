@@ -114,17 +114,7 @@ function Header({ hideNavigation = false }) {
                         : 'text-on-surface-variant hover:text-primary'
                     }`}
                   >
-                    Information
-                  </Link>
-                  <Link 
-                    to="/account/liked-places" 
-                    className={`text-sm font-semibold transition-colors pb-0.5 ${
-                      location.pathname === '/account/liked-places'
-                        ? 'text-primary border-b-2 border-secondary' 
-                        : 'text-on-surface-variant hover:text-primary'
-                    }`}
-                  >
-                    Liked Places
+                    Information & Liked Places
                   </Link>
                 </>
               )}
