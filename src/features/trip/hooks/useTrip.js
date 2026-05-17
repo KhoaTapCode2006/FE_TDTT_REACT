@@ -8,15 +8,14 @@ import { tripService } from "../../../services/backend/trip.service";
 import { useAuth } from "../../../contexts/AuthContext";
 
 export const NAV_ITEMS = [
-  { id: "tripmap", label: "TripMap", icon: "🗺️" },
-  { id: "info",    label: "Info",    icon: "ℹ️" },
-  { id: "member",  label: "Member",  icon: "👥" },
+  { id: "info",    label: "Thông tin" },
+  { id: "member",  label: "Thành viên" },
 ];
 
 export function useTrip() {
   const { loading: authLoading, isAuthenticated } = useAuth();
 
-  const [activeNav, setActiveNav]         = useState("tripmap");
+  const [activeNav, setActiveNav]         = useState("info");
   const [trips, setTrips]                 = useState([]);
   const [loading, setLoading]             = useState(true);
   const [error, setError]                 = useState(null);

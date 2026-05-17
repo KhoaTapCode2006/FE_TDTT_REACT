@@ -9,18 +9,20 @@ function MainLayout() {
   const { clusterHotels, activeHotel, setActiveHotel } = useApp();
   const location = useLocation();
   const isChatPage = location.pathname === '/chat' || location.pathname.startsWith('/chat/');
+  const isTripPage = location.pathname === '/trips' || location.pathname.startsWith('/trips/');
+  const isFullscreenPage = isChatPage || isTripPage;
 
   const handleClosePopup = () => {
     setActiveHotel(null);
   };
 
   return (
-    <div className={`flex flex-col bg-background text-on-background ${isChatPage ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+    <div className={`flex flex-col bg-background text-on-background ${isFullscreenPage ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       <Header />
-      <main className={isChatPage ? 'flex flex-1 min-h-0 overflow-hidden' : 'flex-1 min-h-0'}>
+      <main className={isFullscreenPage ? 'flex flex-1 min-h-0 overflow-hidden' : 'flex-1 min-h-0'}>
         <Outlet />
       </main>
-      <Footer />
+      {!isChatPage && <Footer />}
       
       {/* Global Popups - Render across all pages */}
       {clusterHotels && clusterHotels.length > 0 ? (
