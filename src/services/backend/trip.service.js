@@ -422,17 +422,17 @@ export const tripService = {
    * Endpoint: GET /trips/{trip_id}/members
    *
    * @param {string} tripId - Trip ID
-   * @returns {Promise<string[]>} Array of member UIDs
+   * @returns {Promise<Array<{uid, username, display_name, avatar_url, joined_at, tracking}>>} Array of member objects
    * @throws {Error} Not found or network error
    */
   async getTripMembers(tripId) {
     const response = await tripClient.get(`/trips/${tripId}/members`);
-    // Backend returns: { status_code, message, data: { member_uids: [...] } }
-    const memberUids = response.data?.data?.member_uids;
-    if (!Array.isArray(memberUids)) {
+    // Backend returns: { status_code, message, data: [ { uid, username, display_name, avatar_url, joined_at, tracking } ] }
+    const data = response.data?.data;
+    if (!Array.isArray(data)) {
       throw new Error('Invalid response format from server');
     }
-    return memberUids;
+    return data;
   },
 };
 

@@ -1,9 +1,9 @@
 // ─── useTripMembers ────────────────────────────────────────────────────────────
-// Lấy danh sách member UIDs từ REST API (GET /trips/{id}/members),
-// sau đó subscribe tracking realtime từ Firestore subcollection.
-// Trả về: { members: [{ uid, joined_at, tracking }], memberUids, loading, error }
+// Lấy danh sách member từ REST API (GET /trips/{id}/members),
+// sau đó subscribe tracking realtime từ Firestore subcollection để override.
+// Trả về: { members: [{ uid, username, display_name, avatar_url, joined_at, tracking }], memberUids, loading, error }
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../../config/firebase";
 import { tripService } from "../../../services/backend/trip.service";
@@ -13,15 +13,15 @@ import { tripService } from "../../../services/backend/trip.service";
  * @returns {{ members: Array, memberUids: string[], loading: boolean, error: string|null }}
  */
 export function useTripMembers(tripId) {
-  const [memberUids, setMemberUids] = useState([]);
-  const [trackingMap, setTrackingMap] = useState({}); // uid -> { joined_at, tracking }
+  const [restMembers, setRestMembers] = useState([]); // full member objects từ REST
+  const [trackingMap, setTrackingMap] = useState({}); // uid -> { joined_at, tracking } từ Firestore
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // ── 1. Fetch member UIDs từ REST API ────────────────────────────────────────
+  // ── 1. Fetch members từ REST API ─────────────────────────────────────────────
   useEffect(() => {
     if (!tripId) {
-      setMemberUids([]);
+      setRestMembers([]);
       setError(null);
       return;
     }
@@ -32,9 +32,9 @@ export function useTripMembers(tripId) {
 
     tripService
       .getTripMembers(tripId)
-      .then((uids) => {
+      .then((members) => {
         if (!cancelled) {
-          setMemberUids(uids);
+          setRestMembers(members);
         }
       })
       .catch((err) => {
@@ -52,7 +52,7 @@ export function useTripMembers(tripId) {
     };
   }, [tripId]);
 
-  // ── 2. Subscribe tracking realtime từ Firestore ──────────────────────────────
+  // ── 2. Subscribe tracking realtime từ Firestore (override tracking từ REST) ──
   useEffect(() => {
     if (!tripId) {
       setTrackingMap({});
@@ -75,19 +75,24 @@ export function useTripMembers(tripId) {
       },
       (err) => {
         console.error("[useTripMembers] Firestore tracking error:", err);
-        // Không set error ở đây — tracking là optional, không block UI
+        // Tracking là optional, không block UI
       }
     );
 
     return () => unsub();
   }, [tripId]);
 
-  // ── 3. Merge UIDs + tracking ─────────────────────────────────────────────────
-  const members = memberUids.map((uid) => ({
-    uid,
-    joined_at: trackingMap[uid]?.joined_at ?? null,
-    tracking: trackingMap[uid]?.tracking ?? null,
+  // ── 3. Merge REST members + Firestore tracking (Firestore override REST tracking) ──
+  const members = restMembers.map((m) => ({
+    uid: m.uid,
+    username: m.username ?? null,
+    display_name: m.display_name ?? null,
+    avatar_url: m.avatar_url ?? null,
+    joined_at: trackingMap[m.uid]?.joined_at ?? m.joined_at ?? null,
+    tracking: trackingMap[m.uid]?.tracking ?? m.tracking ?? null,
   }));
+
+  const memberUids = members.map((m) => m.uid);
 
   return { members, memberUids, loading, error };
 }

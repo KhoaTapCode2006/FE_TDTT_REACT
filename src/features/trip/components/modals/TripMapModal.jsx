@@ -133,10 +133,12 @@ function TripMapModal({ trip, onClose }) {
     const hasRealGps = !!(t?.lat != null && t?.lng != null);
     const angle = (i / (firestoreMembers.length || 1)) * 2 * Math.PI;
     const r     = 0.008 + (i % 3) * 0.005;
+    const displayName = m.display_name ?? m.username ?? m.uid;
     return {
       id:       m.uid,
-      name:     m.uid,
-      avatar:   m.uid.slice(0, 2).toUpperCase(),
+      name:     displayName,
+      avatar:   displayName.slice(0, 2).toUpperCase(),
+      avatar_url: m.avatar_url ?? null,
       color:    MEMBER_COLORS[i % MEMBER_COLORS.length],
       lat:      hasRealGps ? t.lat : DEST.lat + Math.sin(angle) * r,
       lng:      hasRealGps ? t.lng : DEST.lng + Math.cos(angle) * r,
@@ -397,7 +399,7 @@ function TripMapModal({ trip, onClose }) {
 
           <div className="flex flex-1 min-h-0">
             {/* Member list */}
-            <div className="w-52 shrink-0 border-r border-gray-100 flex flex-col">
+            <div className="w-64 shrink-0 border-r border-gray-100 flex flex-col">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 pt-3 pb-2">
                 {isActive ? `Thành viên (${members.length})` : "Vị trí của bạn"}
               </p>
@@ -431,7 +433,7 @@ function TripMapModal({ trip, onClose }) {
                           : m.accident ? "font-semibold text-red-600"
                           : "text-gray-700"
                         }`}>
-                          {m.isMe ? "Bạn" : m.name.slice(0, 10) + "..."}
+                          {m.isMe ? "Bạn" : m.name}
                         </span>
                         <span className={`text-[10px] ${m.accident ? "text-red-500" : sl.color}`}>
                           {m.accident ? "Tai nạn" : sl.text}

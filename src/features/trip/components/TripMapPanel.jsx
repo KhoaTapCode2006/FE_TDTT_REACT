@@ -110,9 +110,12 @@ export default function TripMapPanel({ trip }) {
     const hasRealGps = !!(t?.lat != null && t?.lng != null);
     const angle = (i / (firestoreMembers.length || 1)) * 2 * Math.PI;
     const r     = 0.008 + (i % 3) * 0.005;
+    const displayName = m.display_name ?? m.username ?? m.uid;
     return {
-      id: m.uid, name: m.uid,
-      avatar: m.uid.slice(0, 2).toUpperCase(),
+      id:     m.uid,
+      name:   displayName,
+      avatar: displayName.slice(0, 2).toUpperCase(),
+      avatar_url: m.avatar_url ?? null,
       color:  MEMBER_COLORS[i % MEMBER_COLORS.length],
       lat:    hasRealGps ? t.lat : DEST.lat + Math.sin(angle) * r,
       lng:    hasRealGps ? t.lng : DEST.lng + Math.cos(angle) * r,
@@ -280,7 +283,7 @@ export default function TripMapPanel({ trip }) {
   return (
     <div className="flex h-full min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       {/* Member sidebar */}
-      <div className="w-52 shrink-0 border-r border-gray-100 flex flex-col">
+      <div className="w-64 shrink-0 border-r border-gray-100 flex flex-col">
         {/* Trip status + actions */}
         <div className="px-4 pt-3 pb-3 border-b border-gray-100">
 
@@ -338,7 +341,7 @@ export default function TripMapPanel({ trip }) {
                 </div>
                 <div className="flex flex-col min-w-0 flex-1">
                   <span className={`text-sm truncate ${selectedMember?.id === m.id ? "font-semibold text-primary" : m.accident ? "font-semibold text-red-600" : "text-gray-700"}`}>
-                    {m.isMe ? "Bạn" : m.name.slice(0, 10) + "..."}
+                    {m.isMe ? "Bạn" : m.name}
                   </span>
                   <span className={`text-[10px] ${m.accident ? "text-red-500" : sl.color}`}>
                     {m.accident ? "Tai nạn" : sl.text}

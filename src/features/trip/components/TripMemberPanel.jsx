@@ -60,13 +60,21 @@ export default function TripMemberPanel({ trip, onRemoveMember, onAddMember }) {
             return (
               <div key={m.uid} className="flex items-center gap-3 group py-3 px-4 rounded-xl bg-white border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all">
                 <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 overflow-hidden"
                   style={{ background: MEMBER_COLORS[i % MEMBER_COLORS.length] }}
                 >
-                  {m.uid.slice(0, 2).toUpperCase()}
+                  {m.avatar_url
+                    ? <img src={m.avatar_url} alt={m.display_name ?? m.uid} className="w-full h-full object-cover" />
+                    : (m.display_name ?? m.username ?? m.uid).slice(0, 2).toUpperCase()
+                  }
                 </div>
                 <div className="flex flex-col min-w-0 flex-1">
-                  <span className="text-xs text-gray-700 font-mono truncate">{m.uid}</span>
+                  <span className="text-sm text-gray-800 font-semibold truncate">
+                    {m.display_name ?? m.username ?? m.uid}
+                  </span>
+                  {m.username && m.display_name && (
+                    <span className="text-[11px] text-gray-400 truncate">@{m.username}</span>
+                  )}
                   {joinedStr && (
                     <span className="text-[10px] text-gray-400 mt-0.5">Joined {joinedStr}</span>
                   )}
