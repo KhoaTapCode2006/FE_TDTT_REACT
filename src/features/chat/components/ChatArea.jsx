@@ -1,9 +1,10 @@
 import { useRef, useEffect, useState } from "react";
 import ChatHeader from "./ChatHeader";
 import MessageBubble from "./MessageBubble";
+import LocationPickerModal from "./modals/LocationPickerModal";
 
 // ─── Attachment Menu ──────────────────────────────────────────────────────────
-function AttachmentMenu({ onPickImage, onClose }) {
+function AttachmentMenu({ onPickImage, onOpenLocation, onClose }) {
   const fileInputRef = useRef(null);
 
   return (
@@ -31,9 +32,9 @@ function AttachmentMenu({ onPickImage, onClose }) {
           />
         </label>
 
-        {/* Địa điểm — giữ nguyên, gửi ngay */}
+        {/* Địa điểm — mở modal tìm kiếm */}
         <button
-          onClick={onClose}
+          onClick={() => { onClose(); onOpenLocation(); }}
           className="flex flex-col items-center gap-1 group"
         >
           <div className="w-11 h-11 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center text-green-500 group-hover:bg-green-100 transition-colors">
@@ -78,7 +79,31 @@ function ImagePreview({ url, uploading, onRemove }) {
   );
 }
 
-// ─── Chat Area ────────────────────────────────────────────────────────────────
+// ─── Place Preview trong input bar ───────────────────────────────────────────
+function PlacePreview({ place, onRemove }) {
+  return (
+    <div className="flex items-center gap-2 mb-2 ml-1 bg-green-50 border border-green-200 rounded-xl px-3 py-2 max-w-xs">
+      <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center text-green-500 shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+          <circle cx="12" cy="9" r="2.5" />
+        </svg>
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold text-gray-800 truncate">{place.name}</p>
+        {place.address && (
+          <p className="text-xs text-gray-400 truncate">{place.address}</p>
+        )}
+      </div>
+      <button
+        onClick={onRemove}
+        className="w-5 h-5 bg-gray-300 text-white rounded-full flex items-center justify-center text-xs leading-none hover:bg-red-400 transition-colors shrink-0"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
 
 function ChatArea({
   group,
@@ -88,6 +113,7 @@ function ChatArea({
   setInput,
   onSend,
   onPickImage,
+  onPickPlace,
   onDeleteMessage,
   showRightPanel,
   onToggleRightPanel,
@@ -100,9 +126,12 @@ function ChatArea({
   pendingImage,
   onRemovePendingImage,
   imageUploading,
+  pendingPlace,
+  onRemovePendingPlace,
 }) {
   const messagesEndRef = useRef(null);
   const [toast, setToast] = useState(null);
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -119,7 +148,7 @@ function ChatArea({
     showToast(`Đã xóa nhóm chat ${name}`);
   };
 
-  const canSend = (input.trim().length > 0 || !!pendingImage) && !imageUploading;
+  const canSend = (input.trim().length > 0 || !!pendingImage || !!pendingPlace) && !imageUploading;
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
@@ -190,8 +219,25 @@ function ChatArea({
         {showAttach && (
           <AttachmentMenu
             onPickImage={onPickImage}
+            onOpenLocation={() => setShowLocationModal(true)}
             onClose={() => setShowAttach(false)}
           />
+        )}
+
+        {/* Location picker modal */}
+        {showLocationModal && (
+          <LocationPickerModal
+            onClose={() => setShowLocationModal(false)}
+            onSelect={(place) => {
+              setShowLocationModal(false);
+              onPickPlace?.(place);
+            }}
+          />
+        )}
+
+        {/* Place preview */}
+        {pendingPlace && (
+          <PlacePreview place={pendingPlace} onRemove={onRemovePendingPlace} />
         )}
 
         {/* Image preview */}

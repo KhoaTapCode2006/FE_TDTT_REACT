@@ -47,6 +47,8 @@ export function useGroupChat() {
   // Ảnh đã upload, chờ gửi cùng tin nhắn: { url: string, file: File } | null
   const [pendingImage, setPendingImage] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
+  // Địa điểm đã chọn, chờ gửi cùng tin nhắn: { name, address, propertyToken, gps } | null
+  const [pendingPlace, setPendingPlace] = useState(null);
 
   // ── Load dữ liệu ban đầu ────────────────────────────────────────────────────
   useEffect(() => {
@@ -379,12 +381,18 @@ export function useGroupChat() {
     if (!activeGroup) return;
 
     const text = input.trim();
-    if (!text && !pendingImage) return;
+    if (!text && !pendingImage && !pendingPlace) return;
 
-    console.log('[handleSend] pendingImage:', pendingImage);
+    console.log('[handleSend] pendingImage:', pendingImage, 'pendingPlace:', pendingPlace);
 
     const tempId = `temp_${Date.now()}`;
     const now = new Date();
+
+    // Xác định type ưu tiên: place > image > text
+    let msgType = "text";
+    if (pendingPlace) msgType = "place";
+    else if (pendingImage) msgType = "image";
+
     const optimisticMsg = {
       id: tempId,
       sender: "Me",
@@ -393,27 +401,47 @@ export function useGroupChat() {
       dateKey: now.toLocaleDateString('sv-SE'),
       isMine: true,
       seen: false,
-      type: pendingImage ? "image" : "text",
-      text: text || "",
+      type: msgType,
+      text: text || (pendingPlace ? pendingPlace.name : ""),
       url: pendingImage?.url ?? null,
-      attachments: pendingImage ? [{ type: "image", value: pendingImage.url }] : [],
+      placeId: pendingPlace ? (pendingPlace.address ?? pendingPlace.propertyToken ?? "") : undefined,
+      attachments: pendingImage
+        ? [{ type: "image", value: pendingImage.url }]
+        : pendingPlace
+        ? [{ type: "place", value: pendingPlace.propertyToken ?? pendingPlace.name, metadata: { address: pendingPlace.address, gps: pendingPlace.gps } }]
+        : [],
     };
 
     // Snapshot pending trước khi clear
     const imageToSend = pendingImage;
+    const placeToSend = pendingPlace;
 
     // Optimistic update + clear input
     const updatedMessages = [...messages, optimisticMsg];
     setMessagesByGroup((prev) => ({ ...prev, [activeGroup]: updatedMessages }));
     setInput("");
     setPendingImage(null);
+    setPendingPlace(null);
 
     try {
-      const apiPayload = {
-        content: text,
-      };
-      if (imageToSend) {
-        apiPayload.attachments = [{ type: "image", value: imageToSend.url }];
+      let apiPayload;
+
+      if (placeToSend) {
+        apiPayload = {
+          content: text || placeToSend.name,
+          attachments: [
+            {
+              type: "place",
+              value: placeToSend.propertyToken ?? placeToSend.name,
+              metadata: { address: placeToSend.address, gps: placeToSend.gps },
+            },
+          ],
+        };
+      } else {
+        apiPayload = { content: text };
+        if (imageToSend) {
+          apiPayload.attachments = [{ type: "image", value: imageToSend.url }];
+        }
       }
 
       const sentMsg = await sendMessage(activeGroup, apiPayload);
@@ -424,8 +452,8 @@ export function useGroupChat() {
         [activeGroup]: prev[activeGroup].map((m) => m.id === tempId ? finalMsg : m),
       }));
 
-      // Gọi AI chỉ khi là tin nhắn text thuần
-      if (!imageToSend && text) {
+      // Gọi AI chỉ khi là tin nhắn text thuần (không có ảnh, không có place)
+      if (!imageToSend && !placeToSend && text) {
         try {
           const payload = updatedMessages
             .filter((m) => m.type === "text" && m.text)
@@ -457,8 +485,66 @@ export function useGroupChat() {
         ...prev,
         [activeGroup]: prev[activeGroup].filter((m) => m.id !== tempId),
       }));
-      // Khôi phục pending image nếu gửi thất bại
+      // Khôi phục pending nếu gửi thất bại
       if (imageToSend) setPendingImage(imageToSend);
+      if (placeToSend) setPendingPlace(placeToSend);
+    }
+  };
+
+  // ── Chọn địa điểm → lưu pending, chờ người dùng nhấn gửi ─────────────────
+  const handlePickPlace = ({ name, address, propertyToken, gps }) => {
+    if (!name) return;
+    setPendingPlace({ name, address, propertyToken, gps });
+  };
+
+  // handleSendPlace giữ lại để tương thích nếu cần gửi trực tiếp từ nơi khác
+  const handleSendPlace = async ({ name, address, propertyToken, gps }) => {
+    if (!activeGroup || !name) return;
+
+    const tempId = `temp_place_${Date.now()}`;
+    const now = new Date();
+    const optimisticMsg = {
+      id: tempId,
+      sender: "Me",
+      avatar: "ME",
+      time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      dateKey: now.toLocaleDateString("sv-SE"),
+      isMine: true,
+      seen: false,
+      type: "place",
+      text: name,
+      placeId: address ?? propertyToken ?? "",
+    };
+
+    setMessagesByGroup((prev) => ({
+      ...prev,
+      [activeGroup]: [...(prev[activeGroup] ?? []), optimisticMsg],
+    }));
+
+    try {
+      const apiPayload = {
+        content: name,
+        attachments: [
+          {
+            type: "place",
+            value: propertyToken ?? name,
+            metadata: { address, gps },
+          },
+        ],
+      };
+      const sentMsg = await sendMessage(activeGroup, apiPayload);
+      const finalMsg = { ...optimisticMsg, id: sentMsg.id ?? tempId, seen: true };
+      appendCachedMessage(activeGroup, finalMsg);
+      setMessagesByGroup((prev) => ({
+        ...prev,
+        [activeGroup]: prev[activeGroup].map((m) => (m.id === tempId ? finalMsg : m)),
+      }));
+    } catch (err) {
+      console.error("handleSendPlace error:", err);
+      setMessagesByGroup((prev) => ({
+        ...prev,
+        [activeGroup]: prev[activeGroup].filter((m) => m.id !== tempId),
+      }));
     }
   };
 
@@ -545,12 +631,16 @@ export function useGroupChat() {
     pendingImage,
     setPendingImage,
     imageUploading,
+    pendingPlace,
+    setPendingPlace,
     // Handlers
     setActiveGroup,
     handleCreateGroup,
     handleUpdateGroup,
     handleDeleteGroup,
     handleSend,
+    handleSendPlace,
+    handlePickPlace,
     handlePickImage,
     handleDeleteMessage,
     handleAddMember,
