@@ -68,7 +68,8 @@ function HotelSearchAutocomplete({
       const hotels = await searchHotels(q, gpsRef.current);
       setResults(hotels);
       setOpen(hotels.length > 0);
-    } catch {
+    } catch (err) {
+      console.error('[HotelSearchAutocomplete] searchHotels error:', err?.response?.status, err?.message, err);
       setResults([]);
       setOpen(false);
     } finally {

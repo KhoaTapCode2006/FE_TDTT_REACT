@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { auth } from '@/config/firebase';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -7,6 +8,16 @@ const discoverClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 8000,
   headers: { 'Content-Type': 'application/json' },
+});
+
+// Add Firebase auth token to every request
+discoverClient.interceptors.request.use(async (config) => {
+  const currentUser = auth.currentUser;
+  if (currentUser) {
+    const token = await currentUser.getIdToken();
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 /**

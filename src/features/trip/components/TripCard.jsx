@@ -46,9 +46,12 @@ function TripCard({ trip, currentUid, onDelete, onLeave, onEdit, onView, onInfo,
             <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${badgeStyle[trip.status]}`}>
               {badgeLabel[trip.status]}
             </span>
-            <h3 className={`font-semibold text-gray-900 text-base truncate ${isEnded ? "text-gray-500" : ""}`}>
-              {trip.title}
-            </h3>
+            <div className="min-w-0">
+              <h3 className={`font-semibold text-gray-900 text-base truncate ${isEnded ? "text-gray-500" : ""}`}>
+                {trip.title}
+              </h3>
+              <p className="text-xs text-gray-400 truncate">ID: {trip.id}</p>
+            </div>
           </div>
 
           {/* Action buttons */}

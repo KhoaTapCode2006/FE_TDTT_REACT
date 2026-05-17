@@ -49,7 +49,10 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, 
       <div className="bg-white border-b border-gray-100 shadow-sm px-8 py-3 mb-0">
         <div className="flex items-start justify-between gap-3 mb-2">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-gray-900">{trip.title}</h2>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">{trip.title}</h2>
+              <p className="text-xs text-gray-400">ID: {trip.id}</p>
+            </div>
             <span className={`text-xs font-bold px-3 py-1 rounded-full ${badgeStyle[trip.status]}`}>
               {badgeLabel[trip.status]}
             </span>
