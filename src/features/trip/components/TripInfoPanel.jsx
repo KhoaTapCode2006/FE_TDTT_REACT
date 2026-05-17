@@ -16,13 +16,21 @@ const badgeStyle = {
 const badgeLabel = { waiting: "Waiting", active: "Active", ended: "Ended" };
 
 const fmtDate = (iso) => {
+  console.log('[fmtDate] Input:', iso, 'Type:', typeof iso);
   if (!iso) return "—";
-  const d = new Date(iso);
+  
+  // Nếu iso là Date object, dùng trực tiếp
+  const d = iso instanceof Date ? iso : new Date(iso);
+  
+  console.log('[fmtDate] Date object:', d, 'Valid:', !isNaN(d.getTime()));
   if (isNaN(d.getTime())) return "—";
-  return d.toLocaleString("vi-VN", {
+  
+  const result = d.toLocaleString("vi-VN", {
     hour: "2-digit", minute: "2-digit",
     day: "2-digit", month: "2-digit", year: "numeric",
   });
+  console.log('[fmtDate] Result:', result);
+  return result;
 };
 
 function InfoRow({ label, value }) {
@@ -36,6 +44,8 @@ function InfoRow({ label, value }) {
 
 export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, onLeave, onUpdateStatus, currentUid }) {
   const [confirm, setConfirm] = useState(null); // { type: "delete"|"leave"|"start"|"end" }
+
+  console.log('[TripInfoPanel] Trip data:', trip);
 
   if (!trip) {
     return (
@@ -139,16 +149,16 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, 
 
           <span className="text-gray-200 text-sm">|</span>
 
-          {/* Dates */}
+          {/* Start Date */}
           <div className="flex items-center gap-1.5">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <span className="text-xs text-gray-600">
-              {trip.dateFrom ? fmtDate(trip.dateFrom) : "—"}
-              <span className="mx-1 text-gray-300">→</span>
-              {trip.dateTo ? fmtDate(trip.dateTo) : "—"}
-            </span>
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Start</span>
+            <span className="text-xs text-gray-600">{trip.dateFrom ? fmtDate(trip.dateFrom) : "—"}</span>
+          </div>
+          
+          {/* End Date */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">End</span>
+            <span className="text-xs text-gray-600">{trip.dateTo ? fmtDate(trip.dateTo) : "—"}</span>
           </div>
 
           <span className="text-gray-200 text-sm">|</span>

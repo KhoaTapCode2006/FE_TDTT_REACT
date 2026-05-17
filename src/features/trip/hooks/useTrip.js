@@ -105,6 +105,8 @@ export function useTrip() {
   }, [authLoading, isAuthenticated, user?.uid, fetchTrips]);
 
   // ── Lắng nghe từng trip document trên Firestore ─────────────────────────────
+  // Firestore chỉ sync các trường real-time (status, name, etc.)
+  // KHÔNG có start_at, end_at, created_at, updated_at → preserve từ API data
   useEffect(() => {
     if (!tripIds || !isAuthenticated) return;
 
@@ -115,12 +117,29 @@ export function useTrip() {
         tripRef,
         (snap) => {
           if (!snap.exists()) return;
-          const raw = { id: snap.id, ...snap.data() };
-          const updated = normalizeTripData(raw);
-          console.log("[useTrip] Firestore trip updated:", updated.id, updated.status);
-          setTrips((prev) =>
-            prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t))
-          );
+          const firestoreData = snap.data();
+          console.log("[useTrip] Firestore raw data:", firestoreData);
+          
+          setTrips((prev) => {
+            const existing = prev.find((t) => t.id === snap.id);
+            if (!existing) return prev;
+            
+            // Chỉ update các trường có trong Firestore, preserve các trường date từ API
+            const updated = {
+              ...existing,
+              // Update các trường từ Firestore (status, name, etc.)
+              status: firestoreData.status ?? existing.status,
+              title: firestoreData.name ?? existing.title,
+              // Preserve các trường date từ API (Firestore không có)
+              dateFrom: existing.dateFrom,
+              dateTo: existing.dateTo,
+              created_at: existing.created_at,
+              updated_at: existing.updated_at,
+            };
+            
+            console.log("[useTrip] Firestore trip updated:", updated.id, "status:", updated.status);
+            return prev.map((t) => (t.id === updated.id ? updated : t));
+          });
         },
         (err) => {
           console.error(`[useTrip] Firestore trip snapshot error (${id}):`, err);

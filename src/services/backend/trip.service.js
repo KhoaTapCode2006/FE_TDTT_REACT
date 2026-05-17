@@ -192,6 +192,8 @@ function validateArrayParam(arr, paramName) {
  * @returns {TripData} Normalized trip data
  */
 export function normalizeTripData(t) {
+  console.log('[normalizeTripData] Raw trip data:', t);
+  
   const fmt = (iso) => {
     if (!iso) return '';
     try {
@@ -235,7 +237,7 @@ export function normalizeTripData(t) {
   const s = fmt(t.start_at);
   const e = fmt(t.end_at);
 
-  return {
+  const normalized = {
     id: t.id,
     owner_uid: ownerUid,
     owner: t.owner ?? null,
@@ -244,8 +246,8 @@ export function normalizeTripData(t) {
     place: t.place ?? null,
     status: t.status || 'waiting',
     dateRange: s && e ? `${s} - ${e}` : 'TBD',
-    dateFrom: t.start_at || '',
-    dateTo: t.end_at || '',
+    dateFrom: t.start_at ? new Date(t.start_at) : null,
+    dateTo: t.end_at ? new Date(t.end_at) : null,
     members: memberCount,
     member_uids: uids,
     member_details: memberDetails,
@@ -254,6 +256,9 @@ export function normalizeTripData(t) {
     created_at: t.created_at ? new Date(t.created_at) : null,
     updated_at: t.updated_at ? new Date(t.updated_at) : null,
   };
+  
+  console.log('[normalizeTripData] Normalized trip:', normalized);
+  return normalized;
 }
 
 /**
