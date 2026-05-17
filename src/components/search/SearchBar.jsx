@@ -19,6 +19,7 @@ function SearchBar() {
     setActiveHotel,
     filters,
     radiusM,
+    userGps,
     userLoc
   } = useApp();
 
@@ -80,7 +81,7 @@ function SearchBar() {
     suggestionTimerRef.current = setTimeout(async () => {
       try {
         setLoadingSuggestions(true);
-        const suggestions = await hotelSearchService.getAddressSuggestions(value);
+        const suggestions = await hotelSearchService.getAddressSuggestions(value, userLoc);
         setAddressSuggestions(suggestions);
         setShowSuggestions(suggestions.length > 0);
       } catch (error) {

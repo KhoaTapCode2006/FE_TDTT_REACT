@@ -25,21 +25,28 @@ class HotelSearchService {
    * with ref_id for use in hotel search.
    * 
    * @param {string} address - Address query string
+   * @param {Object} userGps
    * @returns {Promise<Array>} Array of address suggestions with ref_id
    * @throws {Error} If API call fails
    * 
    * Requirements: 13.2, 13.3
    */
-  async getAddressSuggestions(address) {
+  async getAddressSuggestions(address, userGps = null) {
     try {
       if (!address || typeof address !== 'string' || address.trim().length === 0) {
         return [];
       }
 
+      const requestBody = {
+        query: address.trim(),
+        gps: {
+          latitude: userGps?.latitude || 0,
+          longitude: userGps?.longitude || 0,
+          geohash: userGps?.geohash || ""
+        }
+      };
       // Use POST method as backend requires it
-      const response = await apiClient.post('/discover/address-suggest', { 
-        query: address.trim() 
-      });
+      const response = await apiClient.post('/discover/address-suggest', requestBody);
       
       // Backend returns {suggestions: [...]}
       let suggestions = response;
