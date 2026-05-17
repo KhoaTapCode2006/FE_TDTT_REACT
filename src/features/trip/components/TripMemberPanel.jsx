@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
+import ConfirmModal from "./modals/ConfirmModal";
 import { useTripMembers } from "../hooks/useTripMembers";
 
 // ─── TripMemberPanel ───────────────────────────────────────────────────────────
@@ -7,6 +9,7 @@ import { useTripMembers } from "../hooks/useTripMembers";
 
 export default function TripMemberPanel({ trip, onRemoveMember, onAddMember }) {
   const { members: firestoreMembers } = useTripMembers(trip?.id ?? null);
+  const [confirmRemove, setConfirmRemove] = useState(null); // { uid, display_name }
 
   if (!trip) {
     return (
@@ -80,7 +83,7 @@ export default function TripMemberPanel({ trip, onRemoveMember, onAddMember }) {
                   )}
                 </div>
                 <button
-                  onClick={() => onRemoveMember(trip.id, m.uid)}
+                  onClick={() => setConfirmRemove({ uid: m.uid, display_name: m.display_name ?? m.username ?? m.uid })}
                   className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
                   title="Remove member"
                 >
@@ -93,6 +96,16 @@ export default function TripMemberPanel({ trip, onRemoveMember, onAddMember }) {
           })}
         </div>
       </div>
+
+      {confirmRemove && (
+        <ConfirmModal
+          title="Xóa thành viên?"
+          message={`Bạn có chắc muốn xóa "${confirmRemove.display_name}" khỏi chuyến đi này?`}
+          confirmLabel="Xóa"
+          onConfirm={() => { onRemoveMember(trip.id, confirmRemove.uid); setConfirmRemove(null); }}
+          onCancel={() => setConfirmRemove(null)}
+        />
+      )}
     </div>
   );
 }

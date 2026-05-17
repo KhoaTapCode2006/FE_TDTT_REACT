@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
 import TripScheduleModal from "./modals/TripScheduleModal";
+import ConfirmModal from "./modals/ConfirmModal";
 import { useTripMembers } from "../hooks/useTripMembers";
 
 // ─── TripCard ─────────────────────────────────────────────────────────────────
@@ -13,6 +14,7 @@ function TripCard({ trip, currentUid, onDelete, onLeave, onEdit, onView, onInfo,
 
   // { action: "start"|"end" } | null
   const [scheduleAction, setScheduleAction] = useState(null);
+  const [confirm, setConfirm] = useState(null); // { type: "delete"|"leave" }
 
   // Realtime members từ Firestore
   const { memberUids } = useTripMembers(trip.id);
@@ -72,7 +74,7 @@ function TripCard({ trip, currentUid, onDelete, onLeave, onEdit, onView, onInfo,
             {/* Delete (owner) hoặc Leave (member) */}
             {isOwner ? (
               <button
-                onClick={() => onDelete(trip.id)}
+                onClick={() => setConfirm({ type: "delete" })}
                 className="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
                 title="Delete trip"
               >
@@ -82,7 +84,7 @@ function TripCard({ trip, currentUid, onDelete, onLeave, onEdit, onView, onInfo,
               </button>
             ) : (
               <button
-                onClick={() => onLeave(trip.id)}
+                onClick={() => setConfirm({ type: "leave" })}
                 className="w-7 h-7 rounded-lg hover:bg-orange-50 flex items-center justify-center text-gray-400 hover:text-orange-500 transition-colors"
                 title="Rời chuyến đi"
               >
@@ -207,6 +209,29 @@ function TripCard({ trip, currentUid, onDelete, onLeave, onEdit, onView, onInfo,
             setScheduleAction(null);
           }}
           onClose={() => setScheduleAction(null)}
+        />
+      )}
+
+      {/* Confirm: xóa trip */}
+      {confirm?.type === "delete" && (
+        <ConfirmModal
+          title="Xóa chuyến đi?"
+          message={`Chuyến đi "${trip.title}" sẽ bị xóa vĩnh viễn.`}
+          confirmLabel="Xóa"
+          onConfirm={() => { setConfirm(null); onDelete(trip.id); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      {/* Confirm: rời trip */}
+      {confirm?.type === "leave" && (
+        <ConfirmModal
+          title="Rời chuyến đi?"
+          message={`Bạn sẽ rời khỏi chuyến đi "${trip.title}".`}
+          confirmLabel="Rời trip"
+          confirmClassName="px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors"
+          onConfirm={() => { setConfirm(null); onLeave(trip.id); }}
+          onCancel={() => setConfirm(null)}
         />
       )}
     </>

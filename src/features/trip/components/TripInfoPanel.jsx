@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
+import ConfirmModal from "./modals/ConfirmModal";
 import { useTripMembers } from "../hooks/useTripMembers";
 
 // ─── TripInfoPanel ─────────────────────────────────────────────────────────────
@@ -32,6 +34,8 @@ function InfoRow({ label, value }) {
 }
 
 export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, onLeave, onUpdateStatus, currentUid }) {
+  const [confirm, setConfirm] = useState(null); // { type: "delete"|"leave"|"start"|"end" }
+
   if (!trip) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -64,11 +68,7 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, 
                 {/* Start / End status buttons */}
                 {onUpdateStatus && trip.status === "waiting" && (
                   <button
-                    onClick={() => {
-                      if (window.confirm(`Bắt đầu chuyến đi "${trip.title}"?`)) {
-                        onUpdateStatus(trip.id, "active");
-                      }
-                    }}
+                    onClick={() => setConfirm({ type: "start" })}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -79,11 +79,7 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, 
                 )}
                 {onUpdateStatus && trip.status === "active" && (
                   <button
-                    onClick={() => {
-                      if (window.confirm(`Kết thúc chuyến đi "${trip.title}"?`)) {
-                        onUpdateStatus(trip.id, "ended");
-                      }
-                    }}
+                    onClick={() => setConfirm({ type: "end" })}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -105,11 +101,7 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, 
                 )}
                 {onDelete && (
                   <button
-                    onClick={() => {
-                      if (window.confirm(`Xóa chuyến đi "${trip.title}"? Hành động này không thể hoàn tác.`)) {
-                        onDelete(trip.id);
-                      }
-                    }}
+                    onClick={() => setConfirm({ type: "delete" })}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -122,11 +114,7 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, 
             ) : (
               onLeave && (
                 <button
-                  onClick={() => {
-                    if (window.confirm(`Rời chuyến đi "${trip.title}"?`)) {
-                      onLeave(trip.id);
-                    }
-                  }}
+                  onClick={() => setConfirm({ type: "leave" })}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -202,6 +190,47 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, 
           )}
         </div>
       </div>
+
+      {/* Confirm modals */}
+      {confirm?.type === "delete" && (
+        <ConfirmModal
+          title="Xóa chuyến đi?"
+          message={`Chuyến đi "${trip.title}" sẽ bị xóa vĩnh viễn.`}
+          confirmLabel="Xóa"
+          onConfirm={() => { setConfirm(null); onDelete(trip.id); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+      {confirm?.type === "leave" && (
+        <ConfirmModal
+          title="Rời chuyến đi?"
+          message={`Bạn sẽ rời khỏi chuyến đi "${trip.title}".`}
+          confirmLabel="Rời trip"
+          confirmClassName="px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors"
+          onConfirm={() => { setConfirm(null); onLeave(trip.id); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+      {confirm?.type === "start" && (
+        <ConfirmModal
+          title="Bắt đầu chuyến đi?"
+          message={`Bắt đầu chuyến đi "${trip.title}"? Tất cả thành viên sẽ được thông báo.`}
+          confirmLabel="Bắt đầu"
+          confirmClassName="px-4 py-2 rounded-xl text-sm font-medium text-white bg-green-500 hover:bg-green-600 transition-colors"
+          onConfirm={() => { setConfirm(null); onUpdateStatus(trip.id, "active"); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+      {confirm?.type === "end" && (
+        <ConfirmModal
+          title="Kết thúc chuyến đi?"
+          message={`Kết thúc chuyến đi "${trip.title}"? Tracking sẽ dừng lại.`}
+          confirmLabel="Kết thúc"
+          confirmClassName="px-4 py-2 rounded-xl text-sm font-medium text-white bg-gray-700 hover:bg-gray-900 transition-colors"
+          onConfirm={() => { setConfirm(null); onUpdateStatus(trip.id, "ended"); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
     </div>
   );
 }
