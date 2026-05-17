@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
 import ConfirmModal from "./modals/ConfirmModal";
+import TripScheduleModal from "./modals/TripScheduleModal";
 import { useTripMembers } from "../hooks/useTripMembers";
 
 // ─── TripInfoPanel ─────────────────────────────────────────────────────────────
@@ -211,24 +212,16 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, 
           onCancel={() => setConfirm(null)}
         />
       )}
-      {confirm?.type === "start" && (
-        <ConfirmModal
-          title="Bắt đầu chuyến đi?"
-          message={`Bắt đầu chuyến đi "${trip.title}"? Tất cả thành viên sẽ được thông báo.`}
-          confirmLabel="Bắt đầu"
-          confirmClassName="px-4 py-2 rounded-xl text-sm font-medium text-white bg-green-500 hover:bg-green-600 transition-colors"
-          onConfirm={() => { setConfirm(null); onUpdateStatus(trip.id, "active"); }}
-          onCancel={() => setConfirm(null)}
-        />
-      )}
-      {confirm?.type === "end" && (
-        <ConfirmModal
-          title="Kết thúc chuyến đi?"
-          message={`Kết thúc chuyến đi "${trip.title}"? Tracking sẽ dừng lại.`}
-          confirmLabel="Kết thúc"
-          confirmClassName="px-4 py-2 rounded-xl text-sm font-medium text-white bg-gray-700 hover:bg-gray-900 transition-colors"
-          onConfirm={() => { setConfirm(null); onUpdateStatus(trip.id, "ended"); }}
-          onCancel={() => setConfirm(null)}
+      {(confirm?.type === "start" || confirm?.type === "end") && (
+        <TripScheduleModal
+          action={confirm.type}
+          tripName={trip.title}
+          onConfirm={(scheduledAt) => {
+            const newStatus = confirm.type === "start" ? "active" : "ended";
+            setConfirm(null);
+            onUpdateStatus(trip.id, newStatus, scheduledAt);
+          }}
+          onClose={() => setConfirm(null)}
         />
       )}
     </div>
