@@ -26,52 +26,31 @@ async function ensureValidToken() {
 /**
  * Add hotel to favorite places
  * Requirements: 15.1, 15.2, 15.7
- * @param {Object} hotelData - Hotel data to save
+ * @param {string} placeId - Property token (place_id) to save
  * @returns {Promise<void>}
- * @throws {Error} If not authenticated or hotel data is invalid
+ * @throws {Error} If not authenticated or place_id is invalid
  */
-export async function addFavoritePlace(hotelData) {
+export async function addFavoritePlace(placeId) {
   try {
-    // Debug logging
-    console.log('🔍 addFavoritePlace called with:', {
-      hasHotelData: !!hotelData,
-      hotelDataKeys: hotelData ? Object.keys(hotelData) : [],
-      propertyToken: hotelData?.propertyToken,
-      id: hotelData?.id,
-      name: hotelData?.name
-    });
-
-    // Use id as fallback for propertyToken
-    const propertyToken = hotelData?.propertyToken || hotelData?.id;
-    
-    if (!hotelData || !propertyToken) {
-      console.error('❌ Missing propertyToken/id in hotelData:', hotelData);
-      throw new Error('Hotel data with propertyToken or id is required');
+    // Validate place_id
+    if (!placeId || typeof placeId !== 'string') {
+      console.error('❌ Invalid place_id:', placeId);
+      throw new Error('Valid place_id is required');
     }
 
     await ensureValidToken();
 
-    // Prepare hotel data for backend - use propertyToken (or id as fallback) as place_id
+    // Send only place_id to backend API
     const favoriteData = {
-      place_id: propertyToken,
-      name: hotelData.name || 'Unknown Hotel',
-      address: hotelData.address || hotelData.location || '',
-      rating: hotelData.rating || hotelData.ai_score || 0,
-      pricePerNight: hotelData.pricePerNight || hotelData.price || 0,
-      images: hotelData.images || [],
-      amenities: hotelData.amenities || [],
-      gps_coordinates: {
-        latitude: hotelData.lat || 0,
-        longitude: hotelData.lng || hotelData.lon || 0
-      }
+      place_id: placeId
     };
 
     // Add to favorite places via backend API
-    await apiClient.post('/me/favourites-places', favoriteData);
+    await apiClient.post('/me/favourite-places', favoriteData);
   } catch (error) {
     console.error('Error adding favorite place:', error);
 
-    if (error.message === 'Hotel data with propertyToken is required') {
+    if (error.message === 'Valid place_id is required') {
       throw error;
     }
 
@@ -107,7 +86,7 @@ export async function removeFavoritePlace(propertyToken) {
     await ensureValidToken();
 
     // Remove from favorite places via backend API using propertyToken as place_id
-    await apiClient.delete(`/me/favourites-places?place_id=${propertyToken}`);
+    await apiClient.delete(`/me/favourite-places/${propertyToken}`);
   } catch (error) {
     console.error('Error removing favorite place:', error);
 
@@ -138,7 +117,7 @@ export async function getFavoritePlaces() {
     await ensureValidToken();
 
     // Get favorite places from backend API
-    const response = await apiClient.get('/me/favourites-places');
+    const response = await apiClient.get('/me/favourite-places');
 
     // Response should be an array of favorite places
     if (!Array.isArray(response)) {
@@ -153,11 +132,16 @@ export async function getFavoritePlaces() {
       propertyToken: place.place_id || place.id,
       name: place.name || 'Unknown Hotel',
       location: place.address || '',
-      rating: place.rating || 0,
+      rating: place.rating || place.ai_score || 0,
       pricePerNight: place.pricePerNight || place.price || 0,
       currency: 'VND',
-      imageUrl: place.images?.[0] || place.thumbnail || null,
-      images: place.images || [],
+      // Handle images - extract first image URL for imageUrl
+      imageUrl: Array.isArray(place.images) && place.images.length > 0
+        ? (typeof place.images[0] === 'string' 
+            ? place.images[0] 
+            : place.images[0]?.thumbnail || place.images[0]?.original || place.images[0]?.url || null)
+        : (place.thumbnail || null),
+      images: Array.isArray(place.images) ? place.images : [],
       amenities: place.amenities || [],
       coordinates: place.gps_coordinates || place.coordinates || null,
       lat: place.gps_coordinates?.latitude || 0,
@@ -276,11 +260,11 @@ export async function getFavoriteByHotelId(propertyToken) {
 class FavoritesService {
   /**
    * Add hotel to favorites
-   * @param {Object} hotelData - Hotel data to save
+   * @param {string} placeId - Property token (place_id) to save
    * @returns {Promise<void>}
    */
-  async addFavorite(hotelData) {
-    return addFavoritePlace(hotelData);
+  async addFavorite(placeId) {
+    return addFavoritePlace(placeId);
   }
 
   /**

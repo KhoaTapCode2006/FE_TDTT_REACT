@@ -17,9 +17,9 @@ function GuestsSelector({ guests, onChange, onClose }) {
   }
 
   function changeChildren(delta) {
-    const next = Math.max(0, guests.children + delta);
+    const next = Math.max(0, Math.min(5, guests.children + delta)); // Max 5 children
     const ages = [...guests.childrenAges];
-    if (next > guests.children) ages.push(0);
+    if (next > guests.children) ages.push(1); // Default age 1 instead of 0
     else ages.pop();
     onChange({ ...guests, children: next, childrenAges: ages });
   }
@@ -74,7 +74,7 @@ function GuestsSelector({ guests, onChange, onClose }) {
         onInc={() => changeAdults(1)}
       />
       <Counter
-        label="Trẻ em"
+        label="Trẻ em (tối đa 5)"
         value={guests.children}
         min={0}
         onDec={() => changeChildren(-1)}
@@ -99,8 +99,8 @@ function GuestsSelector({ guests, onChange, onClose }) {
                 onChange={(e) => { e.stopPropagation(); changeChildAge(i, e.target.value); }}
                 className="border border-outline-variant/40 rounded-xl pl-3 pr-8 py-1.5 text-sm font-medium text-on-surface bg-surface-container-low focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 appearance-none transition-colors"
               >
-                {Array.from({ length: 13 }, (_, v) => (
-                  <option key={v} value={v}>{v} tuổi</option>
+                {Array.from({ length: 17 }, (_, v) => v + 1).map(age => (
+                  <option key={age} value={age}>{age} tuổi</option>
                 ))}
               </select>
             </div>

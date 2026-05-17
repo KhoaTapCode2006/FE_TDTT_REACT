@@ -160,10 +160,10 @@ function SearchBar() {
       const checkInStr = formatLocalDate(checkIn);
       const checkOutStr = formatLocalDate(checkOut);
       
-      // Format children as array of ages
-      const childrenArray = Array.isArray(guests.children) 
-        ? guests.children 
-        : (guests.children > 0 ? Array(guests.children).fill(0) : []);
+      // Format children as array of ages from childrenAges
+      const childrenArray = Array.isArray(guests.childrenAges) && guests.childrenAges.length > 0
+        ? guests.childrenAges 
+        : [];
 
       // Simple geohash calculation (precision 5 for ~5km accuracy)
       const calculateGeohash = (lat, lon) => {

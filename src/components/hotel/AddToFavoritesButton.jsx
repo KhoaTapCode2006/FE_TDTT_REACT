@@ -115,21 +115,8 @@ const AddToFavoritesButton = ({
           message: 'Removed from favorites'
         });
       } else {
-        // Add to favorites
-        await addFavoritePlace({
-          id: hotelId,
-          propertyToken: hotelId, // Map id to propertyToken
-          name: hotelData.name,
-          address: hotelData.address || hotelData.location,
-          rating: hotelData.rating || hotelData.ai_score || 0,
-          pricePerNight: hotelData.pricePerNight || hotelData.price || 0,
-          images: hotelData.images || [],
-          amenities: hotelData.amenities || [],
-          coordinates: hotelData.coordinates || {
-            latitude: hotelData.lat || 0,
-            longitude: hotelData.lng || hotelData.lon || 0
-          }
-        });
+        // Add to favorites - only send place_id (property_token)
+        await addFavoritePlace(hotelId);
         
         setIsFavorited(true);
         

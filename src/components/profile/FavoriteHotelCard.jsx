@@ -84,7 +84,27 @@ const FavoriteHotelCard = ({ hotel, onRemove, onViewDetails }) => {
     onViewDetails(hotel.hotelId);
   };
 
-  const imageUrl = hotel.imageUrl || '/placeholder.png';
+  // Handle image URL - support both imageUrl and images array
+  const getImageUrl = () => {
+    // First try imageUrl
+    if (hotel.imageUrl) {
+      return hotel.imageUrl;
+    }
+    
+    // Then try images array
+    if (Array.isArray(hotel.images) && hotel.images.length > 0) {
+      const firstImage = hotel.images[0];
+      if (typeof firstImage === 'string') {
+        return firstImage;
+      }
+      // Handle image object with thumbnail/original/url
+      return firstImage?.thumbnail || firstImage?.original || firstImage?.url || '/placeholder.png';
+    }
+    
+    return '/placeholder.png';
+  };
+
+  const imageUrl = getImageUrl();
 
   return (
     <div className="bg-white rounded-xl border border-outline-variant/20 overflow-hidden hover:shadow-lg transition-all group">

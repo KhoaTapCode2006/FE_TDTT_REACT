@@ -95,18 +95,39 @@ const FavoritesSection = () => {
       // Transform favorite data to hotel format for popup
       const hotelData = {
         id: hotel.hotelId || hotel.id,
+        propertyToken: hotel.propertyToken || hotel.hotelId || hotel.id,
         name: hotel.name,
         address: hotel.location,
         location: hotel.location,
-        rating: hotel.rating,
+        rating: hotel.rating || 0,
         pricePerNight: hotel.pricePerNight,
+        price: hotel.pricePerNight,
         currency: hotel.currency || 'VND',
-        images: hotel.images || [hotel.imageUrl],
+        // Handle images properly - transform to popup format
+        images: Array.isArray(hotel.images) && hotel.images.length > 0
+          ? hotel.images.map(img => {
+              if (typeof img === 'string') {
+                return { thumbnail: img, original: img, url: img };
+              }
+              return {
+                thumbnail: img?.thumbnail || img?.url || img?.original || '',
+                original: img?.original || img?.original_image || img?.url || img?.thumbnail || '',
+                url: img?.url || img?.original || img?.thumbnail || ''
+              };
+            })
+          : (hotel.imageUrl ? [{ thumbnail: hotel.imageUrl, original: hotel.imageUrl, url: hotel.imageUrl }] : []),
+        thumbnail: hotel.imageUrl || (Array.isArray(hotel.images) && hotel.images.length > 0 
+          ? (typeof hotel.images[0] === 'string' ? hotel.images[0] : hotel.images[0]?.thumbnail || hotel.images[0]?.url || '')
+          : null),
         // Add default values for popup
         amenities: hotel.amenities || [],
+        nearbyLandmarks: hotel.nearbyLandmarks || [],
         landmarks: hotel.landmarks || [],
         reviews: hotel.reviews || [],
-        coordinates: hotel.coordinates || null
+        userReviews: hotel.userReviews || [],
+        coordinates: hotel.coordinates || null,
+        lat: hotel.lat || hotel.coordinates?.latitude || 0,
+        lng: hotel.lng || hotel.coordinates?.longitude || 0
       };
       setSelectedHotel(hotelData);
     }

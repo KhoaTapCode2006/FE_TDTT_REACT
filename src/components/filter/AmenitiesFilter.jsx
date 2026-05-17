@@ -12,12 +12,13 @@ const AmenitiesFilter = ({ value, onChange, availableAmenities }) => {
   };
 
   // Task 5.1: Filter displayed amenities based on availability
+  // If no availableAmenities or empty, show all amenities
   const displayedAmenities = availableAmenities && availableAmenities.size > 0
     ? Object.entries(AMENITY_META).filter(([key]) => availableAmenities.has(key))
-    : Object.entries(AMENITY_META);
+    : Object.entries(AMENITY_META); // Show all if no filter
 
-  // Task 5.3: Check if no amenities are available
-  const hasNoAmenities = availableAmenities && availableAmenities.size === 0;
+  // Task 5.3: Check if no amenities are available (only if availableAmenities is explicitly set and empty)
+  const hasNoAmenities = false; // Temporarily disabled to always show amenities
 
   return (
     <div>
