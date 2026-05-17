@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
 import ConfirmModal from "./modals/ConfirmModal";
 import { useTripMembers } from "../hooks/useTripMembers";
@@ -10,6 +10,7 @@ import { useTripMembers } from "../hooks/useTripMembers";
 export default function TripMemberPanel({ trip, onRemoveMember, onAddMember, refreshKey = 0 }) {
   const { members: firestoreMembers } = useTripMembers(trip?.id ?? null, refreshKey);
   const [confirmRemove, setConfirmRemove] = useState(null); // { uid, display_name }
+  const [searchQuery, setSearchQuery] = useState("");
 
   if (!trip) {
     return (
@@ -27,12 +28,31 @@ export default function TripMemberPanel({ trip, onRemoveMember, onAddMember, ref
     return isNaN(d.getTime()) ? null : d;
   };
 
+  // Filter members based on search query
+  const filteredMembers = useMemo(() => {
+    if (!searchQuery.trim()) return firestoreMembers;
+    
+    const query = searchQuery.toLowerCase().trim();
+    return firestoreMembers.filter((m) => {
+      const displayName = (m.display_name || "").toLowerCase();
+      const username = (m.username || "").toLowerCase();
+      const uid = (m.uid || "").toLowerCase();
+      
+      return displayName.includes(query) || username.includes(query) || uid.includes(query);
+    });
+  }, [firestoreMembers, searchQuery]);
+
   return (
     <div className="w-full h-full">
       <div className="bg-white border-b border-gray-100 shadow-sm px-8 py-4 flex items-center justify-between">
         <div>
           <h2 className="text-base font-bold text-gray-900">{trip.title}</h2>
-          <p className="text-xs text-gray-400 mt-0.5">{firestoreMembers.length} thành viên</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {filteredMembers.length === firestoreMembers.length 
+              ? `${firestoreMembers.length} thành viên`
+              : `${filteredMembers.length} / ${firestoreMembers.length} thành viên`
+            }
+          </p>
         </div>
         <button
           onClick={() => onAddMember?.(trip)}
@@ -46,12 +66,57 @@ export default function TripMemberPanel({ trip, onRemoveMember, onAddMember, ref
       </div>
 
       <div className="px-8 py-4">
+        {/* Search bar */}
+        {firestoreMembers.length > 0 && (
+          <div className="mb-4">
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Tìm kiếm thành viên..."
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 pl-10 text-sm text-gray-700 placeholder-gray-400 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition bg-gray-50"
+              />
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor" 
+                strokeWidth={2}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {firestoreMembers.length === 0 && (
           <p className="text-xs text-gray-400 py-8 text-center">Chưa có thành viên</p>
         )}
 
+        {firestoreMembers.length > 0 && filteredMembers.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-12 h-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <p className="text-sm font-medium">Không tìm thấy thành viên</p>
+            <p className="text-xs mt-1">Thử tìm kiếm với từ khóa khác</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {firestoreMembers.map((m, i) => {
+          {filteredMembers.map((m, i) => {
             const joinedDate = toDate(m.joined_at);
             const joinedStr = joinedDate
               ? joinedDate.toLocaleString("vi-VN", {
