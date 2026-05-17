@@ -114,6 +114,9 @@ export default function TripPage() {
                     onRemoveMember={handleRemoveMember}
                     onEdit={setEditingTrip}
                     onDelete={handleDelete}
+                    onLeave={handleLeaveTrip}
+                    onUpdateStatus={handleUpdateStatus}
+                    currentUid={currentUid}
                   />
                 </div>
                 <div className="flex-1 min-h-0 px-4 pb-0">

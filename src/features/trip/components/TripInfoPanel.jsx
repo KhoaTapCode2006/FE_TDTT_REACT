@@ -31,7 +31,7 @@ function InfoRow({ label, value }) {
   );
 }
 
-export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete }) {
+export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, onLeave, onUpdateStatus, currentUid }) {
   if (!trip) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -40,6 +40,8 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete }
       </div>
     );
   }
+
+  const isOwner = currentUid && trip.owner_uid && currentUid === trip.owner_uid;
 
   return (
     <div className="w-full">
@@ -54,31 +56,82 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete }
           </div>
           {/* Action buttons */}
           <div className="flex items-center gap-2 shrink-0">
-            {onEdit && (
-              <button
-                onClick={() => onEdit(trip)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                Cập nhật
-              </button>
-            )}
-            {onDelete && (
-              <button
-                onClick={() => {
-                  if (window.confirm(`Xóa chuyến đi "${trip.title}"? Hành động này không thể hoàn tác.`)) {
-                    onDelete(trip.id);
-                  }
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Xóa
-              </button>
+            {isOwner ? (
+              <>
+                {/* Start / End status buttons */}
+                {onUpdateStatus && trip.status === "waiting" && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Bắt đầu chuyến đi "${trip.title}"?`)) {
+                        onUpdateStatus(trip.id, "active");
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 3l14 9-14 9V3z" />
+                    </svg>
+                    Start
+                  </button>
+                )}
+                {onUpdateStatus && trip.status === "active" && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Kết thúc chuyến đi "${trip.title}"?`)) {
+                        onUpdateStatus(trip.id, "ended");
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 5h14v14H5z" />
+                    </svg>
+                    End
+                  </button>
+                )}
+                {onEdit && (
+                  <button
+                    onClick={() => onEdit(trip)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Cập nhật
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Xóa chuyến đi "${trip.title}"? Hành động này không thể hoàn tác.`)) {
+                        onDelete(trip.id);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Xóa
+                  </button>
+                )}
+              </>
+            ) : (
+              onLeave && (
+                <button
+                  onClick={() => {
+                    if (window.confirm(`Rời chuyến đi "${trip.title}"?`)) {
+                      onLeave(trip.id);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  Rời trip
+                </button>
+              )
             )}
           </div>
         </div>

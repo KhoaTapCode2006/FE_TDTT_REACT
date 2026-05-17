@@ -1,13 +1,18 @@
 import { useState } from "react";
 import TripDateRangePicker from "../TripDateRangePicker";
+import HotelSearchAutocomplete from "../HotelSearchAutocomplete";
 
 // ─── EditTripModal ────────────────────────────────────────────────────────────
 function EditTripModal({ trip, onClose, onSave }) {
-  const [title,      setTitle]     = useState(trip.title);
-  const [placeId,    setPlaceId]   = useState(trip.place_id ?? "");
-  const [dateFrom,   setDateFrom]  = useState(trip.dateFrom ?? "");
-  const [dateTo,     setDateTo]    = useState(trip.dateTo ?? "");
-  const [showPicker, setShowPicker] = useState(false);
+  const [title,        setTitle]       = useState(trip.title);
+  const [placeId,      setPlaceId]     = useState(trip.place_id ?? "");
+  // Dùng tên khách sạn từ trip.place nếu có, fallback về place_id
+  const [placeDisplay, setPlaceDisplay] = useState(
+    trip.place?.name ?? trip.place_id ?? ""
+  );
+  const [dateFrom,     setDateFrom]    = useState(trip.dateFrom ?? "");
+  const [dateTo,       setDateTo]      = useState(trip.dateTo ?? "");
+  const [showPicker,   setShowPicker]  = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -61,16 +66,16 @@ function EditTripModal({ trip, onClose, onSave }) {
                 />
               </div>
 
-              {/* Place ID */}
+              {/* Destination Hotel */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-gray-900">Place ID</label>
-                <input
-                  type="text"
+                <label className="text-sm font-bold text-gray-900">Destination Hotel</label>
+                <HotelSearchAutocomplete
                   value={placeId}
-                  onChange={(e) => setPlaceId(e.target.value)}
-                  placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
-                  maxLength={300}
-                  className="border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-300 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition bg-gray-50"
+                  displayValue={placeDisplay}
+                  onChange={({ placeId: id, display }) => {
+                    setPlaceId(id);
+                    setPlaceDisplay(display);
+                  }}
                 />
               </div>
 

@@ -1,13 +1,15 @@
 import { useState } from "react";
 import TripDateRangePicker from "../TripDateRangePicker";
+import HotelSearchAutocomplete from "../HotelSearchAutocomplete";
 
 // ─── CreateTripModal ──────────────────────────────────────────────────────────
 function CreateTripModal({ onClose, onCreate }) {
-  const [title,      setTitle]     = useState("");
-  const [placeId,    setPlaceId]   = useState("");
-  const [dateFrom,   setDateFrom]  = useState("");
-  const [dateTo,     setDateTo]    = useState("");
-  const [showPicker, setShowPicker] = useState(false);
+  const [title,        setTitle]       = useState("");
+  const [placeId,      setPlaceId]     = useState("");
+  const [placeDisplay, setPlaceDisplay] = useState("");
+  const [dateFrom,     setDateFrom]    = useState("");
+  const [dateTo,       setDateTo]      = useState("");
+  const [showPicker,   setShowPicker]  = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -50,16 +52,16 @@ function CreateTripModal({ onClose, onCreate }) {
                 />
               </div>
 
-              {/* Place ID */}
+              {/* Destination Hotel */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-gray-900">Place ID</label>
-                <input
-                  type="text"
+                <label className="text-sm font-bold text-gray-900">Destination Hotel</label>
+                <HotelSearchAutocomplete
                   value={placeId}
-                  onChange={(e) => setPlaceId(e.target.value)}
-                  placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
-                  maxLength={300}
-                  className="border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-300 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition bg-gray-50"
+                  displayValue={placeDisplay}
+                  onChange={({ placeId: id, display }) => {
+                    setPlaceId(id);
+                    setPlaceDisplay(display);
+                  }}
                 />
               </div>
 
