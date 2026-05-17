@@ -50,6 +50,9 @@ export function useGroupChat() {
   // Địa điểm đã chọn, chờ gửi cùng tin nhắn: { name, address, propertyToken, gps } | null
   const [pendingPlace, setPendingPlace] = useState(null);
 
+  // Cache uid → display_name để resolve sender name
+  const userNameCacheRef = useRef({});
+
   // ── Load dữ liệu ban đầu ────────────────────────────────────────────────────
   useEffect(() => {
     // Chờ Firebase Auth restore session trước khi gọi API
@@ -73,9 +76,40 @@ export function useGroupChat() {
         // Fetch messages song song cho tất cả groups
         const messagesMap = await getMessagesByGroup(groupList.map((g) => g.id));
 
+        // Resolve display names cho tất cả tin nhắn ban đầu
+        const currentUid = auth.currentUser?.uid;
+        const enrichedMessagesMap = {};
+        
+        for (const [groupId, rawMessages] of Object.entries(messagesMap)) {
+          const enriched = await Promise.all(
+            rawMessages.map(async (msg) => {
+              if (msg.isMine) return msg;
+              const uid = msg.senderUid;
+              if (!uid || msg.sender !== uid) return msg; // sender đã được resolve
+              
+              // Resolve display name từ Firestore
+              try {
+                const snap = await getDoc(doc(db, 'users', uid));
+                if (snap.exists()) {
+                  const profile = snap.data();
+                  const name = profile?.fullName ?? profile?.display_name ?? profile?.username ?? uid;
+                  userNameCacheRef.current[uid] = name;
+                  return {
+                    ...msg,
+                    sender: name,
+                    avatar: name.split(' ').map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase() || '??',
+                  };
+                }
+              } catch { /* ignore */ }
+              return msg;
+            })
+          );
+          enrichedMessagesMap[groupId] = enriched;
+        }
+
         setGroups(groupList);
         setMembersByGroup(membersMap);
-        setMessagesByGroup(messagesMap);
+        setMessagesByGroup(enrichedMessagesMap);
 
         if (groupList.length > 0) setActiveGroupState(groupList[0].id);
       } catch (err) {
@@ -245,8 +279,6 @@ export function useGroupChat() {
 
     return () => unsub();
   }, []); // Chạy một lần duy nhất khi mount
-  // Cache uid → display_name để resolve sender name
-  const userNameCacheRef = useRef({});
 
   /**
    * Resolve display name cho một uid.

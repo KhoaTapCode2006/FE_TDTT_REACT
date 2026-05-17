@@ -10,9 +10,10 @@ import { tripService } from "../../../services/backend/trip.service";
 
 /**
  * @param {string|null} tripId
+ * @param {number} [refreshKey=0] — tăng giá trị này để force re-fetch REST members
  * @returns {{ members: Array, memberUids: string[], loading: boolean, error: string|null }}
  */
-export function useTripMembers(tripId) {
+export function useTripMembers(tripId, refreshKey = 0) {
   const [restMembers, setRestMembers] = useState([]); // full member objects từ REST
   const [trackingMap, setTrackingMap] = useState({}); // uid -> { joined_at, tracking } từ Firestore
   const [loading, setLoading] = useState(false);
@@ -50,7 +51,7 @@ export function useTripMembers(tripId) {
     return () => {
       cancelled = true;
     };
-  }, [tripId]);
+  }, [tripId, refreshKey]);
 
   // ── 2. Subscribe tracking realtime từ Firestore (override tracking từ REST) ──
   useEffect(() => {

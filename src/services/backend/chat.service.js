@@ -132,7 +132,7 @@ async function getConversationIdsFromFirestore() {
 /**
  * Fetch conversation user-cache docs from /users/{uid}/conversations.
  * Each doc contains latest_msg, unread_count, etc. written by backend.
- * Enriches latest_msg with sender_name by fetching /users/{sender_uid}.
+ * Enriches latest_msg with sender_name by fetching conversation members (which have display_name).
  * Returns a map of { [conversationId]: docData }.
  *
  * @returns {Promise<Object.<string, Object>>}
@@ -150,38 +150,62 @@ async function getUserConversationCacheMap() {
     map[d.id] = d.data();
   });
 
-  // Collect unique sender_uids to batch-fetch display names
-  const senderUids = new Set();
-  Object.values(map).forEach((cacheDoc) => {
-    const senderUid = cacheDoc?.latest_msg?.sender_uid;
-    if (senderUid && senderUid !== uid) senderUids.add(senderUid);
+  // Collect conversation IDs that need member resolution
+  const conversationIds = Object.keys(map).filter((id) => {
+    const senderUid = map[id]?.latest_msg?.sender_uid;
+    return senderUid && senderUid !== uid;
   });
 
-  // Batch-fetch sender profiles
-  const senderNameMap = {};
-  if (senderUids.size > 0) {
-    await Promise.allSettled(
-      [...senderUids].map(async (senderUid) => {
-        try {
-          const userSnap = await getDoc(doc(db, 'users', senderUid));
-          if (userSnap.exists()) {
-            const profile = userSnap.data();
-            senderNameMap[senderUid] =
-              profile?.fullName ?? profile?.display_name ?? profile?.username ?? senderUid.slice(0, 6);
-          }
-        } catch { /* ignore */ }
-      })
-    );
+  if (conversationIds.length === 0) {
+    // No conversations need resolution, enrich with "Bạn" for own messages
+    Object.keys(map).forEach((id) => {
+      const cacheDoc = map[id];
+      const senderUid = cacheDoc?.latest_msg?.sender_uid;
+      if (senderUid === uid) {
+        map[id] = {
+          ...cacheDoc,
+          latest_msg: { ...cacheDoc.latest_msg, _sender_name: 'Bạn' },
+        };
+      }
+    });
+    return map;
   }
 
-  // Enrich each cache doc with resolved sender_name
+  // Batch-fetch members for all conversations
+  const memberResults = await Promise.allSettled(
+    conversationIds.map((convId) => getMembersFromAPI(convId))
+  );
+
+  // Build a map: { [conversationId]: { [uid]: display_name } }
+  const membersByConv = {};
+  conversationIds.forEach((convId, i) => {
+    const result = memberResults[i];
+    if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+      membersByConv[convId] = {};
+      result.value.forEach((member) => {
+        if (member.uid && member.display_name) {
+          membersByConv[convId][member.uid] = member.display_name;
+        }
+      });
+    }
+  });
+
+  // Enrich each cache doc with resolved sender_name from members
   Object.keys(map).forEach((id) => {
     const cacheDoc = map[id];
     const senderUid = cacheDoc?.latest_msg?.sender_uid;
     if (!senderUid) return;
-    const senderName = senderUid === uid
-      ? 'Bạn'
-      : (senderNameMap[senderUid] ?? senderUid.slice(0, 6));
+
+    let senderName;
+    if (senderUid === uid) {
+      senderName = 'Bạn';
+    } else {
+      // Lookup in members map
+      senderName = membersByConv[id]?.[senderUid] ?? senderUid.slice(0, 6);
+    }
+
+    console.log('[getUserConversationCacheMap] conversation:', id, 'sender_uid:', senderUid, 'resolved:', senderName);
+
     map[id] = {
       ...cacheDoc,
       latest_msg: { ...cacheDoc.latest_msg, _sender_name: senderName },
@@ -846,7 +870,40 @@ async function getMessages(groupId) {
   // Sort theo timestamp gốc ở client (phòng khi orderBy không hoạt động)
   rawList.sort((a, b) => a.sentAtMs - b.sentAtMs);
 
-  const messages = rawList.map(({ raw }) => normalizeMessage(raw));
+  // Resolve sender names trước khi normalize
+  const currentUid = auth.currentUser?.uid;
+  const senderUids = new Set(
+    rawList
+      .map(({ raw }) => raw.sender_uid)
+      .filter((uid) => uid && uid !== currentUid)
+  );
+
+  // Batch-fetch sender profiles
+  const senderNameMap = {};
+  if (senderUids.size > 0) {
+    await Promise.allSettled(
+      [...senderUids].map(async (senderUid) => {
+        try {
+          const userSnap = await getDoc(doc(db, 'users', senderUid));
+          if (userSnap.exists()) {
+            const profile = userSnap.data();
+            senderNameMap[senderUid] =
+              profile?.fullName ?? profile?.display_name ?? profile?.username ?? senderUid;
+          }
+        } catch { /* ignore */ }
+      })
+    );
+  }
+
+  // Enrich raw messages với sender_name
+  const enrichedRawList = rawList.map(({ raw }) => {
+    if (raw.sender_uid && raw.sender_uid !== currentUid && senderNameMap[raw.sender_uid]) {
+      return { ...raw, sender_name: senderNameMap[raw.sender_uid] };
+    }
+    return raw;
+  });
+
+  const messages = enrichedRawList.map((raw) => normalizeMessage(raw));
   console.debug(`[getMessages] ${groupId}: loaded ${messages.length} messages from Firestore`);
 
   // Merge với cache (giữ lại optimistic messages chưa có trong Firestore)

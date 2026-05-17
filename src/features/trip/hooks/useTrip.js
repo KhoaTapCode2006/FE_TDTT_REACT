@@ -3,8 +3,10 @@
 // danh sách trips, filter theo nav/search, tạo/sửa/xóa trip, thêm/xóa member,
 // và trạng thái mở/đóng các modal.
 
-import { useState, useEffect, useCallback } from "react";
-import { tripService } from "../../../services/backend/trip.service";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "../../../config/firebase";
+import { tripService, normalizeTripData } from "../../../services/backend/trip.service";
 import { useAuth } from "../../../contexts/AuthContext";
 
 export const NAV_ITEMS = [
@@ -13,7 +15,7 @@ export const NAV_ITEMS = [
 ];
 
 export function useTrip() {
-  const { loading: authLoading, isAuthenticated } = useAuth();
+  const { loading: authLoading, isAuthenticated, user } = useAuth();
 
   const [activeNav, setActiveNav]         = useState("info");
   const [trips, setTrips]                 = useState([]);
@@ -26,6 +28,11 @@ export function useTrip() {
   const [infoTripId, setInfoTripId]       = useState(null);
   const [addMemberTrip, setAddMemberTrip] = useState(null);
   const [selectedTripId, setSelectedTripId] = useState(null);
+  const [memberRefreshKey, setMemberRefreshKey] = useState(0);
+  // Lưu current_trip ID đã biết để detect thay đổi từ Firestore
+  const knownTripIdRef = useRef(null);
+  // Lưu trip IDs dạng string để dùng làm dependency cho onSnapshot effect
+  const [tripIds, setTripIds] = useState("");
 
   // ── Fetch trips từ API ───────────────────────────────────────────────────────
   const fetchTrips = useCallback(async () => {
@@ -38,6 +45,10 @@ export function useTrip() {
       if (data.length > 0) {
         setSelectedTripId((prev) => prev ?? data[0].id);
       }
+      // Cập nhật ref để Firestore listener biết giá trị hiện tại
+      knownTripIdRef.current = data[0]?.id ?? null;
+      // Cập nhật tripIds để trigger onSnapshot effect
+      setTripIds(data.map((t) => t.id).join(","));
     } catch (err) {
       console.error("Failed to fetch trips:", err);
       setError(err.message || "Không thể tải danh sách chuyến đi");
@@ -65,6 +76,60 @@ export function useTrip() {
   //   }, 10000);
   //   return () => clearInterval(interval);
   // }, [authLoading, isAuthenticated, fetchTrips]);
+
+  // ── Lắng nghe current_trip thay đổi trên Firestore ──────────────────────────
+  // Khi user được add vào trip, backend cập nhật users/{uid}.current_trip trên Firestore.
+  // onSnapshot phát hiện thay đổi → gọi fetchTrips() để load trip mới ngay lập tức,
+  // không cần user F5.
+  useEffect(() => {
+    if (authLoading || !isAuthenticated || !user?.uid) return;
+
+    const userRef = doc(db, "users", user.uid);
+    const unsub = onSnapshot(
+      userRef,
+      (snap) => {
+        if (!snap.exists()) return;
+        const newTripId = snap.data()?.current_trip ?? null;
+        // Chỉ re-fetch khi current_trip thực sự thay đổi (tránh fetch thừa khi mount)
+        if (knownTripIdRef.current !== null && knownTripIdRef.current !== newTripId) {
+          fetchTrips();
+        }
+        knownTripIdRef.current = newTripId;
+      },
+      (err) => {
+        console.error("[useTrip] Firestore user snapshot error:", err);
+      }
+    );
+
+    return () => unsub();
+  }, [authLoading, isAuthenticated, user?.uid, fetchTrips]);
+
+  // ── Lắng nghe từng trip document trên Firestore ─────────────────────────────
+  useEffect(() => {
+    if (!tripIds || !isAuthenticated) return;
+
+    const ids = tripIds.split(",").filter(Boolean);
+    const unsubs = ids.map((id) => {
+      const tripRef = doc(db, "trips", id);
+      return onSnapshot(
+        tripRef,
+        (snap) => {
+          if (!snap.exists()) return;
+          const raw = { id: snap.id, ...snap.data() };
+          const updated = normalizeTripData(raw);
+          console.log("[useTrip] Firestore trip updated:", updated.id, updated.status);
+          setTrips((prev) =>
+            prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t))
+          );
+        },
+        (err) => {
+          console.error(`[useTrip] Firestore trip snapshot error (${id}):`, err);
+        }
+      );
+    });
+
+    return () => unsubs.forEach((unsub) => unsub());
+  }, [tripIds, isAuthenticated]); // re-subscribe khi trip IDs hoặc auth thay đổi
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const infoTrip = infoTripId ? trips.find((t) => t.id === infoTripId) ?? null : null;
@@ -126,6 +191,7 @@ export function useTrip() {
     try {
       const updatedTrip = await tripService.addMembersToTrip(tripId, [uid]);
       setTrips((prev) => prev.map((t) => (t.id === updatedTrip.id ? updatedTrip : t)));
+      setMemberRefreshKey((k) => k + 1);
     } catch (err) {
       console.error("Failed to add member:", err);
       setError(err.message || "Không thể thêm thành viên");
@@ -136,6 +202,7 @@ export function useTrip() {
     try {
       const updatedTrip = await tripService.removeMembersFromTrip(tripId, [uid]);
       setTrips((prev) => prev.map((t) => (t.id === updatedTrip.id ? updatedTrip : t)));
+      setMemberRefreshKey((k) => k + 1);
     } catch (err) {
       console.error("Failed to remove member:", err);
       setError(err.message || "Không thể xóa thành viên");
@@ -201,6 +268,7 @@ export function useTrip() {
     selectedTripId,
     setSelectedTripId,
     selectedTrip: trips.find((t) => t.id === selectedTripId) ?? null,
+    memberRefreshKey,
     // Handlers
     handleCreate,
     handleDelete,

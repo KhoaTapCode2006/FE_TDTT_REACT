@@ -64,6 +64,7 @@ export default function TripPage() {
     handleLeaveTrip,
     handleUpdateStatus,
     handleScheduleStatus,
+    memberRefreshKey,
   } = useTrip();
 
   useGpsTracking(trips.map((t) => t.id));
@@ -135,6 +136,7 @@ export default function TripPage() {
                 trip={selectedTrip}
                 onRemoveMember={handleRemoveMember}
                 onAddMember={setAddMemberTrip}
+                refreshKey={memberRefreshKey}
               />
             )}
           </div>

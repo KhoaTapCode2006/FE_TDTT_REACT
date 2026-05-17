@@ -7,8 +7,8 @@ import { useTripMembers } from "../hooks/useTripMembers";
 // Hiển thị danh sách thành viên của trip dưới dạng panel inline.
 // Dùng cho tab "Member" trong TripPage.
 
-export default function TripMemberPanel({ trip, onRemoveMember, onAddMember }) {
-  const { members: firestoreMembers } = useTripMembers(trip?.id ?? null);
+export default function TripMemberPanel({ trip, onRemoveMember, onAddMember, refreshKey = 0 }) {
+  const { members: firestoreMembers } = useTripMembers(trip?.id ?? null, refreshKey);
   const [confirmRemove, setConfirmRemove] = useState(null); // { uid, display_name }
 
   if (!trip) {
