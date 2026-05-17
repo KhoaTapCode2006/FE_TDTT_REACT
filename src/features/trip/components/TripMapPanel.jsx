@@ -281,10 +281,8 @@ export default function TripMapPanel({ trip }) {
     <div className="flex h-full min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       {/* Member sidebar */}
       <div className="w-52 shrink-0 border-r border-gray-100 flex flex-col">
-        {/* Trip title + actions */}
-        <div className="px-4 pt-4 pb-3 border-b border-gray-100">
-          <p className="text-sm font-bold text-gray-900 truncate">{trip.title}</p>
-          <p className="text-xs text-gray-400 mt-0.5">Điểm đến: <span className="text-primary font-semibold">{DEST.name}</span></p>
+        {/* Trip status + actions */}
+        <div className="px-4 pt-3 pb-3 border-b border-gray-100">
 
           {/* Badge trạng thái trip */}
           {!isActive && (

@@ -105,16 +105,28 @@ export default function TripPage() {
 
         {/* ── Tab: Info ── */}
         {activeNav === "info" && (
-          <div className="flex flex-col h-full min-h-0 p-4 overflow-hidden">
+          <div className="flex flex-col h-full min-h-0 px-0 pb-4 pt-0 gap-2 overflow-hidden">
             {!selectedTrip ? <NoTripState onCreateNew={() => setShowCreate(true)} /> : (
-              <TripMapPanel trip={selectedTrip} />
+              <>
+                <div className="shrink-0">
+                  <TripInfoPanel
+                    trip={selectedTrip}
+                    onRemoveMember={handleRemoveMember}
+                    onEdit={setEditingTrip}
+                    onDelete={handleDelete}
+                  />
+                </div>
+                <div className="flex-1 min-h-0 px-4 pb-0">
+                  <TripMapPanel trip={selectedTrip} />
+                </div>
+              </>
             )}
           </div>
         )}
 
         {/* ── Tab: Member ── */}
         {activeNav === "member" && (
-          <div className="overflow-y-auto h-full px-8 py-6">
+          <div className="overflow-y-auto h-full">
             {!selectedTrip ? <NoTripState onCreateNew={() => setShowCreate(true)} /> : (
               <TripMemberPanel
                 trip={selectedTrip}

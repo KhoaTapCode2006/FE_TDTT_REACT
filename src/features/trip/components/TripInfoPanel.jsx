@@ -31,7 +31,7 @@ function InfoRow({ label, value }) {
   );
 }
 
-export default function TripInfoPanel({ trip, onRemoveMember }) {
+export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete }) {
   if (!trip) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-gray-400">
@@ -42,42 +42,108 @@ export default function TripInfoPanel({ trip, onRemoveMember }) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="w-full">
       {/* Header */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-4">
-        <div className="flex items-center gap-3 mb-1">
-          <h2 className="text-lg font-bold text-gray-900">{trip.title}</h2>
-          <span className={`text-xs font-bold px-3 py-1 rounded-full ${badgeStyle[trip.status]}`}>
-            {badgeLabel[trip.status]}
-          </span>
+      <div className="bg-white border-b border-gray-100 shadow-sm px-8 py-3 mb-0">
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold text-gray-900">{trip.title}</h2>
+            <span className={`text-xs font-bold px-3 py-1 rounded-full ${badgeStyle[trip.status]}`}>
+              {badgeLabel[trip.status]}
+            </span>
+          </div>
+          {/* Action buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            {onEdit && (
+              <button
+                onClick={() => onEdit(trip)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Cập nhật
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={() => {
+                  if (window.confirm(`Xóa chuyến đi "${trip.title}"? Hành động này không thể hoàn tác.`)) {
+                    onDelete(trip.id);
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Xóa
+              </button>
+            )}
+          </div>
         </div>
-        <p className="text-[11px] text-gray-400 font-mono mb-4 truncate">{trip.id}</p>
+        {/* Meta row: tất cả thông tin trên 1 hàng ngang */}
+        <div className="flex items-center gap-6 flex-wrap">
+          {/* Owner */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Owner</span>
+            <span className="text-xs text-gray-700 font-medium">
+              {trip.owner?.display_name || trip.owner?.username || trip.owner_uid || "—"}
+            </span>
+          </div>
 
-        <div className="flex flex-col gap-3">
-          <InfoRow label="Owner"  value={trip.owner?.display_name || trip.owner?.username || trip.owner_uid || "—"} />
-          <InfoRow label="Place"  value={trip.place?.name || trip.place_id || "—"} />
-          {trip.description && (
-            <InfoRow label="Description" value={trip.description} />
+          <span className="text-gray-200 text-sm">|</span>
+
+          {/* Dates */}
+          <div className="flex items-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span className="text-xs text-gray-600">
+              {trip.dateFrom ? fmtDate(trip.dateFrom) : "—"}
+              <span className="mx-1 text-gray-300">→</span>
+              {trip.dateTo ? fmtDate(trip.dateTo) : "—"}
+            </span>
+          </div>
+
+          <span className="text-gray-200 text-sm">|</span>
+
+          {/* Created / Updated */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Tạo</span>
+            <span className="text-xs text-gray-600">{trip.created_at ? fmtDate(trip.created_at) : "—"}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Cập nhật</span>
+            <span className="text-xs text-gray-600">{trip.updated_at ? fmtDate(trip.updated_at) : "—"}</span>
+          </div>
+
+          {/* Place */}
+          {(trip.place?.name || trip.place_id) && (
+            <>
+              <span className="text-gray-200 text-sm">|</span>
+              <div className="flex items-center gap-1.5">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-xs text-gray-700 font-medium">{trip.place?.name || trip.place_id}</span>
+                {trip.place?.link && (
+                  <a href={trip.place.link} target="_blank" rel="noopener noreferrer"
+                    className="text-[10px] text-blue-500 hover:underline ml-1">↗</a>
+                )}
+              </div>
+            </>
           )}
-        </div>
 
-        <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Start At</span>
-            <span className="text-xs text-gray-700">{fmtDate(trip.dateFrom)}</span>
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">End At</span>
-            <span className="text-xs text-gray-700">{fmtDate(trip.dateTo)}</span>
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Created</span>
-            <span className="text-xs text-gray-700">{fmtDate(trip.created_at)}</span>
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Updated</span>
-            <span className="text-xs text-gray-700">{fmtDate(trip.updated_at)}</span>
-          </div>
+          {/* Place thumbnail */}
+          {(trip.place?.thumbnail_url || trip.place?.images?.[0]?.thumbnail) && (
+            <img
+              src={trip.place?.thumbnail_url || trip.place.images[0].thumbnail}
+              alt={trip.place?.name}
+              className="w-14 h-14 object-cover rounded-lg border border-gray-100 shrink-0"
+            />
+          )}
         </div>
       </div>
     </div>

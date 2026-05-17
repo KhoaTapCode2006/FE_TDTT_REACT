@@ -25,29 +25,29 @@ export default function TripMemberPanel({ trip, onRemoveMember, onAddMember }) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <div className="flex items-center justify-between mb-1">
+    <div className="w-full h-full">
+      <div className="bg-white border-b border-gray-100 shadow-sm px-8 py-4 flex items-center justify-between">
+        <div>
           <h2 className="text-base font-bold text-gray-900">{trip.title}</h2>
-          <button
-            onClick={() => onAddMember?.(trip)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-700 transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Add Member
-          </button>
+          <p className="text-xs text-gray-400 mt-0.5">{firestoreMembers.length} thành viên</p>
         </div>
-        <p className="text-xs text-gray-400 mb-4">
-          {firestoreMembers.length} thành viên
-        </p>
+        <button
+          onClick={() => onAddMember?.(trip)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-700 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          Add Member
+        </button>
+      </div>
 
+      <div className="px-8 py-4">
         {firestoreMembers.length === 0 && (
-          <p className="text-xs text-gray-400 py-4 text-center">Chưa có thành viên</p>
+          <p className="text-xs text-gray-400 py-8 text-center">Chưa có thành viên</p>
         )}
 
-        <div className="flex flex-col gap-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {firestoreMembers.map((m, i) => {
             const joinedDate = toDate(m.joined_at);
             const joinedStr = joinedDate
@@ -58,9 +58,9 @@ export default function TripMemberPanel({ trip, onRemoveMember, onAddMember }) {
               : null;
 
             return (
-              <div key={m.uid} className="flex items-center gap-3 group py-2 px-2 rounded-xl hover:bg-gray-50 transition-colors">
+              <div key={m.uid} className="flex items-center gap-3 group py-3 px-4 rounded-xl bg-white border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all">
                 <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
                   style={{ background: MEMBER_COLORS[i % MEMBER_COLORS.length] }}
                 >
                   {m.uid.slice(0, 2).toUpperCase()}
