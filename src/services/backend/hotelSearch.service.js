@@ -6,7 +6,7 @@
  * 
  * Requirements: 13.2, 13.3, 13.5, 13.7, 13.8
  */
-
+import { geolocationService } from '../geolocation.service.js';
 import { apiClient } from '../api/apiClient.js';
 
 /**
@@ -26,27 +26,39 @@ class HotelSearchService {
    * 
    * @param {string} address - Address query string
    * @param {Object} userGps
+   * @param {AbortSignal} signal - Signal dùng để hủy request khi gõ nhanh (chống nghẽn/timeout)
    * @returns {Promise<Array>} Array of address suggestions with ref_id
    * @throws {Error} If API call fails
    * 
    * Requirements: 13.2, 13.3
    */
-  async getAddressSuggestions(address, userGps = null) {
+  async getAddressSuggestions(address, userGps = null, signal = null) {
     try {
       if (!address || typeof address !== 'string' || address.trim().length === 0) {
         return [];
       }
 
+      let userLocation = null;
+
+      try {
+        console.log("HotelSearchService: Đang lấy GPS người dùng qua geolocationService...");
+        userLocation = await geolocationService.requestUserLocation();
+      } catch (geoError) {
+        console.warn("Không thể lấy user location qua service, fallback về mặc định:", geoError);
+        userLocation = geolocationService.getDefaultLocation();
+      }
+
+      // 3. ĐÓNG GÓI PAYLOAD: Ép kiểu Number để chắc chắn Backend Python/Pydantic không lỗi
       const requestBody = {
         query: address.trim(),
         gps: {
-          latitude: userGps?.latitude || 0,
-          longitude: userGps?.longitude || 0,
-          geohash: userGps?.geohash || ""
+          latitude: userLocation && userLocation.latitude ? Number(userLocation.latitude) : 0,
+          longitude: userLocation && userLocation.longitude ? Number(userLocation.longitude) : 0,
+          geohash: userLocation && userLocation.geohash ? userLocation.geohash : ""
         }
       };
       // Use POST method as backend requires it
-      const response = await apiClient.post('/discover/address-suggest', requestBody);
+      const response = await apiClient.post('/discover/address-suggest', requestBody, { signal });
       
       // Backend returns {suggestions: [...]}
       let suggestions = response;

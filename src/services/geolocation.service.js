@@ -1,10 +1,8 @@
 /**
  * Geolocation Service
- * 
- * Handles user location requests, caching, and management.
+ * * Handles user location requests, caching, and management.
  * Provides fallback to default location (Ben Thanh Market, HCMC) when permission is denied.
- * 
- * Requirements: 4.1, 4.2, 4.3, 4.4
+ * * Requirements: 4.1, 4.2, 4.3, 4.4
  */
 
 const STORAGE_KEY = 'user_geolocation';
@@ -36,17 +34,18 @@ export const geolocationService = {
     return new Promise((resolve) => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          // FIX: Thay 'this' bằng 'geolocationService' để tránh lỗi undefined context
           const coords = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
-            geohash: this.generateGeohash(
+            geohash: geolocationService.generateGeohash(
               position.coords.latitude,
               position.coords.longitude
             )
           };
           
-          // Store in localStorage for future use
-          this.saveLocation(coords);
+          // FIX: Thay 'this' bằng 'geolocationService'
+          geolocationService.saveLocation(coords);
           
           console.log('User location obtained:', coords);
           resolve(coords);
@@ -68,7 +67,7 @@ export const geolocationService = {
         },
         {
           enableHighAccuracy: true,
-          timeout: 5000,
+          timeout: 10000,
           maximumAge: 300000 // 5 minutes
         }
       );
@@ -80,8 +79,8 @@ export const geolocationService = {
    * @returns {Promise<{latitude: number, longitude: number, geohash: string}>}
    */
   async getUserLocation() {
-    // Try to get from cache first
-    const stored = this.getStoredLocation();
+    // FIX: Thay 'this' bằng 'geolocationService'
+    const stored = geolocationService.getStoredLocation();
     if (stored) {
       console.log('Using cached location:', stored);
       return stored;
@@ -89,7 +88,8 @@ export const geolocationService = {
     
     // Cache miss or expired - request new location
     console.log('No cached location found, requesting new location');
-    return await this.requestUserLocation();
+    // FIX: Thay 'this' bằng 'geolocationService'
+    return await geolocationService.requestUserLocation();
   },
 
   /**
@@ -107,7 +107,6 @@ export const geolocationService = {
       console.log('Location saved to localStorage');
     } catch (error) {
       console.error('Failed to save location to localStorage:', error);
-      // Non-critical error - continue without caching
     }
   },
 
@@ -128,11 +127,11 @@ export const geolocationService = {
       // Check if cache has expired (1 hour)
       if (age > CACHE_DURATION_MS) {
         console.log('Cached location expired, clearing cache');
-        this.clearLocation();
+        // FIX: Thay 'this' bằng 'geolocationService'
+        geolocationService.clearLocation();
         return null;
       }
 
-      // Return cached location without timestamp
       return {
         latitude: data.latitude,
         longitude: data.longitude,
@@ -140,8 +139,8 @@ export const geolocationService = {
       };
     } catch (error) {
       console.error('Failed to get stored location:', error);
-      // Clear corrupted data
-      this.clearLocation();
+      // FIX: Thay 'this' bằng 'geolocationService'
+      geolocationService.clearLocation();
       return null;
     }
   },
@@ -160,26 +159,11 @@ export const geolocationService = {
 
   /**
    * Generate geohash from coordinates
-   * Simplified implementation - returns a basic hash
-   * For production, consider using a proper geohash library like 'ngeohash'
-   * 
-   * @param {number} lat - Latitude
-   * @param {number} lng - Longitude
-   * @returns {string} Geohash string
    */
   generateGeohash(lat, lng) {
-    // Simplified geohash generation
-    // In production, use a proper geohash library
-    // This creates a basic identifier from coordinates
-    const latFixed = lat.toFixed(4);
-    const lngFixed = lng.toFixed(4);
-    
-    // Create a simple hash-like string
-    // Format: first letter based on hemisphere, then encoded coordinates
     const latPrefix = lat >= 0 ? 'n' : 's';
     const lngPrefix = lng >= 0 ? 'e' : 'w';
     
-    // Encode coordinates into base36 for compact representation
     const latEncoded = Math.abs(Math.round(lat * 10000)).toString(36);
     const lngEncoded = Math.abs(Math.round(lng * 10000)).toString(36);
     
@@ -188,14 +172,13 @@ export const geolocationService = {
 
   /**
    * Get default location (Ben Thanh Market, HCMC)
-   * @returns {{latitude: number, longitude: number, geohash: string}}
    */
   getDefaultLocation() {
     return { ...DEFAULT_LOCATION };
   }
 };
 
-// Export individual functions for direct use
+// Export individual functions for direct use (Giữ nguyên đoạn bóc tách này của bạn)
 export const {
   requestUserLocation,
   getUserLocation,

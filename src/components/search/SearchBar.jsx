@@ -4,7 +4,7 @@ import { hotelSearchService } from "@/services/backend/hotelSearch.service";
 import Icon from "@/components/ui/Icon";
 import DateRangePicker from "@/components/ui/DateRangePicker";
 import GuestsSelector from "@/components/ui/GuestsSelector";
-
+import { geolocationService } from "@/services/geolocation.service";
 function SearchBar() {
   const {
     location,
@@ -19,7 +19,7 @@ function SearchBar() {
     setActiveHotel,
     filters,
     radiusM,
-    userGps,
+    currentGps,
     userLoc
   } = useApp();
 
@@ -36,6 +36,7 @@ function SearchBar() {
   const guestsRef = useRef(null);
   const addressRef = useRef(null);
   const suggestionTimerRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
     function handleDocumentClick(e) {
@@ -51,7 +52,12 @@ function SearchBar() {
     }
 
     document.addEventListener("mousedown", handleDocumentClick);
-    return () => document.removeEventListener("mousedown", handleDocumentClick);
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      document.removeEventListener("mousedown", handleDocumentClick);
+    }
   }, []);
 
   // Fetch address suggestions when user types
@@ -76,12 +82,18 @@ function SearchBar() {
       setShowSuggestions(false);
       return;
     }
-    
+
+    abortControllerRef.current?.abort();
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     // Debounce API call
     suggestionTimerRef.current = setTimeout(async () => {
       try {
         setLoadingSuggestions(true);
-        const suggestions = await hotelSearchService.getAddressSuggestions(value, userLoc);
+
+        const suggestions = await hotelSearchService.getAddressSuggestions(value, controller.signal);
         setAddressSuggestions(suggestions);
         setShowSuggestions(suggestions.length > 0);
       } catch (error) {
@@ -89,7 +101,9 @@ function SearchBar() {
         setAddressSuggestions([]);
         setShowSuggestions(false);
       } finally {
-        setLoadingSuggestions(false);
+        if (!controller.signal.aborted) {
+          setLoadingSuggestions(false);
+        }
       }
     }, 300); // 300ms debounce
   };
