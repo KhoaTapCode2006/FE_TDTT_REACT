@@ -144,6 +144,18 @@ function CollectionsDashboard() {
           }
         }
 
+        // Client-side sorting to ensure correct order
+        // Sort by weekly_views for 'weekly' topType, total_views for 'all_time'
+        collections.sort((a, b) => {
+          const viewsA = topType === 'weekly' 
+            ? (a.views?.weekly_views || 0) 
+            : (a.views?.total_views || 0);
+          const viewsB = topType === 'weekly' 
+            ? (b.views?.weekly_views || 0) 
+            : (b.views?.total_views || 0);
+          return viewsB - viewsA; // Descending order (highest first)
+        });
+
         if (append) {
           setGlobalCollections((prev) => [...prev, ...collections]);
         } else {
@@ -571,6 +583,7 @@ function CollectionsDashboard() {
                   returnTab={mainTab}
                   returnMyTab={returnMyTab}
                   currentUserId={user?.uid}
+                  showWeeklyViews={mainTab === 'global' && topType === 'weekly'}
                 />
               );
             })}

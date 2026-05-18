@@ -17,6 +17,7 @@ import LikeButton from '@/components/collection/LikeButton';
  * @param {string} props.returnTab - Main dashboard tab when going back: 'my' or 'global'
  * @param {string} [props.returnMyTab] - When returnTab is 'my', sub-tab: 'owned' | 'contributing' | 'saved'
  * @param {string} props.currentUserId - Current user's UID for displaying "You" in contributors list
+ * @param {boolean} props.showWeeklyViews - Whether to show weekly views instead of total views (for weekly trends tab)
  */
 function CollectionCard({ 
   collection, 
@@ -27,7 +28,8 @@ function CollectionCard({
   showActions = true,
   returnTab = 'my',
   returnMyTab = null,
-  currentUserId = null
+  currentUserId = null,
+  showWeeklyViews = false
 }) {
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -209,7 +211,7 @@ function CollectionCard({
           </div>
           <div className="flex items-center gap-1">
             <Icon name="visibility" size={16} />
-            <span>{collection.views?.total_views || 0} views</span>
+            <span>{showWeeklyViews ? (collection.views?.weekly_views || 0) : (collection.views?.total_views || 0)} views</span>
           </div>
           <div className="flex items-center gap-1">
             <Icon name="favorite" size={16} />
