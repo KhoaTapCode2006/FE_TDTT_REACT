@@ -61,7 +61,7 @@ export default function TripMemberPanel({ trip, onRemoveMember, onAddMember, ref
           <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          Add Member
+          Thêm thành viên
         </button>
       </div>
 
@@ -144,13 +144,13 @@ export default function TripMemberPanel({ trip, onRemoveMember, onAddMember, ref
                     <span className="text-[11px] text-gray-400 truncate">@{m.username}</span>
                   )}
                   {joinedStr && (
-                    <span className="text-[10px] text-gray-400 mt-0.5">Joined {joinedStr}</span>
+                    <span className="text-[10px] text-gray-400 mt-0.5">Tham gia {joinedStr}</span>
                   )}
                 </div>
                 <button
                   onClick={() => setConfirmRemove({ uid: m.uid, display_name: m.display_name ?? m.username ?? m.uid })}
                   className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
-                  title="Remove member"
+                  title="Xóa thành viên"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

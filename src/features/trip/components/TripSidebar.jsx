@@ -35,7 +35,7 @@ function TripSidebar({ activeNav, onNavChange, onOpenCreate }) {
         className="flex items-center justify-center gap-2 bg-gray-900 text-white text-sm font-semibold py-3 rounded-xl hover:bg-gray-700 transition-colors mt-4"
       >
         <span className="text-lg leading-none">+</span>
-        Create New Trip
+        Tạo chuyến đi mới
       </button>
     </aside>
   );

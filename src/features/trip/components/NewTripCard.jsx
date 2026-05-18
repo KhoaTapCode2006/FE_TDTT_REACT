@@ -10,8 +10,8 @@ function NewTripCard({ onClick }) {
         +
       </div>
       <div className="text-center">
-        <p className="text-sm font-semibold text-gray-700">Start a new journey</p>
-        <p className="text-xs text-gray-400 mt-0.5">Collaborate with your group today</p>
+        <p className="text-sm font-semibold text-gray-700">Bắt đầu hành trình mới</p>
+        <p className="text-xs text-gray-400 mt-0.5">Cùng lên kế hoạch với nhóm của bạn</p>
       </div>
     </button>
   );

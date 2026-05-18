@@ -10,7 +10,7 @@ import { suggestAddress } from "@/services/backend/discover.service";
  *   onChange    {Function} - called with ({ placeId, display }) when user picks a suggestion
  *   placeholder {string}
  */
-function PlaceAutocomplete({ value, displayValue, onChange, placeholder = "Search for a destination…" }) {
+function PlaceAutocomplete({ value, displayValue, onChange, placeholder = "Tìm kiếm điểm đến…" }) {
   const [query, setQuery]           = useState(displayValue || "");
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading]       = useState(false);
@@ -142,7 +142,7 @@ function PlaceAutocomplete({ value, displayValue, onChange, placeholder = "Searc
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M20 6 9 17l-5-5" />
           </svg>
-          Place selected
+          Địa điểm đã chọn
         </p>
       )}
 

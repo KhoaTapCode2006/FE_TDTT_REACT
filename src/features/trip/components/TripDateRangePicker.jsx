@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const DAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
+  "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -23,8 +23,8 @@ function toISO(d) {
 }
 
 function fmtShort(d) {
-  if (!d) return "Select date";
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  if (!d) return "Chọn ngày";
+  return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function buildCells(year, month) {
@@ -151,11 +151,11 @@ function TripDateRangePicker({ dateFrom, dateTo, onChange, onDone }) {
 
         <div className="flex items-center gap-3 text-sm font-semibold text-gray-600">
           <span className={startD ? "text-blue-600 font-bold" : "text-gray-400"}>
-            {startD ? fmtShort(startD) : "Start date"}
+            {startD ? fmtShort(startD) : "Ngày bắt đầu"}
           </span>
           <span className="text-gray-300">→</span>
           <span className={endD ? "text-blue-600 font-bold" : "text-gray-400"}>
-            {endD ? fmtShort(endD) : "End date"}
+            {endD ? fmtShort(endD) : "Ngày kết thúc"}
           </span>
         </div>
 
@@ -182,14 +182,14 @@ function TripDateRangePicker({ dateFrom, dateTo, onChange, onDone }) {
           onClick={() => onChange({ dateFrom: "", dateTo: "" })}
           className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-blue-600 transition-colors"
         >
-          Clear
+          Xóa
         </button>
         <button
           type="button"
           onClick={onDone}
           className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors"
         >
-          Done
+          Xong
         </button>
       </div>
     </div>

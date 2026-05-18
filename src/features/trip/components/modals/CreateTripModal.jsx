@@ -19,11 +19,11 @@ function CreateTripModal({ onClose, onCreate }) {
   };
 
   function fmtRange() {
-    if (!dateFrom && !dateTo) return "Select dates";
+    if (!dateFrom && !dateTo) return "Chọn ngày";
     const fmt = (iso) => {
       if (!iso) return "?";
       const d = new Date(iso);
-      return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+      return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "short", year: "numeric" });
     };
     if (dateFrom && !dateTo) return `${fmt(dateFrom)} → ?`;
     return `${fmt(dateFrom)} → ${fmt(dateTo)}`;
@@ -40,13 +40,13 @@ function CreateTripModal({ onClose, onCreate }) {
             <div className="flex flex-col gap-6">
               {/* Trip Name */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-gray-900">Trip Name</label>
+                <label className="text-sm font-bold text-gray-900">Tên chuyến đi</label>
                 <input
                   autoFocus
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Amalfi Coast Expedition"
+                  placeholder="VD: Khám phá Đà Lạt 2025"
                   maxLength={60}
                   className="border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 placeholder-gray-300 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition bg-gray-50"
                 />
@@ -54,7 +54,7 @@ function CreateTripModal({ onClose, onCreate }) {
 
               {/* Destination Hotel */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-gray-900">Destination Hotel</label>
+                <label className="text-sm font-bold text-gray-900">Khách sạn điểm đến</label>
                 <HotelSearchAutocomplete
                   value={placeId}
                   displayValue={placeDisplay}
@@ -67,7 +67,7 @@ function CreateTripModal({ onClose, onCreate }) {
 
               {/* Date Range */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-gray-900">Dates</label>
+                <label className="text-sm font-bold text-gray-900">Ngày đi</label>
                 <button
                   type="button"
                   onClick={() => setShowPicker((v) => !v)}
@@ -103,14 +103,14 @@ function CreateTripModal({ onClose, onCreate }) {
                 disabled={!title.trim()}
                 className="px-8 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Create Trip
+                Tạo chuyến đi
               </button>
               <button
                 type="button"
                 onClick={onClose}
                 className="text-sm font-semibold text-blue-500 hover:text-blue-700 transition-colors"
               >
-                Cancel
+                Hủy
               </button>
             </form>
           </div>

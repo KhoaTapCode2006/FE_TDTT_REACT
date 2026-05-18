@@ -20,7 +20,7 @@ function HotelSearchAutocomplete({
   displayValue,
   onChange,
   onOpenChange,
-  placeholder = "Search for a hotel…",
+  placeholder = "Tìm kiếm khách sạn…",
 }) {
   const [query, setQuery]           = useState(displayValue || "");
   const [results, setResults]       = useState([]);
@@ -189,7 +189,7 @@ function HotelSearchAutocomplete({
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M20 6 9 17l-5-5" />
           </svg>
-          Hotel selected
+          Hotel đã chọn
         </p>
       )}
 

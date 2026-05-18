@@ -261,7 +261,7 @@ function ChatArea({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && canSend && onSend()}
-            placeholder={`Message ${group.name}...`}
+            placeholder={`Nhắn tin ${group.name}...`}
             className="flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none"
           />
           <button

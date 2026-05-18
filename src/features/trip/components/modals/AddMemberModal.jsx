@@ -55,7 +55,7 @@ function AddMemberModal({ trip, onClose, onAdd }) {
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-bold text-gray-900">Add Member</h3>
+            <h3 className="text-base font-bold text-gray-900">Thêm thành viên</h3>
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-lg text-gray-400 hover:bg-gray-100 flex items-center justify-center transition-colors"
@@ -153,14 +153,14 @@ function AddMemberModal({ trip, onClose, onAdd }) {
                 disabled={!canSubmit}
                 className="flex-1 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Add
+                Thêm
               </button>
               <button
                 type="button"
                 onClick={onClose}
                 className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
               >
-                Cancel
+                Hủy
               </button>
             </div>
           </form>

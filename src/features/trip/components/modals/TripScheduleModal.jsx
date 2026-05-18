@@ -1,10 +1,10 @@
 import { useState } from "react";
 
 // ─── Calendar constants ───────────────────────────────────────────────────────
-const DAYS   = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const DAYS   = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 const MONTHS = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December",
+  "Tháng 1","Tháng 2","Tháng 3","Tháng 4","Tháng 5","Tháng 6",
+  "Tháng 7","Tháng 8","Tháng 9","Tháng 10","Tháng 11","Tháng 12",
 ];
 
 function buildCells(year, month) {
@@ -112,14 +112,14 @@ function SingleDatePicker({ value, onChange, onDone }) {
           onClick={() => onChange("")}
           className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-blue-600 transition-colors"
         >
-          Clear
+          Xóa
         </button>
         <button
           type="button"
           onClick={onDone}
           className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors"
         >
-          Done
+          Xong
         </button>
       </div>
     </div>
@@ -247,7 +247,9 @@ function TripScheduleModal({ action, tripName, onConfirm, onClose }) {
               disabled={!date || !time}
               className={`w-full py-2.5 rounded-xl text-white text-sm font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${color}`}
             >
-              {isPast ? `${label} ngay` : `Lên lịch ${label}`}
+              {isPast
+                ? (isStart ? "Bắt đầu ngay" : "Kết thúc ngay")
+                : (isStart ? "Lên lịch bắt đầu" : "Lên lịch kết thúc")}
             </button>
             <button
               onClick={handleNow}

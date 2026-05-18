@@ -30,11 +30,11 @@ function EditTripModal({ trip, onClose, onSave }) {
   };
 
   function fmtRange() {
-    if (!dateFrom && !dateTo) return "Select dates";
+    if (!dateFrom && !dateTo) return "Chọn ngày";
     const fmt = (iso) => {
       if (!iso) return "?";
       const d = new Date(iso);
-      return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+      return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "short", year: "numeric" });
     };
     if (dateFrom && !dateTo) return `${fmt(dateFrom)} → ?`;
     return `${fmt(dateFrom)} → ${fmt(dateTo)}`;
@@ -48,7 +48,7 @@ function EditTripModal({ trip, onClose, onSave }) {
 
           {/* Header */}
           <div className="px-8 pt-8 pb-0 shrink-0">
-            <h3 className="text-base font-bold text-gray-900">Edit Trip</h3>
+            <h3 className="text-base font-bold text-gray-900">Chỉnh sửa chuyến đi</h3>
           </div>
 
           {/* Scrollable body */}
@@ -56,7 +56,7 @@ function EditTripModal({ trip, onClose, onSave }) {
             <div className="flex flex-col gap-5">
               {/* Trip Name */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-gray-900">Trip Name</label>
+                <label className="text-sm font-bold text-gray-900">Tên chuyến đi</label>
                 <input
                   autoFocus
                   type="text"
@@ -69,7 +69,7 @@ function EditTripModal({ trip, onClose, onSave }) {
 
               {/* Destination Hotel */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-gray-900">Destination Hotel</label>
+                <label className="text-sm font-bold text-gray-900">Khách sạn điểm đến</label>
                 <HotelSearchAutocomplete
                   value={placeId}
                   displayValue={placeDisplay}
@@ -83,7 +83,7 @@ function EditTripModal({ trip, onClose, onSave }) {
 
               {/* Date Range */}
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-bold text-gray-900">Dates</label>
+                <label className="text-sm font-bold text-gray-900">Ngày đi</label>
                 <button
                   type="button"
                   onClick={() => setShowPicker((v) => !v)}
@@ -119,14 +119,14 @@ function EditTripModal({ trip, onClose, onSave }) {
                 disabled={!title.trim()}
                 className="px-8 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Save Changes
+                Lưu thay đổi
               </button>
               <button
                 type="button"
                 onClick={onClose}
                 className="text-sm font-semibold text-blue-500 hover:text-blue-700 transition-colors"
               >
-                Cancel
+                Hủy
               </button>
             </form>
           </div>

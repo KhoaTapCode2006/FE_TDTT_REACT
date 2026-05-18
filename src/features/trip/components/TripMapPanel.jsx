@@ -304,7 +304,7 @@ export default function TripMapPanel({ trip }) {
                 onClick={handleAccident}
                 className={`flex-1 py-1 rounded-lg text-xs font-semibold transition-colors ${meAccident ? "bg-red-100 text-red-600 hover:bg-red-200" : "bg-red-500 hover:bg-red-600 text-white"}`}
               >
-                {meAccident ? "🚨 Hủy báo" : "🚨 Accident"}
+                {meAccident ? "🚨 Hủy báo" : "🚨 Báo tai nạn"}
               </button>
               <button
                 onClick={handleArrive}
@@ -312,7 +312,7 @@ export default function TripMapPanel({ trip }) {
                 title={!canArrive ? `Cần đến gần hơn (${distToDestM != null ? Math.round(distToDestM) + "m" : "?"})` : ""}
                 className={`flex-1 py-1 rounded-lg text-xs font-semibold transition-colors ${meArrived ? "bg-blue-100 text-blue-400 cursor-not-allowed" : canArrive ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
               >
-                🏁 Arrive
+                🏁 Đã đến
               </button>
             </div>
           )}

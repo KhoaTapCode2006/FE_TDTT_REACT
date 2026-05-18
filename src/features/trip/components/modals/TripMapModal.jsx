@@ -375,7 +375,7 @@ function TripMapModal({ trip, onClose }) {
                         : "bg-red-500 hover:bg-red-600 text-white"
                     }`}
                   >
-                    {meAccident ? "🚨 Hủy báo" : "🚨 Accident"}
+                    {meAccident ? "🚨 Hủy báo" : "🚨 Báo tai nạn"}
                   </button>
                   <button
                     onClick={handleArrive}
@@ -389,7 +389,7 @@ function TripMapModal({ trip, onClose }) {
                           : "bg-gray-100 text-gray-400 cursor-not-allowed"
                     }`}
                   >
-                    🏁 Arrive
+                    🏁 Đã đến
                   </button>
                 </>
               )}

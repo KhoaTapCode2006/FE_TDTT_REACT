@@ -13,7 +13,7 @@ const badgeStyle = {
   active:  "bg-green-100 text-green-800",
   ended:   "bg-gray-200 text-gray-700",
 };
-const badgeLabel = { waiting: "Waiting", active: "Active", ended: "Ended" };
+const badgeLabel = { waiting: "Chờ bắt đầu", active: "Đang diễn ra", ended: "Đã kết thúc" };
 
 const fmtDate = (iso) => {
   console.log('[fmtDate] Input:', iso, 'Type:', typeof iso);
@@ -85,7 +85,7 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, 
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 3l14 9-14 9V3z" />
                     </svg>
-                    Start
+                    Bắt đầu
                   </button>
                 )}
                 {onUpdateStatus && trip.status === "active" && (
@@ -96,7 +96,7 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, 
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 5h14v14H5z" />
                     </svg>
-                    End
+                    Kết thúc
                   </button>
                 )}
                 {onEdit && (
@@ -141,7 +141,7 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, 
         <div className="flex items-center gap-6 flex-wrap">
           {/* Owner */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Owner</span>
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Chủ sở hữu</span>
             <span className="text-xs text-gray-700 font-medium">
               {trip.owner?.display_name || trip.owner?.username || trip.owner_uid || "—"}
             </span>
@@ -151,13 +151,13 @@ export default function TripInfoPanel({ trip, onRemoveMember, onEdit, onDelete, 
 
           {/* Start Date */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Start</span>
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Bắt đầu</span>
             <span className="text-xs text-gray-600">{trip.dateFrom ? fmtDate(trip.dateFrom) : "—"}</span>
           </div>
           
           {/* End Date */}
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">End</span>
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Kết thúc</span>
             <span className="text-xs text-gray-600">{trip.dateTo ? fmtDate(trip.dateTo) : "—"}</span>
           </div>
 

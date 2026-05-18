@@ -70,7 +70,7 @@ function RightPanel({ group, initialMembers, onRemoveMember }) {
       {/* Members */}
       <div className="px-4 py-3 border-b border-gray-100">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-semibold text-gray-800">Members ({members.length})</span>
+          <span className="text-sm font-semibold text-gray-800">Thành viên ({members.length})</span>
         </div>
         <div className="space-y-3">
           {members.map((m) => (
@@ -86,7 +86,7 @@ function RightPanel({ group, initialMembers, onRemoveMember }) {
                 </p>
                 <p className="text-xs text-gray-400">
                   <span className={m.role === "owner" ? "text-primary font-semibold" : ""}>
-                    {m.role}
+                    {m.role === "owner" ? "Quản trị viên" : "Thành viên"}
                   </span>
                 </p>
               </div>
