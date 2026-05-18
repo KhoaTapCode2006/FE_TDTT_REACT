@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import Avatar from "./Avatar";
+import { getHotelById } from "@/services/backend/discover.service";
 
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 // Render một tin nhắn trong cuộc trò chuyện. 
@@ -15,6 +17,85 @@ function DeleteBtn({ onDelete, msgId }) {
     </button>
   );
 }
+
+// ─── Place Card (fetch hotel details khi có placeId) ─────────────────────────
+function PlaceCard({ msg }) {
+  const [hotel, setHotel] = useState(null);
+
+  // placeId là property_token lưu trong attachment.value
+  const placeId = msg.attachments?.[0]?.value ?? msg.placeId ?? null;
+
+  useEffect(() => {
+    if (!placeId) return;
+    let cancelled = false;
+    getHotelById(placeId).then((data) => {
+      if (!cancelled && data) setHotel(data);
+    });
+    return () => { cancelled = true; };
+  }, [placeId]);
+
+  const thumbnail = hotel?.images?.[0]?.thumbnail ?? null;
+  const name      = hotel?.name ?? msg.placeName ?? msg.text ?? "Địa điểm";
+  const address   = hotel?.address ?? msg.attachments?.[0]?.metadata?.address ?? null;
+  const price     = hotel?.price ?? null;
+  const deal      = hotel?.deal ?? null;
+
+  return (
+    <div className={`flex flex-col gap-1 ${msg.isMine ? "items-end" : "items-start"}`}>
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-card w-56 overflow-hidden">
+        {/* Thumbnail */}
+        {thumbnail ? (
+          <img src={thumbnail} alt={name} className="w-full h-28 object-cover" />
+        ) : (
+          <div className="w-full h-28 bg-green-50 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-green-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+              <circle cx="12" cy="9" r="2.5" />
+            </svg>
+          </div>
+        )}
+        {/* Info */}
+        <div className="flex items-center gap-2 px-3 py-2">
+          <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center text-green-500 shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+              <circle cx="12" cy="9" r="2.5" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-gray-800 truncate">{name}</p>
+            {address && <p className="text-xs text-gray-400 truncate">{address}</p>}
+            {(price != null || deal) && (
+              <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                {price != null && (
+                  <span className="text-xs font-medium text-blue-500">
+                    {price.toLocaleString("vi-VN")}₫
+                  </span>
+                )}
+                {deal && (
+                  <span className="text-xs text-green-500 truncate">{deal}</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      {/* Content text bên dưới card */}
+      {msg.text && msg.placeName && (
+        <div
+          className={`px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-xs ${
+            msg.isMine
+              ? "bg-primary text-white rounded-tr-sm"
+              : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
+          }`}
+        >
+          {msg.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function MessageContent({ msg }) {
   switch (msg.type) {
@@ -71,20 +152,7 @@ function MessageContent({ msg }) {
       );
 
     case "place":
-      return (
-        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-card w-56">
-          <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center text-green-500 shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-              <circle cx="12" cy="9" r="2.5" />
-            </svg>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-gray-800 truncate">{msg.text}</p>
-            <p className="text-xs text-gray-400 truncate">{msg.placeId ?? ""}</p>
-          </div>
-        </div>
-      );
+      return <PlaceCard msg={msg} />;
 
     default:
       return (

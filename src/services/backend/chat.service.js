@@ -645,6 +645,10 @@ function normalizeMessage(data) {
   // Nếu message có attachment image → type = "image", url = value
   const type = firstAttachment?.type ?? data.type ?? 'text';
   const url  = firstAttachment?.value ?? data.url ?? null;
+  // Tên địa điểm: lưu trong metadata.name (ưu tiên), fallback về value nếu type là place
+  const placeName = type === 'place'
+    ? (firstAttachment?.metadata?.name ?? firstAttachment?.value ?? null)
+    : null;
 
   // dateKey: YYYY-MM-DD dùng để group tin nhắn theo ngày
   const rawDate = data.sent_at ?? data.created_at;
@@ -671,7 +675,8 @@ function normalizeMessage(data) {
     seen:        isMine ? true : undefined,
     url,
     fileName:    data.file_name ?? null,
-    placeId:     data.place_id  ?? null,
+    placeId:     data.place_id  ?? firstAttachment?.metadata?.address ?? null,
+    placeName,
     attachments,
   };
 }
@@ -1339,6 +1344,9 @@ export function subscribeToMessages(groupId, callback, membersDisplayNames = {})
         const firstAttachment = attachments[0] ?? null;
         const type = firstAttachment?.type ?? d.type ?? 'text';
         const url = firstAttachment?.value ?? d.url ?? null;
+        const placeName = type === 'place'
+          ? (firstAttachment?.metadata?.name ?? firstAttachment?.value ?? null)
+          : null;
 
         const sentDate = d.sent_at?.toDate?.();
         const dateKey = sentDate
@@ -1358,7 +1366,8 @@ export function subscribeToMessages(groupId, callback, membersDisplayNames = {})
           seen:        isMine ? true : undefined,
           url,
           fileName:    d.file_name ?? null,
-          placeId:     d.place_id  ?? null,
+          placeId:     d.place_id  ?? firstAttachment?.metadata?.address ?? null,
+          placeName,
           attachments,
         };
       });

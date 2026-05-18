@@ -434,7 +434,8 @@ export function useGroupChat() {
       isMine: true,
       seen: false,
       type: msgType,
-      text: text || (pendingPlace ? pendingPlace.name : ""),
+      text: text,
+      placeName: pendingPlace ? pendingPlace.name : undefined,
       url: pendingImage?.url ?? null,
       placeId: pendingPlace ? (pendingPlace.address ?? pendingPlace.propertyToken ?? "") : undefined,
       attachments: pendingImage
@@ -465,7 +466,7 @@ export function useGroupChat() {
             {
               type: "place",
               value: placeToSend.propertyToken ?? placeToSend.name,
-              metadata: { address: placeToSend.address, gps: placeToSend.gps },
+              metadata: { name: placeToSend.name, address: placeToSend.address, gps: placeToSend.gps },
             },
           ],
         };
@@ -544,7 +545,8 @@ export function useGroupChat() {
       isMine: true,
       seen: false,
       type: "place",
-      text: name,
+      text: "",
+      placeName: name,
       placeId: address ?? propertyToken ?? "",
     };
 
@@ -560,7 +562,7 @@ export function useGroupChat() {
           {
             type: "place",
             value: propertyToken ?? name,
-            metadata: { address, gps },
+            metadata: { name, address, gps },
           },
         ],
       };

@@ -84,3 +84,20 @@ export async function searchHotels(name, gps = null) {
   const response = await discoverClient.post('/discover/hotels', body);
   return response.data?.data ?? [];
 }
+
+/**
+ * Get hotel details by property_token (place ID).
+ * Endpoint: GET /discover/hotels/{hotel_id}
+ *
+ * @param {string} hotelId - property_token
+ * @returns {Promise<HotelResult|null>}
+ */
+export async function getHotelById(hotelId) {
+  if (!hotelId) return null;
+  try {
+    const response = await discoverClient.get(`/discover/hotels/${encodeURIComponent(hotelId)}`);
+    return response.data?.data ?? null;
+  } catch {
+    return null;
+  }
+}
