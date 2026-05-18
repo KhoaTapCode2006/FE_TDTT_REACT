@@ -161,17 +161,23 @@ function LocationPickerModal({ onClose, onSelect }) {
                 {hotel.address && (
                   <p className="text-xs text-gray-400 truncate mt-0.5">{hotel.address}</p>
                 )}
-                {hotel.raw_rating > 0 && (
-                  <div className="flex items-center gap-1 mt-1">
-                    <span className="text-yellow-400 text-xs">★</span>
-                    <span className="text-xs text-gray-500">{hotel.raw_rating.toFixed(1)}</span>
-                    {hotel.price && (
-                      <span className="text-xs text-gray-400 ml-1">
-                        · {hotel.price.toLocaleString("vi-VN")}đ/đêm
-                      </span>
-                    )}
-                  </div>
-                )}
+                <div className="flex items-center gap-1 mt-1 flex-wrap">
+                  {hotel.price != null && (
+                    <span className="text-xs text-blue-500 font-medium">
+                      {hotel.price.toLocaleString("vi-VN")}₫
+                    </span>
+                  )}
+                  {hotel.deal && (
+                    <span className="text-xs text-green-500">· {hotel.deal}</span>
+                  )}
+                  {hotel.raw_rating > 0 && (
+                    <>
+                      {hotel.price != null && <span className="text-xs text-gray-300">·</span>}
+                      <span className="text-yellow-400 text-xs">★</span>
+                      <span className="text-xs text-gray-500">{hotel.raw_rating.toFixed(1)}</span>
+                    </>
+                  )}
+                </div>
               </div>
             </button>
           ))}
