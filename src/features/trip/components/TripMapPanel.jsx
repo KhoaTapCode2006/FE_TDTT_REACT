@@ -353,7 +353,7 @@ export default function TripMapPanel({ trip }) {
                     <span className="text-[10px] text-gray-300">...</span>
                   ) : info ? (
                     <>
-                      <span className="text-[10px] text-gray-500 font-medium">📍 {info.distKm} km</span>
+                      <span className="text-[10px] text-gray-500 font-medium">{info.distKm} km</span>
                       <span className="text-[10px] text-gray-400">⏱ ~{info.timeMin} ph</span>
                       {!info.hasRealGps && <span className="text-[9px] text-yellow-500">⚠</span>}
                     </>

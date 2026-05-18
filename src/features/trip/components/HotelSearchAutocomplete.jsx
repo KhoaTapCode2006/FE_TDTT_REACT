@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { searchHotels } from "@/services/backend/discover.service";
 
 /**
@@ -11,12 +12,14 @@ import { searchHotels } from "@/services/backend/discover.service";
  *   value        {string}   - current place_id (property_token)
  *   displayValue {string}   - tên khách sạn hiển thị trong input
  *   onChange     {Function} - called with ({ placeId, display }) khi user chọn
+ *   onOpenChange {Function} - called with (boolean) khi dropdown mở/đóng
  *   placeholder  {string}
  */
 function HotelSearchAutocomplete({
   value,
   displayValue,
   onChange,
+  onOpenChange,
   placeholder = "Search for a hotel…",
 }) {
   const [query, setQuery]           = useState(displayValue || "");
@@ -24,10 +27,17 @@ function HotelSearchAutocomplete({
   const [loading, setLoading]       = useState(false);
   const [open, setOpen]             = useState(false);
   const [selected, setSelected]     = useState(!!value);
+  const [dropdownStyle, setDropdownStyle] = useState({});
 
   const debounceRef  = useRef(null);
   const containerRef = useRef(null);
+  const inputRef     = useRef(null);
   const gpsRef       = useRef(null);
+
+  // Notify parent khi open thay đổi
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
 
   // Lấy GPS một lần khi mount (best-effort)
   useEffect(() => {
@@ -60,6 +70,31 @@ function HotelSearchAutocomplete({
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  // Tính toán vị trí dropdown dựa trên input
+  const updateDropdownPosition = useCallback(() => {
+    if (!inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    setDropdownStyle({
+      position: "fixed",
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      updateDropdownPosition();
+      window.addEventListener("scroll", updateDropdownPosition, true);
+      window.addEventListener("resize", updateDropdownPosition);
+    }
+    return () => {
+      window.removeEventListener("scroll", updateDropdownPosition, true);
+      window.removeEventListener("resize", updateDropdownPosition);
+    };
+  }, [open, updateDropdownPosition]);
 
   const fetchResults = useCallback(async (q) => {
     if (!q.trim()) { setResults([]); setOpen(false); return; }
@@ -113,10 +148,16 @@ function HotelSearchAutocomplete({
         </span>
 
         <input
+          ref={inputRef}
           type="text"
           value={query}
           onChange={handleInputChange}
-          onFocus={() => { if (results.length > 0) setOpen(true); }}
+          onFocus={() => {
+            if (results.length > 0) {
+              updateDropdownPosition();
+              setOpen(true);
+            }
+          }}
           placeholder={placeholder}
           className="w-full border border-gray-200 rounded-xl pl-9 pr-9 py-3 text-sm text-gray-700 placeholder-gray-300 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition bg-gray-50"
         />
@@ -152,9 +193,12 @@ function HotelSearchAutocomplete({
         </p>
       )}
 
-      {/* Dropdown */}
-      {open && (
-        <ul className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+      {/* Dropdown — render qua portal để thoát khỏi overflow của modal */}
+      {open && createPortal(
+        <ul
+          style={dropdownStyle}
+          className="bg-white border border-gray-200 rounded-xl shadow-xl max-h-80 overflow-y-auto"
+        >
           {results.map((hotel) => (
             <li key={hotel.property_token}>
               <button
@@ -162,7 +206,6 @@ function HotelSearchAutocomplete({
                 onMouseDown={(e) => { e.preventDefault(); handleSelect(hotel); }}
                 className="w-full text-left px-4 py-2.5 hover:bg-blue-50 transition flex items-center gap-3"
               >
-                {/* Thumbnail nếu có */}
                 {hotel.images?.[0]?.thumbnail && (
                   <img
                     src={hotel.images[0].thumbnail}
@@ -185,7 +228,8 @@ function HotelSearchAutocomplete({
               </button>
             </li>
           ))}
-        </ul>
+        </ul>,
+        document.body
       )}
     </div>
   );

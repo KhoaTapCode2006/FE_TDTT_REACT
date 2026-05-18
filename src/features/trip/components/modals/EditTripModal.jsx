@@ -13,6 +13,7 @@ function EditTripModal({ trip, onClose, onSave }) {
   const [dateFrom,     setDateFrom]    = useState(trip.dateFrom ?? "");
   const [dateTo,       setDateTo]      = useState(trip.dateTo ?? "");
   const [showPicker,   setShowPicker]  = useState(false);
+  const [hotelDropdownOpen, setHotelDropdownOpen] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -51,7 +52,7 @@ function EditTripModal({ trip, onClose, onSave }) {
           </div>
 
           {/* Scrollable body */}
-          <div className="overflow-y-auto flex-1 px-8 pt-5 pb-4">
+          <div className="overflow-y-auto overflow-x-visible flex-1 px-8 pt-5 pb-4">
             <div className="flex flex-col gap-5">
               {/* Trip Name */}
               <div className="flex flex-col gap-2">
@@ -76,6 +77,7 @@ function EditTripModal({ trip, onClose, onSave }) {
                     setPlaceId(id);
                     setPlaceDisplay(display);
                   }}
+                  onOpenChange={setHotelDropdownOpen}
                 />
               </div>
 
@@ -110,7 +112,7 @@ function EditTripModal({ trip, onClose, onSave }) {
           </div>
 
           {/* Fixed footer — actions */}
-          <div className="px-8 py-5 border-t border-gray-100 shrink-0">
+          <div className={`px-8 py-5 border-t border-gray-100 shrink-0 transition-opacity ${hotelDropdownOpen ? "opacity-0 pointer-events-none" : "opacity-100"}`}>
             <form onSubmit={handleSubmit} className="flex items-center gap-6">
               <button
                 type="submit"
