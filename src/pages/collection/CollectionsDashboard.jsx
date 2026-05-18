@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import Icon from '@/components/ui/Icon';
 import CollectionCard from '@/components/collection/CollectionCard';
@@ -334,7 +334,7 @@ function CollectionsDashboard() {
       <div className="min-h-[calc(100vh-80px)] flex items-center justify-center bg-background">
         <div className="inline-flex items-center gap-3 rounded-3xl border border-outline-variant/40 bg-surface-container-low px-6 py-5 shadow-xl">
           <Icon name="hourglass_top" size={24} className="text-primary animate-spin" />
-          <span className="text-sm font-medium text-on-surface">Loading...</span>
+          <span className="text-sm font-medium text-on-surface">Đang tải...</span>
         </div>
       </div>
     );
@@ -349,7 +349,7 @@ function CollectionsDashboard() {
       <div className="min-h-[calc(100vh-80px)] flex items-center justify-center bg-background">
         <div className="inline-flex items-center gap-3 rounded-3xl border border-outline-variant/40 bg-surface-container-low px-6 py-5 shadow-xl">
           <Icon name="hourglass_top" size={24} className="text-primary animate-spin" />
-          <span className="text-sm font-medium text-on-surface">Loading collections...</span>
+          <span className="text-sm font-medium text-on-surface">Đang tải bộ sưu tập...</span>
         </div>
       </div>
     );
@@ -367,12 +367,12 @@ function CollectionsDashboard() {
   const sectionLoading = mainTab === 'my' ? loadingMy : loadingGlobal;
 
   const pageTitle =
-    mainTab === 'global' ? 'Global Collections' : 'My Collections';
+    mainTab === 'global' ? 'Bộ sưu tập toàn cầu' : 'Bộ sưu tập của tôi';
 
   const pageSubtitle =
     mainTab === 'global'
-      ? 'Discover and save collections from the community'
-      : 'Your collections, collaborations, and saves';
+      ? 'Khám phá và lưu bộ sưu tập từ cộng đồng'
+      : 'Bộ sưu tập của bạn, cộng tác và đã lưu';
 
   return (
     <div className="min-h-[calc(100vh-80px)] bg-background px-4 py-8 sm:px-6 lg:px-10">
@@ -390,7 +390,7 @@ function CollectionsDashboard() {
               className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-primary/90 hover:shadow-xl"
             >
               <Icon name="add" size={20} />
-              Create Collection
+              Tạo bộ sưu tập
             </button>
           )}
         </div>
@@ -406,7 +406,7 @@ function CollectionsDashboard() {
           >
             <div className="flex items-center gap-2">
               <Icon name="collections_bookmark" size={22} />
-              My Collections
+              Bộ sưu tập của tôi
             </div>
             {mainTab === 'my' && (
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
@@ -422,7 +422,7 @@ function CollectionsDashboard() {
           >
             <div className="flex items-center gap-2">
               <Icon name="public" size={22} />
-              Global Collections
+              Bộ sưu tập toàn cầu
             </div>
             {mainTab === 'global' && (
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full" />
@@ -436,7 +436,7 @@ function CollectionsDashboard() {
             <div className="flex flex-wrap gap-1">
               {[
                 { id: 'owned', label: 'Của tôi', icon: 'person' },
-                { id: 'contributing', label: 'Contributing', icon: 'group' },
+                { id: 'contributing', label: 'Đóng góp', icon: 'group' },
                 { id: 'saved', label: 'Đã lưu', icon: 'bookmark' },
               ].map(({ id, label, icon }) => (
                 <button
@@ -501,7 +501,7 @@ function CollectionsDashboard() {
             <div className="flex items-center gap-3">
               <Icon name="error" size={24} className="text-red-600" />
               <div>
-                <p className="text-sm font-semibold text-red-800">Error loading collections</p>
+                <p className="text-sm font-semibold text-red-800">Lỗi khi tải bộ sưu tập</p>
                 <p className="text-xs text-red-600 mt-1">{error}</p>
               </div>
             </div>
@@ -531,21 +531,21 @@ function CollectionsDashboard() {
             </div>
             <h3 className="text-xl font-semibold text-on-surface mb-2">
               {mainTab === 'global'
-                ? 'No public collections available'
+                ? 'Chưa có bộ sưu tập công khai'
                 : mySubTab === 'owned'
-                  ? 'No collections yet'
+                  ? 'Chưa có bộ sưu tập'
                   : mySubTab === 'contributing'
-                    ? 'No contributing collections'
-                    : 'No saved collections yet'}
+                    ? 'Chưa có bộ sưu tập cộng tác'
+                    : 'Chưa có bộ sưu tập đã lưu'}
             </h3>
             <p className="text-sm text-on-surface-variant text-center max-w-md mb-6">
               {mainTab === 'global'
-                ? 'Check back later for community collections'
+                ? 'Quay lại sau để xem bộ sưu tập từ cộng đồng'
                 : mySubTab === 'owned'
-                  ? 'Create your first collection to start organizing your favorite places'
+                  ? 'Tạo bộ sưu tập đầu tiên để bắt đầu sắp xếp các địa điểm yêu thích'
                   : mySubTab === 'contributing'
-                    ? 'When you collaborate on a collection, it will appear here'
-                    : 'Save collections from Global to see them here'}
+                    ? 'Khi bạn cộng tác trong một bộ sưu tập, nó sẽ xuất hiện ở đây'
+                    : 'Lưu bộ sưu tập từ Toàn cầu để xem chúng ở đây'}
             </p>
             {mainTab === 'my' && mySubTab === 'owned' && user && (
               <button
@@ -554,7 +554,7 @@ function CollectionsDashboard() {
                 className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-primary/90"
               >
                 <Icon name="add" size={20} />
-                Create Your First Collection
+                Tạo bộ sưu tập đầu tiên
               </button>
             )}
           </div>
@@ -621,7 +621,7 @@ function CollectionsDashboard() {
             <div className="rounded-3xl bg-surface-container-low px-6 py-4 shadow-2xl">
               <div className="flex items-center gap-3">
                 <Icon name="hourglass_top" size={24} className="text-primary animate-spin" />
-                <span className="text-sm font-medium text-on-surface">Processing...</span>
+                <span className="text-sm font-medium text-on-surface">Đang xử lý...</span>
               </div>
             </div>
           </div>

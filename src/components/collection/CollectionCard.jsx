@@ -81,8 +81,8 @@ function CollectionCard({
 
     if (ownerUid) {
       let label;
-      if (currentUserId && ownerUid === currentUserId) {
-        label = 'You';
+      if (ownerUid && ownerUid === currentUserId) {
+        label = 'Bạn';
       } else if (collection.owner?.display_name) {
         label = collection.owner.display_name;
       } else if (collection.owner?.username) {
@@ -106,17 +106,17 @@ function CollectionCard({
           uid: c.uid,
           label:
             c.uid === currentUserId
-              ? 'You'
+              ? 'Bạn'
               : c.display_name || c.username || `${c.uid.substring(0, 8)}...`,
           isOwner: false,
         });
       });
     }
     
-    // Sort: "You" first, then others
+    // Sort: "Bạn" first, then others
     contributors.sort((a, b) => {
-      if (a.label === 'You') return -1;
-      if (b.label === 'You') return 1;
+      if (a.label === 'Bạn') return -1;
+      if (b.label === 'Bạn') return 1;
       return 0;
     });
     
@@ -147,8 +147,8 @@ function CollectionCard({
             onClick={handleSave}
             disabled={isSaving}
             className="save-button-focus save-button-hover touch-target-min absolute top-3 right-3 flex items-center justify-center w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-lg transition-all duration-300 hover:bg-white hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-            title={isSaved ? 'Unsave collection' : 'Save collection'}
-            aria-label={isSaved ? 'Unsave collection' : 'Save collection'}
+            title={isSaved ? 'Bỏ lưu collection' : 'Lưu collection'}
+            aria-label={isSaved ? 'Bỏ lưu collection' : 'Lưu collection'}
             aria-pressed={isSaved}
             aria-busy={isSaving}
           >
@@ -163,7 +163,7 @@ function CollectionCard({
                 className={`transition-all duration-300 ${isSaved ? 'text-red-500 scale-110' : 'text-on-surface-variant'}`}
               />
             )}
-            {isSaving && <span className="sr-only">Saving collection...</span>}
+            {isSaving && <span className="sr-only">Đang lưu collection...</span>}
           </button>
         )}
       </div>
@@ -176,7 +176,7 @@ function CollectionCard({
             {collection.name}
           </h3>
           <p className="text-sm text-on-surface-variant line-clamp-2 mt-1 min-h-[2.5rem]">
-            {collection.description || 'No description'}
+            {collection.description || 'Không có mô tả'}
           </p>
         </div>
 
@@ -199,24 +199,41 @@ function CollectionCard({
               )}
             </div>
           ) : (
-            <div className="text-xs text-on-surface-variant/50 italic">No tags</div>
+            <div className="text-xs text-on-surface-variant/50 italic">Không có tag</div>
           )}
         </div>
 
         {/* Stats */}
-        <div className="flex items-center gap-4 text-xs text-on-surface-variant mb-3">
-          <div className="flex items-center gap-1">
-            <Icon name="place" size={16} />
-            <span>{collection.place_count ?? collection.places?.length ?? 0} places</span>
+        {/* Đã lột bỏ khung nền, viền và tinh chỉnh margin để ép sát lề trái */}
+        <div className="flex flex-row items-center divide-x divide-gray-300 text-xs mb-3 w-fit max-w-full -ml-0.5">
+          
+          {/* 1. Địa điểm */}
+          <div className="flex items-center gap-1 pr-2 whitespace-nowrap">
+            <Icon name="place" size={14} className="text-blue-500 shrink-0" />
+            <span className="font-semibold text-gray-800">
+              {collection.place_count ?? collection.places?.length ?? 0}
+            </span>
+            <span className="text-gray-500">địa điểm</span>
           </div>
-          <div className="flex items-center gap-1">
-            <Icon name="visibility" size={16} />
-            <span>{showWeeklyViews ? (collection.views?.weekly_views || 0) : (collection.views?.total_views || 0)} views</span>
+
+          {/* 2. Lượt xem */}
+          <div className="flex items-center gap-1 px-2 whitespace-nowrap">
+            <Icon name="visibility" size={14} className="text-gray-400 shrink-0" />
+            <span className="font-semibold text-gray-800">
+              {showWeeklyViews ? (collection.views?.weekly_views || 0) : (collection.views?.total_views || 0)}
+            </span>
+            <span className="text-gray-500">lượt xem</span>
           </div>
-          <div className="flex items-center gap-1">
-            <Icon name="favorite" size={16} />
-            <span>{collection.saved_count || 0} saves</span>
+
+          {/* 3. Lượt lưu */}
+          <div className="flex items-center gap-1 pl-2 whitespace-nowrap">
+            <Icon name="favorite" size={14} className="text-red-400 shrink-0" />
+            <span className="font-semibold text-gray-800">
+              {collection.saved_count || 0}
+            </span>
+            <span className="text-gray-500">lượt lưu</span>
           </div>
+
         </div>
 
         {/* Owner/Contributors Info */}
@@ -238,7 +255,7 @@ function CollectionCard({
                 )}
               </div>
             ) : (
-              <span className="text-xs text-on-surface-variant">No contributors</span>
+              <span className="text-xs text-on-surface-variant">Không có người đóng góp</span>
             )}
           </div>
         </div>
@@ -256,14 +273,14 @@ function CollectionCard({
                   className="inline-flex items-center justify-center gap-1 rounded-full border border-outline-variant/70 bg-surface-container px-3 py-2.5 text-xs font-semibold text-on-surface transition-all hover:bg-surface-container-high hover:border-primary/50"
                 >
                   <Icon name="visibility" size={16} />
-                  <span className="hidden sm:inline">View</span>
+                  <span className="hidden sm:inline">Xem</span>
                 </button>
                 <button
                   onClick={handleEdit}
                   className="inline-flex items-center justify-center gap-1 rounded-full bg-primary px-3 py-2.5 text-xs font-semibold text-white transition-all hover:bg-primary/90 hover:shadow-lg"
                 >
                   <Icon name="edit" size={16} />
-                  <span className="hidden sm:inline">Edit</span>
+                  <span className="hidden sm:inline">Sửa</span>
                 </button>
                 <button
                   onClick={handleDelete}
@@ -271,7 +288,7 @@ function CollectionCard({
                   className="inline-flex items-center justify-center gap-1 rounded-full border border-red-400/80 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 transition-all hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Icon name="delete" size={16} />
-                  <span className="hidden sm:inline">{isDeleting ? '...' : 'Delete'}</span>
+                  <span className="hidden sm:inline">{isDeleting ? '...' : 'Xóa'}</span>
                 </button>
               </div>
             ) : (
@@ -280,7 +297,7 @@ function CollectionCard({
                 className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-outline-variant/70 bg-surface-container px-4 py-2.5 text-sm font-semibold text-on-surface transition-all hover:bg-surface-container-high hover:border-primary/50"
               >
                 <Icon name="visibility" size={16} />
-                View Details
+                Xem chi tiết
               </button>
             )}
           </div>

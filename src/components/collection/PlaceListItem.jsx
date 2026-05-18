@@ -18,8 +18,8 @@ function PlaceListItem({
 }) {
   const [imageError, setImageError] = useState(false);
 
-  const placeName = place?.name || 'Unknown Place';
-  const addedByName = place?.added_by?.display_name || place?.added_by?.username || 'Unknown User';
+  const placeName = place?.name || 'Địa điểm không xác định';
+  const addedByName = place?.added_by?.display_name || place?.added_by?.username || 'Người dùng không xác định';
   const addedByAvatarUrl = isValidAvatarUrl(place?.added_by?.avatar_url)
     ? place.added_by.avatar_url
     : null;
@@ -111,7 +111,7 @@ function PlaceListItem({
               onClick={handleRemoveClick}
               className="group flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2 transition-colors hover:bg-red-50"
               title="Xóa khỏi collection"
-              aria-label={`Remove ${placeName}`}
+              aria-label={`Xóa ${placeName}`}
             >
               <Icon
                 name="delete"

@@ -1649,22 +1649,11 @@ function CollectionPage() {
             )}
             
             <div className="flex-1 space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                   <Icon name="collections" size={16} /> Collection
                 </span>
-                {!isCreateMode && (
-                  <>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
-                      <Icon name="favorite" size={14} />
-                      <span>{collection?.saved_count ?? 0} lượt thích</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
-                      <Icon name="visibility" size={14} />
-                      <span>{collection?.views?.total_views ?? 0} lượt xem</span>
-                    </span>
-                  </>
-                )}
+                
                 {isCreateMode && (
                   <span className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
                     Mới

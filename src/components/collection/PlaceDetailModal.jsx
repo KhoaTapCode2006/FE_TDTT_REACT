@@ -95,7 +95,7 @@ export default function PlaceDetailModal({ place, onClose }) {
                 className="inline-flex items-center gap-1 rounded-full border border-outline-variant/60 px-3 py-1 text-xs font-semibold text-on-surface transition hover:bg-surface-container"
               >
                 <Icon name="open_in_new" size={14} />
-                Website
+                Trang web
               </a>
             )}
             <button
