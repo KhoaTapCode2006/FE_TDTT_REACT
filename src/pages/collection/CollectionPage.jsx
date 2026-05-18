@@ -825,6 +825,9 @@ function CollectionPage() {
   const renderCollectionMeta = () => {
     if (!collection) return null;
 
+    // Check if coming from global tab - hide visibility for global collections
+    const isFromGlobal = location.state?.returnTab === 'global';
+
     return (
       <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {/* Views */}
@@ -855,11 +858,13 @@ function CollectionPage() {
           value={collection.place_count ?? collection.places?.length ?? 0} 
         />
         
-        {/* Visibility */}
-        <PropertyChip 
-          label="Trạng thái" 
-          value={String(collection.visibility || 'public').toUpperCase()} 
-        />
+        {/* Visibility - Only show for My Collections, hide for Global Collections */}
+        {!isFromGlobal && (
+          <PropertyChip 
+            label="Trạng thái" 
+            value={String(collection.visibility || 'public').toUpperCase()} 
+          />
+        )}
       </div>
     );
   };
