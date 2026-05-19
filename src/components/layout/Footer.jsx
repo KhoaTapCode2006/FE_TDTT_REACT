@@ -6,7 +6,7 @@ function Footer() {
   return (
     <footer className="flex-none border-t border-outline-variant/20 bg-surface-container-low">
       <div className="flex flex-col md:flex-row items-center justify-between px-10 py-2 gap-2 max-w-screen-2xl mx-auto">
-        <span className="font-headline font-extrabold text-primary">Booking4U</span>
+        <span className="font-headline font-extrabold text-primary">Lodgy4U</span>
         <div className="flex gap-6">
           {links.map((label) => (
             <a

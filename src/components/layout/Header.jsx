@@ -78,7 +78,7 @@ function Header({ hideNavigation = false }) {
           to="/"
           className="text-2xl font-headline font-extrabold tracking-tighter text-primary whitespace-nowrap"
         >
-          Booking4U
+          Lodgy4U
         </Link>
 
         <div className="hidden md:flex items-center gap-8">

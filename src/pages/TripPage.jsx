@@ -16,15 +16,61 @@ import { useAuth } from "../contexts/AuthContext";
 // ─── Empty state dùng chung khi chưa có trip ─────────────────────────────────
 function NoTripState({ onCreateNew }) {
   return (
-    <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-4">
+    <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-6">
       <p className="text-lg font-medium text-gray-500">Bạn chưa có chuyến đi nào</p>
-      <button
-        onClick={onCreateNew}
-        className="flex items-center gap-2 bg-gray-900 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-gray-700 transition-colors"
-      >
-        <span className="text-lg leading-none">+</span>
-        Tạo chuyến đi mới
-      </button>
+
+      <div className="flex items-stretch gap-4">
+        {/* Tạo chuyến đi mới — trái */}
+        <div className="relative bg-gray-900 rounded-2xl px-5 py-4 w-64 overflow-hidden flex flex-col justify-between">
+          <div>
+            <p className="text-sm font-bold text-white mb-1">Tạo chuyến đi mới</p>
+            <p className="text-xs text-gray-400 leading-snug">Lên kế hoạch và quản lý chuyến đi của bạn.</p>
+          </div>
+          <button
+            onClick={onCreateNew}
+            className="mt-4 flex items-center justify-center gap-2 bg-white text-gray-900 text-sm font-semibold py-2.5 rounded-xl hover:bg-gray-100 transition-colors"
+          >
+            <span className="text-base leading-none">+</span>
+            Tạo chuyến đi mới
+          </button>
+        </div>
+
+        {/* Tham gia chuyến đi — phải */}
+        <div className="relative bg-green-50 border border-green-100 rounded-2xl px-5 py-4 w-64 overflow-hidden flex flex-col justify-between">
+          {/* Decorative pins */}
+          <svg className="absolute right-4 top-3 w-5 h-5 text-green-300 opacity-50" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
+          </svg>
+          <svg className="absolute right-10 bottom-4 w-3.5 h-3.5 text-green-400 opacity-30" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
+          </svg>
+
+          <div className="flex items-start gap-3 mb-3">
+            <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+              <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m6-4.13a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-800">Tham gia chuyến đi</p>
+              <p className="text-xs text-gray-500 mt-0.5 leading-snug">Nhập ID chuyến đi để tham gia cùng bạn bè.</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center bg-white border border-gray-200 rounded-xl px-3 py-2">
+              <input
+                type="text"
+                placeholder="Nhập ID chuyến đi"
+                className="flex-1 text-sm text-gray-700 placeholder-gray-400 outline-none bg-transparent min-w-0"
+              />
+            </div>
+            <button className="w-full bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors">
+              Tham gia chuyến đi
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

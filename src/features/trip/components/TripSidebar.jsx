@@ -37,6 +37,49 @@ function TripSidebar({ activeNav, onNavChange, onOpenCreate }) {
         <span className="text-lg leading-none">+</span>
         Tạo chuyến đi mới
       </button>
+
+      {/* Join trip */}
+      <div className="mt-3 rounded-xl bg-green-50 border border-green-100 px-3 py-3 flex flex-col gap-2 overflow-hidden relative">
+        {/* Decorative map pins */}
+        <svg className="absolute right-2 top-2 w-4 h-4 text-green-300 opacity-60" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
+        </svg>
+        <svg className="absolute right-6 bottom-3 w-3 h-3 text-green-400 opacity-40" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
+        </svg>
+
+        {/* Header */}
+        <div className="flex items-start gap-2">
+          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+            <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m6-4.13a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-xs font-bold text-gray-800 leading-tight">Tham gia chuyến đi</p>
+            <p className="text-xs text-gray-500 leading-snug mt-0.5">Nhập ID chuyến đi để tham gia cùng bạn bè.</p>
+          </div>
+        </div>
+
+        {/* Input */}
+        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-2.5 py-1.5">
+          <input
+            type="text"
+            placeholder="Nhập ID chuyến đi"
+            className="flex-1 text-xs text-gray-700 placeholder-gray-400 outline-none bg-transparent min-w-0"
+          />
+          <button className="text-gray-400 hover:text-gray-600 transition-colors shrink-0">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582M20 20v-5h-.581M5.635 19A9 9 0 1019 5.636" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Join button */}
+        <button className="w-full bg-green-500 hover:bg-green-600 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
+          Tham gia chuyến đi
+        </button>
+      </div>
     </aside>
   );
 }
