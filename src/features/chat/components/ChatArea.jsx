@@ -4,7 +4,7 @@ import MessageBubble from "./MessageBubble";
 import LocationPickerModal from "./modals/LocationPickerModal";
 
 // ─── Attachment Menu ──────────────────────────────────────────────────────────
-function AttachmentMenu({ onPickImage, onOpenLocation, onClose }) {
+function AttachmentMenu({ onPickImage, onOpenLocation, onClose, disabled }) {
   const fileInputRef = useRef(null);
 
   return (
@@ -12,7 +12,7 @@ function AttachmentMenu({ onPickImage, onOpenLocation, onClose }) {
       <div className="fixed inset-0 z-10" onClick={onClose} />
       <div className="relative z-20 mb-2 flex items-center gap-2 px-1">
         {/* Ảnh */}
-        <label className="flex flex-col items-center gap-1 cursor-pointer group">
+        <label className={`flex flex-col items-center gap-1 ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer group'}`}>
           <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-500 group-hover:bg-blue-100 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" />
@@ -24,9 +24,10 @@ function AttachmentMenu({ onPickImage, onOpenLocation, onClose }) {
             type="file"
             accept="image/*"
             className="hidden"
+            disabled={disabled}
             onChange={(e) => {
               const file = e.target.files[0];
-              if (file) { onPickImage(file); onClose(); }
+              if (file && !disabled) { onPickImage(file); onClose(); }
               e.target.value = "";
             }}
           />
@@ -34,8 +35,9 @@ function AttachmentMenu({ onPickImage, onOpenLocation, onClose }) {
 
         {/* Địa điểm — mở modal tìm kiếm */}
         <button
-          onClick={() => { onClose(); onOpenLocation(); }}
-          className="flex flex-col items-center gap-1 group"
+          onClick={() => { if (!disabled) { onClose(); onOpenLocation(); } }}
+          disabled={disabled}
+          className={`flex flex-col items-center gap-1 ${disabled ? 'opacity-40 cursor-not-allowed' : 'group'}`}
         >
           <div className="w-11 h-11 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center text-green-500 group-hover:bg-green-100 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -52,7 +54,7 @@ function AttachmentMenu({ onPickImage, onOpenLocation, onClose }) {
 // ─── Image Preview trong input bar ───────────────────────────────────────────
 function ImagePreview({ url, uploading, onRemove }) {
   return (
-    <div className="relative inline-block mb-2 ml-1">
+    <div className="relative inline-block">
       {uploading ? (
         <div className="w-16 h-16 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center">
           <svg className="w-5 h-5 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -82,7 +84,7 @@ function ImagePreview({ url, uploading, onRemove }) {
 // ─── Place Preview trong input bar ───────────────────────────────────────────
 function PlacePreview({ place, onRemove }) {
   return (
-    <div className="flex items-center gap-2 mb-2 ml-1 bg-green-50 border border-green-200 rounded-xl px-3 py-2 max-w-xs">
+    <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2 max-w-[180px]">
       <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center text-green-500 shrink-0">
         <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
@@ -105,6 +107,34 @@ function PlacePreview({ place, onRemove }) {
   );
 }
 
+// ─── Attachments Preview Bar ──────────────────────────────────────────────────
+function AttachmentsPreviewBar({ attachments, onRemove, maxCount }) {
+  if (attachments.length === 0) return null;
+  return (
+    <div className="flex items-end gap-2 mb-2 ml-1 flex-wrap">
+      {attachments.map((a) =>
+        a.type === 'image' ? (
+          <ImagePreview
+            key={a.id}
+            url={a.url}
+            uploading={a.uploading}
+            onRemove={() => onRemove(a.id)}
+          />
+        ) : (
+          <PlacePreview
+            key={a.id}
+            place={a}
+            onRemove={() => onRemove(a.id)}
+          />
+        )
+      )}
+      {attachments.length >= maxCount && (
+        <span className="text-xs text-gray-400 self-center">Tối đa {maxCount} mục</span>
+      )}
+    </div>
+  );
+}
+
 function ChatArea({
   group,
   groupMembers,
@@ -123,11 +153,10 @@ function ChatArea({
   onLeaveGroup,
   showAttach,
   setShowAttach,
-  pendingImage,
-  onRemovePendingImage,
+  pendingAttachments,
+  onRemoveAttachment,
   imageUploading,
-  pendingPlace,
-  onRemovePendingPlace,
+  maxAttachments,
 }) {
   const messagesEndRef = useRef(null);
   const [toast, setToast] = useState(null);
@@ -148,7 +177,7 @@ function ChatArea({
     showToast(`Đã xóa nhóm chat ${name}`);
   };
 
-  const canSend = (input.trim().length > 0 || !!pendingImage || !!pendingPlace) && !imageUploading;
+  const canSend = (input.trim().length > 0 || pendingAttachments.length > 0) && !imageUploading;
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
@@ -221,6 +250,7 @@ function ChatArea({
             onPickImage={onPickImage}
             onOpenLocation={() => setShowLocationModal(true)}
             onClose={() => setShowAttach(false)}
+            disabled={pendingAttachments.length >= maxAttachments}
           />
         )}
 
@@ -235,19 +265,12 @@ function ChatArea({
           />
         )}
 
-        {/* Place preview */}
-        {pendingPlace && (
-          <PlacePreview place={pendingPlace} onRemove={onRemovePendingPlace} />
-        )}
-
-        {/* Image preview */}
-        {(pendingImage || imageUploading) && (
-          <ImagePreview
-            url={pendingImage?.url}
-            uploading={imageUploading}
-            onRemove={onRemovePendingImage}
-          />
-        )}
+        {/* Attachments preview (ảnh + địa điểm lộn xộn, tối đa maxAttachments) */}
+        <AttachmentsPreviewBar
+          attachments={pendingAttachments}
+          onRemove={onRemoveAttachment}
+          maxCount={maxAttachments}
+        />
 
         <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-2 border border-gray-200">
           <button

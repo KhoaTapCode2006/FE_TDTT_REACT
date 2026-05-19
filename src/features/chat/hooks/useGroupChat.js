@@ -44,11 +44,11 @@ export function useGroupChat() {
   const [showRightPanel, setShowRightPanel] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
-  // Ảnh đã upload, chờ gửi cùng tin nhắn: { url: string, file: File } | null
-  const [pendingImage, setPendingImage] = useState(null);
+  // Danh sách attachments chờ gửi (tối đa MAX_ATTACHMENTS items, lộn xộn ảnh + địa điểm)
+  // Mỗi item: { id, type: 'image'|'place', url?, uploading?, name?, address?, propertyToken?, gps? }
+  const MAX_ATTACHMENTS = 5;
+  const [pendingAttachments, setPendingAttachments] = useState([]);
   const [imageUploading, setImageUploading] = useState(false);
-  // Địa điểm đã chọn, chờ gửi cùng tin nhắn: { name, address, propertyToken, gps } | null
-  const [pendingPlace, setPendingPlace] = useState(null);
 
   // Cache uid → display_name để resolve sender name
   const userNameCacheRef = useRef({});
@@ -397,13 +397,26 @@ export function useGroupChat() {
   // ── Chọn ảnh → upload ngay, lưu pending ────────────────────────────────────
   const handlePickImage = async (file) => {
     if (!file || !activeGroup) return;
+    // Kiểm tra giới hạn tối đa
+    if (pendingAttachments.length >= MAX_ATTACHMENTS) return;
+
+    const tempId = `img_${Date.now()}_${Math.random()}`;
+    // Thêm placeholder uploading ngay lập tức
+    setPendingAttachments((prev) => [
+      ...prev,
+      { id: tempId, type: 'image', uploading: true, url: null },
+    ]);
     setImageUploading(true);
     try {
       const url = await uploadFile(file, 'avatar');
       console.log('[handlePickImage] uploaded url:', url);
-      setPendingImage({ url, file });
+      setPendingAttachments((prev) =>
+        prev.map((a) => (a.id === tempId ? { ...a, uploading: false, url } : a))
+      );
     } catch (err) {
       console.error("uploadFile (chat image) error:", err);
+      // Xóa placeholder nếu upload thất bại
+      setPendingAttachments((prev) => prev.filter((a) => a.id !== tempId));
     } finally {
       setImageUploading(false);
     }
@@ -413,17 +426,34 @@ export function useGroupChat() {
     if (!activeGroup) return;
 
     const text = input.trim();
-    if (!text && !pendingImage && !pendingPlace) return;
+    if (!text && pendingAttachments.length === 0) return;
+    // Không gửi nếu còn ảnh đang upload
+    if (pendingAttachments.some((a) => a.uploading)) return;
 
-    console.log('[handleSend] pendingImage:', pendingImage, 'pendingPlace:', pendingPlace);
+    console.log('[handleSend] pendingAttachments:', pendingAttachments);
 
     const tempId = `temp_${Date.now()}`;
     const now = new Date();
 
-    // Xác định type ưu tiên: place > image > text
+    // Xác định type hiển thị cho optimistic message (ưu tiên place > image > text)
+    const hasPlace = pendingAttachments.some((a) => a.type === 'place');
+    const hasImage = pendingAttachments.some((a) => a.type === 'image');
     let msgType = "text";
-    if (pendingPlace) msgType = "place";
-    else if (pendingImage) msgType = "image";
+    if (hasPlace) msgType = "place";
+    else if (hasImage) msgType = "image";
+
+    // Build attachments array cho API
+    const apiAttachments = pendingAttachments.map((a) => {
+      if (a.type === 'image') {
+        return { type: 'image', value: a.url };
+      } else {
+        return {
+          type: 'place',
+          value: a.propertyToken ?? a.name,
+          metadata: { name: a.name, address: a.address, gps: a.gps },
+        };
+      }
+    });
 
     const optimisticMsg = {
       id: tempId,
@@ -435,47 +465,27 @@ export function useGroupChat() {
       seen: false,
       type: msgType,
       text: text,
-      placeName: pendingPlace ? pendingPlace.name : undefined,
-      url: pendingImage?.url ?? null,
-      placeId: pendingPlace ? (pendingPlace.address ?? pendingPlace.propertyToken ?? "") : undefined,
-      attachments: pendingImage
-        ? [{ type: "image", value: pendingImage.url }]
-        : pendingPlace
-        ? [{ type: "place", value: pendingPlace.propertyToken ?? pendingPlace.name, metadata: { address: pendingPlace.address, gps: pendingPlace.gps } }]
-        : [],
+      // Backward compat: lấy item đầu tiên cho các field đơn lẻ
+      placeName: hasPlace ? pendingAttachments.find((a) => a.type === 'place')?.name : undefined,
+      url: hasImage ? pendingAttachments.find((a) => a.type === 'image')?.url : null,
+      placeId: hasPlace ? (pendingAttachments.find((a) => a.type === 'place')?.address ?? pendingAttachments.find((a) => a.type === 'place')?.propertyToken ?? "") : undefined,
+      attachments: apiAttachments,
     };
 
     // Snapshot pending trước khi clear
-    const imageToSend = pendingImage;
-    const placeToSend = pendingPlace;
+    const attachmentsToSend = [...pendingAttachments];
 
     // Optimistic update + clear input
     const updatedMessages = [...messages, optimisticMsg];
     setMessagesByGroup((prev) => ({ ...prev, [activeGroup]: updatedMessages }));
     setInput("");
-    setPendingImage(null);
-    setPendingPlace(null);
+    setPendingAttachments([]);
 
     try {
-      let apiPayload;
-
-      if (placeToSend) {
-        apiPayload = {
-          content: text || placeToSend.name,
-          attachments: [
-            {
-              type: "place",
-              value: placeToSend.propertyToken ?? placeToSend.name,
-              metadata: { name: placeToSend.name, address: placeToSend.address, gps: placeToSend.gps },
-            },
-          ],
-        };
-      } else {
-        apiPayload = { content: text };
-        if (imageToSend) {
-          apiPayload.attachments = [{ type: "image", value: imageToSend.url }];
-        }
-      }
+      const apiPayload = {
+        content: text || (hasPlace ? attachmentsToSend.find((a) => a.type === 'place')?.name : ''),
+        ...(apiAttachments.length > 0 && { attachments: apiAttachments }),
+      };
 
       const sentMsg = await sendMessage(activeGroup, apiPayload);
       const finalMsg = { ...optimisticMsg, id: sentMsg.id ?? tempId, seen: true };
@@ -485,8 +495,8 @@ export function useGroupChat() {
         [activeGroup]: prev[activeGroup].map((m) => m.id === tempId ? finalMsg : m),
       }));
 
-      // Gọi AI chỉ khi là tin nhắn text thuần (không có ảnh, không có place)
-      if (!imageToSend && !placeToSend && text) {
+      // Gọi AI chỉ khi là tin nhắn text thuần (không có attachments)
+      if (attachmentsToSend.length === 0 && text) {
         try {
           const payload = updatedMessages
             .filter((m) => m.type === "text" && m.text)
@@ -519,15 +529,20 @@ export function useGroupChat() {
         [activeGroup]: prev[activeGroup].filter((m) => m.id !== tempId),
       }));
       // Khôi phục pending nếu gửi thất bại
-      if (imageToSend) setPendingImage(imageToSend);
-      if (placeToSend) setPendingPlace(placeToSend);
+      setPendingAttachments(attachmentsToSend);
     }
   };
 
   // ── Chọn địa điểm → lưu pending, chờ người dùng nhấn gửi ─────────────────
   const handlePickPlace = ({ name, address, propertyToken, gps }) => {
     if (!name) return;
-    setPendingPlace({ name, address, propertyToken, gps });
+    // Kiểm tra giới hạn tối đa
+    if (pendingAttachments.length >= MAX_ATTACHMENTS) return;
+    const id = `place_${Date.now()}_${Math.random()}`;
+    setPendingAttachments((prev) => [
+      ...prev,
+      { id, type: 'place', name, address, propertyToken, gps },
+    ]);
   };
 
   // handleSendPlace giữ lại để tương thích nếu cần gửi trực tiếp từ nơi khác
@@ -662,11 +677,10 @@ export function useGroupChat() {
     setShowCreateModal,
     showAttach,
     setShowAttach,
-    pendingImage,
-    setPendingImage,
+    pendingAttachments,
+    setPendingAttachments,
     imageUploading,
-    pendingPlace,
-    setPendingPlace,
+    MAX_ATTACHMENTS,
     // Handlers
     setActiveGroup,
     handleCreateGroup,

@@ -21,11 +21,10 @@ export default function GroupChatPage() {
     setShowCreateModal,
     showAttach,
     setShowAttach,
-    pendingImage,
-    setPendingImage,
+    pendingAttachments,
+    setPendingAttachments,
     imageUploading,
-    pendingPlace,
-    setPendingPlace,
+    MAX_ATTACHMENTS,
     setActiveGroup,
     handleCreateGroup,
     handleUpdateGroup,
@@ -129,11 +128,10 @@ export default function GroupChatPage() {
         onLeaveGroup={handleLeaveGroup}
         showAttach={showAttach}
         setShowAttach={setShowAttach}
-        pendingImage={pendingImage}
-        onRemovePendingImage={() => setPendingImage(null)}
+        pendingAttachments={pendingAttachments}
+        onRemoveAttachment={(id) => setPendingAttachments((prev) => prev.filter((a) => a.id !== id))}
         imageUploading={imageUploading}
-        pendingPlace={pendingPlace}
-        onRemovePendingPlace={() => setPendingPlace(null)}
+        maxAttachments={MAX_ATTACHMENTS}
       />
 
       {showRightPanel && (
