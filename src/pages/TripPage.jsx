@@ -113,7 +113,7 @@ export default function TripPage() {
     memberRefreshKey,
   } = useTrip();
 
-  useGpsTracking(trips.map((t) => t.id));
+  const { pause: pauseGps, resume: resumeGps } = useGpsTracking(trips.map((t) => t.id));
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-gray-50 font-body overflow-hidden">
@@ -167,7 +167,7 @@ export default function TripPage() {
                   />
                 </div>
                 <div className="flex-1 min-h-0 px-4 pb-0">
-                  <TripMapPanel trip={selectedTrip} />
+                  <TripMapPanel trip={selectedTrip} onFakeStart={pauseGps} onFakeStop={resumeGps} />
                 </div>
               </>
             )}

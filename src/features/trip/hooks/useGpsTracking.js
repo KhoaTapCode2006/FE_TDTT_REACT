@@ -8,10 +8,12 @@ import { db, auth } from "@/config/firebase";
 
 /**
  * @param {string[]} tripIds - Danh sách trip IDs mà user là thành viên
+ * @returns {{ pause: () => void, resume: () => void }}
  */
 export function useGpsTracking(tripIds) {
   const watchIdRef  = useRef(null);
   const tripIdsRef  = useRef(tripIds);
+  const pausedRef   = useRef(false); // true khi fake GPS đang bật
 
   // Giữ ref luôn up-to-date khi tripIds thay đổi
   useEffect(() => {
@@ -19,6 +21,9 @@ export function useGpsTracking(tripIds) {
   }, [tripIds]);
 
   const pushToAllTrips = useCallback(async (lat, lng) => {
+    // Không push nếu đang bị pause (fake GPS đang chiếm quyền)
+    if (pausedRef.current) return;
+
     const uid = auth.currentUser?.uid;
     if (!uid || !tripIdsRef.current?.length) return;
 
@@ -80,4 +85,9 @@ export function useGpsTracking(tripIds) {
       }
     };
   }, [pushToAllTrips]);
+
+  const pause  = useCallback(() => { pausedRef.current = true;  }, []);
+  const resume = useCallback(() => { pausedRef.current = false; }, []);
+
+  return { pause, resume };
 }

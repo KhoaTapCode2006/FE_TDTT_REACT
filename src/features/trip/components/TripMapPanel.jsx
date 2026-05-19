@@ -4,6 +4,7 @@ import { db, auth } from "@/config/firebase";
 import { useTripMembers } from "../hooks/useTripMembers";
 import { useAccidentAlert } from "../hooks/useAccidentAlert";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
+import FakeGpsControl from "./FakeGpsControl";
 
 // ─── TripMapPanel ─────────────────────────────────────────────────────────────
 // Giống TripMapModal nhưng là panel inline (không có modal wrapper).
@@ -18,7 +19,7 @@ const statusLabel = {
   no_share:        { text: "Không chia sẻ",   color: "text-gray-400" },
 };
 
-export default function TripMapPanel({ trip }) {
+export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
   const mapRef     = useRef(null);
   const mapObjRef  = useRef(null);
   const markersRef = useRef({});
@@ -29,7 +30,10 @@ export default function TripMapPanel({ trip }) {
   const [routeInfoMap, setRouteInfoMap]     = useState({});
   const [loadingRoutes, setLoadingRoutes]   = useState(false);
   const [distToDestM, setDistToDestM]       = useState(null);
+  const [fakeActive, setFakeActive]         = useState(false);
+  const [myRealPos, setMyRealPos]           = useState(null); // { lat, lng }
 
+  const hasInitialFitRef = useRef(false);
   const currentUid  = auth.currentUser?.uid;
   const tripId      = trip?.id;
   const isActive    = trip?.status === "active";
@@ -80,23 +84,39 @@ export default function TripMapPanel({ trip }) {
   // ── GPS setup ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentUid || !tripId) return;
+    if (!navigator.geolocation) return;
+
+    // Nếu đang fake GPS thì không watch GPS thực, không cleanup status
+    if (fakeActive) return;
+
     const ref = doc(db, "trips", tripId, "members", currentUid);
     setDoc(ref, { tracking: { status: "active", updated_at: serverTimestamp() } }, { merge: true }).catch(() => {});
-    if (!navigator.geolocation) return;
+
     navigator.geolocation.getCurrentPosition(
-      (pos) => pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude),
+      (pos) => {
+        setMyRealPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude);
+      },
       () => {}, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
     watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude),
+      (pos) => {
+        setMyRealPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude);
+      },
       () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
     return () => {
-      if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
+      if (watchIdRef.current != null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      // Chỉ set no_share khi thực sự rời trang (fakeActive = false)
+      // Không set no_share khi chuyển sang fake mode
       setDoc(ref, { tracking: { status: "no_share", updated_at: serverTimestamp() } }, { merge: true }).catch(() => {});
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUid, tripId]);
+  }, [currentUid, tripId, fakeActive]);
 
   // ── Build members ─────────────────────────────────────────────────────────
   // Khi trip chưa active: chỉ hiển thị bản thân
@@ -145,6 +165,7 @@ export default function TripMapPanel({ trip }) {
     return () => {
       Object.values(markersRef.current).forEach((m) => m.remove());
       markersRef.current = {};
+      hasInitialFitRef.current = false;
       if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,13 +205,18 @@ export default function TripMapPanel({ trip }) {
       }
     });
 
-    const all  = [[DEST.lng, DEST.lat], ...members.map((m) => [m.lng, m.lat])];
-    const lngs = all.map((p) => p[0]);
-    const lats  = all.map((p) => p[1]);
-    map.fitBounds(
-      [[Math.min(...lngs) - 0.005, Math.min(...lats) - 0.005], [Math.max(...lngs) + 0.005, Math.max(...lats) + 0.005]],
-      { padding: 60, duration: 800, maxZoom: 16 }
-    );
+    // fitBounds chỉ chạy một lần khi map load xong lần đầu
+    // Sau đó user tự zoom/pan, không reset nữa
+    if (!hasInitialFitRef.current) {
+      hasInitialFitRef.current = true;
+      const all  = [[DEST.lng, DEST.lat], ...members.map((m) => [m.lng, m.lat])];
+      const lngs = all.map((p) => p[0]);
+      const lats  = all.map((p) => p[1]);
+      map.fitBounds(
+        [[Math.min(...lngs) - 0.005, Math.min(...lats) - 0.005], [Math.max(...lngs) + 0.005, Math.max(...lats) + 0.005]],
+        { padding: 60, duration: 800, maxZoom: 16 }
+      );
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, memberTracking]);
 
@@ -251,6 +277,17 @@ export default function TripMapPanel({ trip }) {
     loadAllRoutes(members);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, memberIdsKey]);
+
+  // Khi fake GPS active: redraw route mỗi khi memberTracking thay đổi
+  // (vị trí fake được push lên Firestore → useTripMembers cập nhật → memberTracking thay đổi)
+  const memberTrackingKey = Object.entries(memberTracking)
+    .map(([uid, t]) => `${uid}:${t.lat?.toFixed(6)},${t.lng?.toFixed(6)}`)
+    .join("|");
+  useEffect(() => {
+    if (!mapReady || !fakeActive || members.length === 0) return;
+    loadAllRoutes(members);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, fakeActive, memberTrackingKey]);
 
   // ── Accident / Arrive ─────────────────────────────────────────────────────
   const meAccident = members.find((m) => m.isMe)?.accident === true;
@@ -378,6 +415,16 @@ export default function TripMapPanel({ trip }) {
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow text-xs text-gray-600 font-medium">
             Nhấn vào thành viên để focus tuyến đường
           </div>
+        )}
+        {/* Fake GPS control — chỉ hiện khi trip active và user là thành viên */}
+        {isActive && members.some((m) => m.isMe) && (
+          <FakeGpsControl
+            tripId={tripId}
+            initialLat={myRealPos?.lat ?? members.find((m) => m.isMe)?.lat}
+            initialLng={myRealPos?.lng ?? members.find((m) => m.isMe)?.lng}
+            onActivate={() => { setFakeActive(true); onFakeStart?.(); }}
+            onStop={() => { setFakeActive(false); onFakeStop?.(); }}
+          />
         )}
       </div>
     </div>
