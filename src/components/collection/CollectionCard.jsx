@@ -238,7 +238,23 @@ function CollectionCard({
 
         {/* Owner/Contributors Info */}
         <div className="flex items-center gap-2 pb-3 border-t border-outline-variant/30 pt-3">
-          <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+          {/* Owner Avatar */}
+          {collection.owner?.avatar_url ? (
+            <img
+              src={collection.owner.avatar_url}
+              alt={collection.owner.display_name || collection.owner.username || 'Owner'}
+              className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+              onError={(e) => {
+                // Fallback to icon if image fails to load
+                e.target.style.display = 'none';
+                e.target.nextElementSibling.style.display = 'flex';
+              }}
+            />
+          ) : null}
+          <div 
+            className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0"
+            style={{ display: collection.owner?.avatar_url ? 'none' : 'flex' }}
+          >
             <Icon name="person" size={14} className="text-primary" />
           </div>
           <div className="flex-1 min-w-0">
