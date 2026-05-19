@@ -209,6 +209,9 @@ export function getRadiusHandleCoordinates(center, radius) {
   return getCirclePoint(center, radius, 45);
 }
 
+// Image error cache to track logged errors (Task 8.2 - Requirement 8.1, 8.2, 8.5)
+const imageErrorCache = new Set();
+
 /**
  * Create hotel marker element with proper styling and interactions
  * @param {Object} hotel - Hotel object with properties
@@ -221,15 +224,7 @@ export function createHotelMarkerElement(hotel, insideCircle, onSelect, isHovere
   const size = insideCircle ? 52 : 42;
   
   // Debug logging
-  console.log('Creating hotel marker:', {
-    name: hotel.name,
-    id: hotel.id,
-    thumbnail: hotel.thumbnail,
-    hasImages: hotel.images?.length > 0,
-    firstImage: hotel.images?.[0],
-    insideCircle,
-    size
-  });
+ 
   
   // Create wrapper div (no styles - map handles positioning)
   const wrapper = document.createElement("div");
@@ -261,21 +256,32 @@ export function createHotelMarkerElement(hotel, insideCircle, onSelect, isHovere
   }
 
   const thumbnailUrl = getHotelThumbnailUrl(hotel);
-  console.log('Using thumbnail URL:', thumbnailUrl);
   
   const image = document.createElement("img");
-  image.src = thumbnailUrl;
+  // Set placeholder initially (Task 8.2 - Requirement 8.1, 8.2)
+  image.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="60" height="60"%3E%3Crect fill="%23e0e0e0" width="60" height="60"/%3E%3C/svg%3E';
   image.alt = hotel.name || "Hotel";
   image.style.width = "100%";
   image.style.height = "100%";
   image.style.objectFit = "cover";
   image.style.display = "block";
   
-  // Add error handler for image loading
-  image.onerror = () => {
-    console.error('Failed to load hotel image:', thumbnailUrl);
-    image.src = 'https://via.placeholder.com/60x60?text=Hotel';
-  };
+  // Preload actual image with error handling (Task 8.2 - Requirement 8.1, 8.2, 8.5)
+  if (thumbnailUrl) {
+    const tempImg = new Image();
+    tempImg.onload = () => {
+      image.src = thumbnailUrl;
+    };
+    tempImg.onerror = () => {
+      // Only log error once per URL (Task 8.2 - Requirement 8.1, 8.5)
+      if (!imageErrorCache.has(thumbnailUrl)) {
+        console.warn(`Failed to load hotel image: ${hotel.name}`);
+        imageErrorCache.add(thumbnailUrl);
+      }
+      // Keep placeholder
+    };
+    tempImg.src = thumbnailUrl;
+  }
   
   inner.appendChild(image);
 
@@ -474,13 +480,6 @@ export function getClusterBadgeText(count) {
  */
 export function createClusterMarkerElement(cluster, firstHotel, hotelCount, onClick, clusterHotelIds = [], hoveredHotelId = null) {
   // Debug logging
-  console.log('Creating cluster marker:', {
-    hotelCount,
-    firstHotelName: firstHotel?.name,
-    firstHotelId: firstHotel?.id,
-    thumbnail: firstHotel?.thumbnail,
-    hasImages: firstHotel?.images?.length > 0
-  });
   
   // ── Wrapper ──────────────────────────────────────────────────────────────
   // Fixed 60×60 size + position:relative so the badge's absolute positioning
@@ -522,8 +521,7 @@ export function createClusterMarkerElement(cluster, firstHotel, hotelCount, onCl
   });
 
   // Hotel photo
-  const thumbnailUrl = getHotelThumbnailUrl(firstHotel);
-  console.log('Cluster using thumbnail URL:', thumbnailUrl);
+  const thumbnailUrl = getHotelThumbnailUrl(firstHotel);;
   
   const img = document.createElement('img');
   img.src = thumbnailUrl;
@@ -535,7 +533,6 @@ export function createClusterMarkerElement(cluster, firstHotel, hotelCount, onCl
   
   // Add error handler for image loading
   img.onerror = () => {
-    console.error('Failed to load cluster image:', thumbnailUrl);
     img.src = 'https://via.placeholder.com/60x60?text=Hotels';
   };
   

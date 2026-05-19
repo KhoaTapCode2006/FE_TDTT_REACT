@@ -6,13 +6,11 @@ import Icon from "@/components/ui/Icon";
 function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
   // Task 3.1: Use filteredHotels instead of hotels for client-side filtering
   const { filteredHotels, loading, setActiveHotel, hasActiveFilters, activeFilterCount, clusterHotels, activeHotel } = useApp();
-  const [idx, setIdx] = useState(0);
   const [viewMode, setViewMode] = useState('list'); // Internal view mode for grid toggle
   const [gridColumns, setGridColumns] = useState(1); // 1, 2, or 3 columns
   const [gridPageIndex, setGridPageIndex] = useState(0); // Pagination state for grid layout
 
   useEffect(() => {
-    setIdx(0);
     setGridPageIndex(0); // Reset grid page when hotels change
   }, [filteredHotels]);
 
@@ -54,9 +52,6 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
   }, [mapWidth, layoutMode]);
 
   const total = filteredHotels.length;
-  const current = filteredHotels[idx] || null;
-  const isFirst = idx === 0;
-  const isLast = idx === total - 1;
   const hasCluster = clusterHotels && clusterHotels.length > 0;
   const isGridMode = viewMode === 'grid';
   const showMultiHotelButton = layoutMode === 'grid'; // Show button when map is narrow
@@ -92,7 +87,7 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold uppercase tracking-widest text-secondary">
               {loading ? "…" : total === 0 ? "0 Results" : 
-                isGridMode ? `Page ${gridPageIndex + 1} / ${totalPages}` : `${idx + 1} / ${total} Results`
+                isGridMode ? `Page ${gridPageIndex + 1} / ${totalPages}` : `${total} Results`
               }
             </span>
             {showMultiHotelButton && !hasCluster && total > 0 && (
@@ -122,7 +117,7 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden px-6 pt-6 pb-6">
+      <div className="flex-none px-6 pt-6 pb-6" style={{ height: 'calc(100vh - 180px)' }}>
         {loading ? (
           <div className="h-full w-full rounded-[32px] bg-surface-container-highest animate-pulse" />
         ) : total === 0 ? (
@@ -132,7 +127,7 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
             <p className="text-sm text-on-surface-variant">Try adjusting your filters or expanding the radius.</p>
           </div>
         ) : hasCluster ? (
-          <div className="h-full overflow-y-auto">
+          <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
             <div className="mb-4">
               <h3 className="font-headline text-lg font-bold text-primary mb-2">Hotels in this cluster</h3>
               <p className="text-xs text-on-surface-variant">{clusterHotels.length} hotels at this location</p>
@@ -174,7 +169,7 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
           </div>
         ) : isGridMode ? (
           // Grid layout - show multiple hotels
-          <div className="h-full overflow-y-auto">
+          <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
             <div className={`grid gap-4 ${
               gridColumns === 1 ? 'grid-cols-1' : 
               gridColumns === 2 ? 'grid-cols-2' : 
@@ -222,38 +217,14 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
             </div>
           </div>
         ) : (
-          // List layout - single hotel card with navigation
-          <div className="relative h-full">
-            <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-2">
-              <button
-                type="button"
-                onClick={() => setIdx((i) => Math.max(0, i - 1))}
-                disabled={isFirst}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-card border border-outline-variant/30 text-primary hover:bg-surface-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <Icon name="chevron_left" size={24} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIdx((i) => Math.min(total - 1, i + 1))}
-                disabled={isLast}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-card border border-outline-variant/30 text-primary hover:bg-surface-container transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <Icon name="chevron_right" size={24} />
-              </button>
-            </div>
-
-            <div className="h-full pt-14 pb-20 overflow-y-auto pr-1">
-              <HotelCard hotel={current} onClick={setActiveHotel} />
-            </div>
-
-            <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-2">
-              {filteredHotels.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setIdx(i)}
-                  className={`rounded-full transition-all ${i === idx ? "w-6 h-2 bg-primary" : "w-2 h-2 bg-outline-variant hover:bg-primary/40"}`}
+          // List layout - scrollable hotel cards (no arrow navigation)
+          <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+            <div className="space-y-4">
+              {filteredHotels.map((hotel) => (
+                <HotelCard 
+                  key={hotel.id} 
+                  hotel={hotel} 
+                  onClick={setActiveHotel} 
                 />
               ))}
             </div>

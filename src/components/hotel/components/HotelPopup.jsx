@@ -4,7 +4,9 @@ import { useApp } from "@/app/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { fmtPrice, fmtDate, formatViewCount } from "@/utils/format";
+import { getImageWithFallback } from "@/utils/imageUtils";
 import SaveToListModal from "@/components/profile/SaveToListModal";
+import viewTrackingService from "@/services/viewTracking.service";
 import styles from "./HotelPopup.module.css";
 
 const IconClose = () => (
@@ -234,8 +236,13 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
       setActiveTab("overview");
       setIsAmenitiesExpanded(false);
       setImgIndex(0);
+      
+      // Track view when popup opens
+      if (hotel?.id) {
+        viewTrackingService.trackView(hotel.id);
+      }
     }
-  }, [isOpen, hotel?.name]);
+  }, [isOpen, hotel?.name, hotel?.id]);
 
   if (!isOpen || !hotel) return null;
 
@@ -253,19 +260,11 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
     setShowSaveModal(true);
   };
 
-  // Process images - extract URLs with fallback from thumbnail to original
+  // Process images - extract URLs with fallback and apply optimization
   const images = hotel.images?.length 
     ? hotel.images.map(img => {
-        // Handle object format with thumbnail and original
-        if (typeof img === 'object' && img !== null) {
-          // Try original first (high quality), fallback to thumbnail, then url
-          return img.original || img.thumbnail || img.url || null;
-        }
-        // Handle string format
-        if (typeof img === 'string') {
-          return img;
-        }
-        return null;
+        // Use getImageWithFallback to get optimized URL
+        return getImageWithFallback(img) || null;
       }).filter(Boolean) // Remove nulls
     : ["https://via.placeholder.com/640x480?text=No+Image"];
 
@@ -390,22 +389,54 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                     <span className={styles.aiScore}>AI Score: {Number(hotel.ai_score).toFixed(1)}</span>
                   </div>
                 )}
-                <div className={styles.address}>
-                  <IconLocation /><span>{hotel.address}</span>
-                </div>
+                {/* Show distance instead of address */}
+                {hotel.distance !== undefined && hotel.distance !== null && hotel.distance > 0 ? (
+                  <div className={styles.address}>
+                    <IconLocation /><span>{hotel.distance.toFixed(2)} km</span>
+                  </div>
+                ) : hotel.address ? (
+                  <div className={styles.address}>
+                    <IconLocation /><span>{hotel.address}</span>
+                  </div>
+                ) : null}
               </div>
               
-              {/* Save Button */}
-              <button
-                type="button"
-                onClick={handleSaveClick}
-                className="flex-none p-3 rounded-full hover:bg-surface-container transition-colors group"
-                title="Lưu vào danh sách"
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary group-hover:scale-110 transition-transform">
-                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-                </svg>
-              </button>
+              {/* Right side: Save Button and View Statistics */}
+              <div className="flex flex-col items-end gap-2">
+                {/* Save Button */}
+                <button
+                  type="button"
+                  onClick={handleSaveClick}
+                  className="flex-none p-3 rounded-full hover:bg-surface-container transition-colors group"
+                  title="Lưu vào danh sách"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary group-hover:scale-110 transition-transform">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+                
+                {/* View Statistics - below bookmark */}
+                {hotel?.views && (hotel.views.totalViews > 0 || hotel.views.total_views > 0) && (
+                  <div className="flex flex-col gap-1 text-xs text-on-surface-variant text-right">
+                    <div className="flex items-center gap-1 justify-end">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      <span>{formatViewCount(hotel.views.totalViews || hotel.views.total_views || 0)}</span>
+                    </div>
+                    {(hotel.views.weeklyViews !== undefined || hotel.views.weekly_views !== undefined) && (
+                      <div className="flex items-center gap-1 justify-end">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                          <polyline points="17 6 23 6 23 12" />
+                        </svg>
+                        <span>{hotel.views.weeklyViews || hotel.views.weekly_views || 0} tuần này</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -431,6 +462,18 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                 {hotel.description ??
                   `${hotel.name} nằm tại vị trí thuận tiện, phù hợp cho cả du lịch và công tác. Khách sạn có không gian sạch sẽ, dịch vụ thân thiện và dễ dàng di chuyển đến các điểm tham quan.`}
               </p>
+
+              {/* Hotel Link */}
+              {hotel?.link && (
+                <a 
+                  href={hotel.link} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline mt-2 block font-medium"
+                >
+                  Link khách sạn: {hotel.name}
+                </a>
+              )}
 
               {/* AI Sentiment Display */}
               {hotel?.aiSentiment && (
@@ -508,28 +551,6 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                 </div>
               )}
 
-              {/* View Statistics Display */}
-              {hotel?.views && (
-                <div className="flex items-center gap-4 text-xs text-on-surface-variant mt-4 p-3 bg-surface-container rounded-lg">
-                  <div className="flex items-center gap-1">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                    <span>{formatViewCount(hotel.views.totalViews)} total views</span>
-                  </div>
-                  {hotel.views.weeklyViews !== undefined && (
-                    <div className="flex items-center gap-1">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-                        <polyline points="17 6 23 6 23 12" />
-                      </svg>
-                      <span>{hotel.views.weeklyViews} this week</span>
-                    </div>
-                  )}
-                </div>
-              )}
-              
               {/* Book Now Button */}
               <button
                 className="w-full mt-4 px-6 py-3 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg"

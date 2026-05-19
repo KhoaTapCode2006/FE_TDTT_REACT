@@ -21,6 +21,9 @@ const AppContextProvider = ({ children }) => {
     ref_id: ''
   });
   
+  // Search GPS state for map auto-navigation (Task 7.1 - Requirement 6.1)
+  const [searchGps, setSearchGps] = useState(null);
+  
   // Tọa độ mặc định (Chợ Bến Thành, TP.HCM) để bản đồ không bị trắng
   const [userLoc, setUserLoc] = useState({ lat: 10.7719, lng: 106.6983 }); 
 
@@ -117,12 +120,22 @@ const AppContextProvider = ({ children }) => {
 
       let filtered = [...hotelsToFilter];
 
-      // Star rating filter - hotel must have rating >= selected star rating
-      if (currentFilters.starRating !== null && typeof currentFilters.starRating === 'number') {
-        filtered = filtered.filter(hotel => {
-          const hotelStarRating = hotel?.starRating || 0;
-          return hotelStarRating >= currentFilters.starRating;
-        });
+      // Star rating filter - support both single value and array (match any)
+      // Use floor (integer part) of raw rating, not round (Requirement: floor logic)
+      if (currentFilters.starRating !== null) {
+        const selectedRatings = Array.isArray(currentFilters.starRating) 
+          ? currentFilters.starRating 
+          : [currentFilters.starRating];
+        
+        if (selectedRatings.length > 0) {
+          filtered = filtered.filter(hotel => {
+            // Get raw rating and use floor (integer part) instead of round
+            const rawRating = hotel?.rawRating || hotel?.rating || 0;
+            const hotelStarRating = Math.floor(rawRating);
+            // Match if hotel rating is in any of the selected ratings
+            return selectedRatings.includes(hotelStarRating);
+          });
+        }
       }
 
       // Property type filter - hotel type must be in selected types
@@ -135,13 +148,20 @@ const AppContextProvider = ({ children }) => {
 
       // Amenities filter (AND logic - hotel must have ALL selected amenities)
       if (Array.isArray(currentFilters.amenities) && currentFilters.amenities.length > 0) {
+        
         filtered = filtered.filter(hotel => {
           const hotelAmenities = Array.isArray(hotel?.amenities) ? hotel.amenities : [];
+          
           // Check if hotel has ALL selected amenities
-          return currentFilters.amenities.every(amenity => 
-            hotelAmenities.includes(amenity)
-          );
+          const hasAllAmenities = currentFilters.amenities.every(amenity => {
+            const hasAmenity = hotelAmenities.includes(amenity);
+            return hasAmenity;
+          });
+          
+          
+          return hasAllAmenities;
         });
+        
       }
 
       // Price range filter - minimum price
@@ -195,10 +215,11 @@ const AppContextProvider = ({ children }) => {
           // Only add amenities that exist in AMENITY_META
           if (AMENITY_META[amenity]) {
             amenitiesSet.add(amenity);
-          }
+          } 
         });
       }
     });
+    
     
     return amenitiesSet;
   }, []);
@@ -297,6 +318,7 @@ const AppContextProvider = ({ children }) => {
 
   const value = {
     location, setLocation,
+    searchGps, setSearchGps, // Search GPS for map auto-navigation (Task 7.1)
     userLoc, setUserLoc,
     dates, setDates,
     guests, setGuests,

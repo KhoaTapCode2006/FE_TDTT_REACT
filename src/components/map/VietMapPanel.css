@@ -1,5 +1,25 @@
 /* VietMap Panel Animations */
 
+/* VietMap Container - Layout adjustments for better visual harmony */
+.vietmap-container {
+  position: relative;
+  width: calc(100% - 150px); /* Account for margins (100px left + 50px right) */
+  height: calc(100% - 40px); /* Slightly smaller height */
+  margin-left: 100px;
+  margin-right: 50px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  border-radius: 10%;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure map fills container */
+.vietmap-container > div {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 /* Hotel marker flickering animation for hotels inside search radius */
 @keyframes hotel-marker-flicker {
   0%, 100% { 
@@ -86,4 +106,46 @@
 /* Cluster split view overlay - highest priority, always above markers */
 [class*="z-\\[1000\\]"] {
   z-index: 1000 !important;
+}
+
+
+/* Container bọc cụm nút điều khiển ở bên phải bản đồ */
+/* Container bọc cụm điều khiển - Cố định ở bên phải bản đồ */
+.map-controls-vertical {
+  position: absolute;
+  right: 12px;          /* Khoảng cách từ cụm nút đến mép phải bản đồ */
+  top: 100%; 
+  left: 95%;           /* Đẩy xuống chính giữa theo chiều dọc */
+  transform: translateY(-50%);
+  z-index: 20;          /* Đảm bảo nổi lên trên bản đồ VietMap */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;             /* Khoảng cách giữa nút Phóng to và Thu nhỏ */
+}
+
+/* Nút điều khiển siêu nhỏ - ôm sát kích thước của Icon */
+.map-control-btn-mini {
+  display: inline-flex !important; /* Thay vì Block, giúp thu nhỏ vừa khít phần tử con */
+  align-items: center;
+  justify-content: center;
+  width: 24px;          /* Kích thước vừa vặn cho icon size 16-18 */
+  height: 24px;
+  padding: 0 !important;/* Xóa bỏ hoàn toàn padding thừa làm phình nút */
+  background-color: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;   /* Bo góc nhẹ tương ứng với kích thước nhỏ */
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  color: #00346f;       /* Màu xanh thương hiệu primary */
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+/* Hiệu ứng tương tác tương tự như các app map hiện đại */
+.map-control-btn-mini:hover {
+  background-color: #f3f4f6;
+  color: #1e40af;
+}
+
+.map-control-btn-mini:active {
+  transform: scale(0.9); /* Nhấn vào sẽ thu nhỏ nhẹ tạo cảm giác cơ học */
 }

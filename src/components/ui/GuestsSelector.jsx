@@ -18,9 +18,16 @@ function GuestsSelector({ guests, onChange, onClose }) {
 
   function changeChildren(delta) {
     const next = Math.max(0, Math.min(5, guests.children + delta)); // Max 5 children
+    
+    // Only update if the value actually changed
+    if (next === guests.children) return;
+    
     const ages = [...guests.childrenAges];
-    if (next > guests.children) ages.push(1); // Default age 1 instead of 0
-    else ages.pop();
+    if (next > guests.children) {
+      ages.push(1); // Default age 1 instead of 0
+    } else {
+      ages.pop();
+    }
     onChange({ ...guests, children: next, childrenAges: ages });
   }
 

@@ -15,7 +15,7 @@ const HomePage = () => {
     activeHotel, setActiveHotel, 
     filters, setFilters,
     location, dates, guests, userLoc,
-    setHotels, setLoading
+    setHotels, setLoading, setSearchGps
   } = useApp();
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [error, setError] = useState(null);
@@ -129,7 +129,7 @@ const HomePage = () => {
       const partySize = (guests?.adults || 2) + childrenArray.length;
       
       // 4. Gọi hàm searchHotels từ đúng hotelSearchService mới
-      const results = await hotelSearchService.searchHotels({
+      const response = await hotelSearchService.searchHotels({
         address: addressStr,
         gps: gpsData,
         ref_id: refId,
@@ -148,9 +148,22 @@ const HomePage = () => {
         max_ranked_hotels: 50
       });
       
+      // Extract hotels and searching_place from response
+      const results = response.hotels || response || [];
+      const searchingPlace = response.searchingPlace || null;
+      
       // Chỉ cập nhật state nếu request không bị hủy giữa chừng
       if (!requestTracker.cancelled) {
         setHotels(results);
+        
+        // Set map GPS from searching_place if available
+        if (searchingPlace && searchingPlace.gps && setSearchGps) {
+          console.log('✅ Setting map GPS from searching_place:', searchingPlace.gps);
+          setSearchGps({
+            latitude: searchingPlace.gps.latitude,
+            longitude: searchingPlace.gps.longitude
+          });
+        }
         
         if (activeHotel) {
           setActiveHotel(null);

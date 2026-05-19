@@ -8,7 +8,7 @@ import Icon from '@/components/ui/Icon';
  * 
  * Backend fields: username, display_name, email, phone_number, avatar_url, bio
  */
-const InfoSection = ({ profileData, onEdit, loading = false }) => {
+const InfoSection = ({ profileData, onEdit, onAvatarClick, loading = false }) => {
   /**
    * Format field value with placeholder for empty fields
    */
@@ -21,11 +21,29 @@ const InfoSection = ({ profileData, onEdit, loading = false }) => {
 
   return (
     <div className="bg-white rounded-2xl border border-outline-variant/20 p-8 shadow-sm">
-      {/* Section Header */}
+      {/* Section Header with Avatar */}
       <div className="flex items-center justify-between mb-8">
-        <h2 className="font-headline font-bold text-3xl text-on-surface">
-          Personal Information
-        </h2>
+        <div className="flex items-center gap-6">
+          {/* Avatar with edit hover effect (Task 10.2 - Requirement 10.1, 10.2, 10.3) */}
+          <div 
+            className="relative cursor-pointer group"
+            onClick={onAvatarClick}
+          >
+            <img
+              src={profileData?.avatar?.url || profileData?.photoURL || '/default-avatar.png'}
+              alt="User avatar"
+              className="w-24 h-24 rounded-full object-cover border-4 border-primary/20"
+            />
+            <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Icon name="edit" size={24} className="text-white" />
+            </div>
+          </div>
+          
+          <h2 className="font-headline font-bold text-3xl text-on-surface">
+            Personal Information
+          </h2>
+        </div>
+        
         <button
           onClick={onEdit}
           disabled={loading}

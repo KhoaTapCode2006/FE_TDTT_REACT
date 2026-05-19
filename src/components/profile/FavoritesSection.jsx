@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { favoritesService } from '@/services/profile/favorites.service';
-import FavoriteHotelCard from './FavoriteHotelCard';
+import { hotelSearchService } from '@/services/backend/hotelSearch.service';
+import HotelCard from '@/components/hotel/components/HotelCard';
 import EmptyState from './EmptyState';
 import Icon from '@/components/ui/Icon';
 import HotelPopup from '@/components/hotel/components/HotelPopup';
@@ -35,8 +36,8 @@ const FavoritesSection = () => {
   const [selectedHotel, setSelectedHotel] = useState(null);
 
   /**
-   * Fetch favorites from backend API
-   * Requirements: 15.5, 15.6, 15.8
+   * Fetch favorites from backend API and get complete hotel data
+   * Requirements: 15.5, 15.6, 15.8, Task 11.1 - Requirement 11.1, 11.2, 11.3, 11.6
    */
   useEffect(() => {
     const fetchFavorites = async () => {
@@ -49,8 +50,35 @@ const FavoritesSection = () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await favoritesService.getFavorites();
-        setFavorites(data);
+        
+        // Get favorite place IDs (Task 11.1 - Requirement 11.1)
+        const favoritePlaces = await favoritesService.getFavorites();
+        
+        // Extract property tokens (hotel IDs) (Task 11.1 - Requirement 11.2)
+        const hotelIds = favoritePlaces
+          .filter(place => place.propertyToken || place.hotelId)
+          .map(place => place.propertyToken || place.hotelId);
+        
+        if (hotelIds.length === 0) {
+          setFavorites([]);
+          setLoading(false);
+          return;
+        }
+        
+        // Fetch complete hotel data for each favorite (Task 11.1 - Requirement 11.3)
+        const hotelPromises = hotelIds.map(id => 
+          hotelSearchService.getHotelDetails(id).catch(err => {
+            console.error(`Failed to fetch hotel ${id}:`, err);
+            return null; // Return null for failed requests
+          })
+        );
+        
+        const hotels = await Promise.all(hotelPromises);
+        
+        // Filter out failed requests (Task 11.1 - Requirement 11.3)
+        const validHotels = hotels.filter(hotel => hotel !== null);
+        
+        setFavorites(validHotels);
       } catch (err) {
         console.error('Error fetching favorites:', err);
         setError(err.message || 'Failed to load favorites. Please try again.');
@@ -85,51 +113,20 @@ const FavoritesSection = () => {
   };
 
   /**
-   * Handle view hotel details - Show popup with favorite hotel data
-   * Requirements: 15.8
+   * Handle view hotel details - Show popup with complete hotel data
+   * Requirements: 15.8, Task 11.2 - Requirement 11.4, 11.5
    */
-  const handleViewDetails = (hotelId) => {
-    // Find the hotel from favorites list
-    const hotel = favorites.find(f => f.hotelId === hotelId || f.id === hotelId);
-    if (hotel) {
-      // Transform favorite data to hotel format for popup
-      const hotelData = {
-        id: hotel.hotelId || hotel.id,
-        propertyToken: hotel.propertyToken || hotel.hotelId || hotel.id,
-        name: hotel.name,
-        address: hotel.location,
-        location: hotel.location,
-        rating: hotel.rating || 0,
-        pricePerNight: hotel.pricePerNight,
-        price: hotel.pricePerNight,
-        currency: hotel.currency || 'VND',
-        // Handle images properly - transform to popup format
-        images: Array.isArray(hotel.images) && hotel.images.length > 0
-          ? hotel.images.map(img => {
-              if (typeof img === 'string') {
-                return { thumbnail: img, original: img, url: img };
-              }
-              return {
-                thumbnail: img?.thumbnail || img?.url || img?.original || '',
-                original: img?.original || img?.original_image || img?.url || img?.thumbnail || '',
-                url: img?.url || img?.original || img?.thumbnail || ''
-              };
-            })
-          : (hotel.imageUrl ? [{ thumbnail: hotel.imageUrl, original: hotel.imageUrl, url: hotel.imageUrl }] : []),
-        thumbnail: hotel.imageUrl || (Array.isArray(hotel.images) && hotel.images.length > 0 
-          ? (typeof hotel.images[0] === 'string' ? hotel.images[0] : hotel.images[0]?.thumbnail || hotel.images[0]?.url || '')
-          : null),
-        // Add default values for popup
-        amenities: hotel.amenities || [],
-        nearbyLandmarks: hotel.nearbyLandmarks || [],
-        landmarks: hotel.landmarks || [],
-        reviews: hotel.reviews || [],
-        userReviews: hotel.userReviews || [],
-        coordinates: hotel.coordinates || null,
-        lat: hotel.lat || hotel.coordinates?.latitude || 0,
-        lng: hotel.lng || hotel.coordinates?.longitude || 0
-      };
-      setSelectedHotel(hotelData);
+  const handleViewDetails = (hotel) => {
+    // Handle both hotel object and hotelId
+    if (typeof hotel === 'string') {
+      // If hotel is a string (hotelId), find it in favorites
+      const foundHotel = favorites.find(f => f.id === hotel || f.propertyToken === hotel);
+      if (foundHotel) {
+        setSelectedHotel(foundHotel);
+      }
+    } else if (hotel && typeof hotel === 'object') {
+      // If hotel is an object, use it directly
+      setSelectedHotel(hotel);
     }
   };
 
@@ -163,13 +160,28 @@ const FavoritesSection = () => {
     }
   };
 
-  // Loading state
+  // Loading state with skeleton (Task 11.1 - Requirement 11.6)
   // Requirements: 15.6
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-16">
-        <Icon name="progress_activity" size={48} className="text-primary animate-spin mb-4" />
-        <p className="text-on-surface-variant">Loading favorites...</p>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-headline font-bold text-2xl text-on-surface">
+              Favorite Hotels
+            </h2>
+            <p className="text-sm text-on-surface-variant mt-1">
+              Loading...
+            </p>
+          </div>
+        </div>
+        
+        {/* Loading skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-64 bg-surface-container animate-pulse rounded-2xl" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -225,8 +237,8 @@ const FavoritesSection = () => {
     );
   }
 
-  // Display favorites grid
-  // Requirements: 15.8
+  // Display favorites grid with updated HotelCard component
+  // Requirements: 15.8, Task 11.2 - Requirement 11.4, 11.5
   return (
     <>
       <div className="space-y-6">
@@ -242,14 +254,13 @@ const FavoritesSection = () => {
           </div>
         </div>
 
-        {/* Favorites Grid */}
+        {/* Favorites Grid - Using updated HotelCard component (Task 11.2) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {favorites.map(hotel => (
-            <FavoriteHotelCard
-              key={hotel.id || hotel.hotelId}
+            <HotelCard
+              key={hotel.id || hotel.propertyToken}
               hotel={hotel}
-              onRemove={handleRemove}
-              onViewDetails={handleViewDetails}
+              onClick={handleViewDetails}
             />
           ))}
         </div>

@@ -84,7 +84,6 @@ class HotelSearchService {
         address: suggestion.address || address
       }));
       
-      console.log('✅ Mapped suggestions:', mapped);
       return mapped;
     } catch (error) {
       console.error('Error fetching address suggestions:', error);
@@ -173,18 +172,26 @@ class HotelSearchService {
 
       const response = await apiClient.post('/discover', requestBody);
       
-      // Extract hotels array from response
+      // Extract hotels array and searching_place from response
       let hotelsArray = [];
+      let searchingPlace = null;
       
       if (Array.isArray(response)) {
         // Response is already an array
         hotelsArray = response;
-      } else if (response && response.data && Array.isArray(response.data)) {
-        // Response has a data property containing the array
-        hotelsArray = response.data;
+      } else if (response && typeof response === 'object') {
+        // Response is an object with data and searching_place
+        if (Array.isArray(response.data)) {
+          hotelsArray = response.data;
+        } else if (response.data && Array.isArray(response.data.data)) {
+          hotelsArray = response.data.data;
+        }
+        
+        // Extract searching_place from response
+        searchingPlace = response.searching_place || response.data?.searching_place || null;
       } else {
         console.warn('Hotel search response is not an array and has no data property:', response);
-        return [];
+        return { hotels: [], searchingPlace: null };
       }
 
       // Amenity normalization mapping - maps backend amenity strings to frontend constants
@@ -193,30 +200,30 @@ class HotelSearchService {
         
         const normalized = amenity.toLowerCase().trim();
         
-        // Direct matches
-        if (normalized === 'wifi' || normalized === 'wi-fi') return 'wifi';
+        // Direct matches (case-insensitive)
+        if (normalized === 'free wi-fi' || normalized === 'wi-fi' || normalized === 'wifi') return 'wifi';
         if (normalized === 'pool' || normalized === 'hồ bơi' || normalized === 'bể bơi' || normalized === 'swimming pool') return 'pool';
         if (normalized === 'gym' || normalized === 'fitness center' || normalized === 'fitness_center' || normalized === 'phòng gym') return 'fitness_center';
         if (normalized === 'spa') return 'spa';
         if (normalized === 'restaurant' || normalized === 'nhà hàng') return 'restaurant';
         if (normalized === 'bar' || normalized === 'quầy bar') return 'bar';
-        if (normalized === 'breakfast' || normalized === 'ăn sáng' || normalized === 'free breakfast') return 'breakfast';
-        if (normalized === 'parking' || normalized === 'đỗ xe' || normalized === 'bãi đỗ xe') return 'parking';
-        if (normalized === 'ac' || normalized === 'air conditioning' || normalized === 'điều hòa' || normalized === 'máy lạnh') return 'ac';
+        if (normalized === 'free breakfast' || normalized === 'ăn sáng' || normalized === 'breakfast') return 'breakfast';
+        if (normalized === 'free parking' || normalized === 'đỗ xe' || normalized === 'bãi đỗ xe' || normalized === 'parking' || normalized === 'đỗ xe miễn phí') return 'parking';
+        if (normalized === 'air conditioning' || normalized === 'điều hòa' || normalized === 'máy lạnh' || normalized === 'ac') return 'ac';
         if (normalized === 'pet friendly' || normalized === 'pet_friendly' || normalized === 'thú cưng') return 'pet_friendly';
-        if (normalized === 'laundry' || normalized === 'giặt ủi') return 'laundry';
-        if (normalized === 'shuttle' || normalized === 'airport shuttle' || normalized === 'đưa đón') return 'shuttle';
+        if (normalized === 'full-service laundry' || normalized === 'giặt ủi' || normalized === 'laundry') return 'laundry';
+        if (normalized === 'airport shuttle' || normalized === 'shuttle' || normalized === 'đưa đón') return 'shuttle';
         if (normalized === 'kitchen' || normalized === 'bếp') return 'kitchen';
         
-        // Partial matches
-        if (normalized.includes('wifi') || normalized.includes('wi-fi')) return 'wifi';
+        // Partial matches (contains) - more comprehensive
+        if (normalized.includes('wi-fi') || normalized.includes('wifi')) return 'wifi';
         if (normalized.includes('pool') || normalized.includes('hồ bơi') || normalized.includes('bể bơi')) return 'pool';
         if (normalized.includes('gym') || normalized.includes('fitness')) return 'fitness_center';
         if (normalized.includes('spa')) return 'spa';
         if (normalized.includes('restaurant') || normalized.includes('nhà hàng')) return 'restaurant';
         if (normalized.includes('bar') || normalized.includes('quầy bar')) return 'bar';
         if (normalized.includes('breakfast') || normalized.includes('ăn sáng')) return 'breakfast';
-        if (normalized.includes('parking') || normalized.includes('đỗ xe')) return 'parking';
+        if (normalized.includes('parking') || normalized.includes('đỗ xe') || normalized.includes('bãi đỗ')) return 'parking';
         if (normalized.includes('air conditioning') || normalized.includes('điều hòa') || normalized.includes('ac')) return 'ac';
         if (normalized.includes('pet') || normalized.includes('thú cưng')) return 'pet_friendly';
         if (normalized.includes('laundry') || normalized.includes('giặt')) return 'laundry';
@@ -228,7 +235,7 @@ class HotelSearchService {
       };
 
       // Transform hotels to match HotelCard expected format
-      return hotelsArray.map(hotel => {
+      const transformedHotels = hotelsArray.map(hotel => {
         // Extract GPS coordinates with proper fallbacks
         const gpsLat = hotel.gps_coordinates?.latitude || hotel.latitude || null;
         const gpsLng = hotel.gps_coordinates?.longitude || hotel.longitude || null;
@@ -254,6 +261,8 @@ class HotelSearchService {
               .filter(Boolean) // Remove nulls
               .filter((amenity, index, self) => self.indexOf(amenity) === index) // Remove duplicates
           : [];
+        
+        // Debug logging for amenities
 
         return {
           // IDs
@@ -303,8 +312,9 @@ class HotelSearchService {
           images: images,
           thumbnail: images.length > 0 ? images[0].thumbnail : null,
           
-          // Amenities - normalized to match frontend constants
+          // Amenities - CRITICAL: Use normalized amenities, NOT original
           amenities: normalizedAmenities,
+          originalAmenities: hotel.amenities, // Keep original for reference
           
           // Reviews - map to both userReviews AND reviews for compatibility
           userReviews: Array.isArray(hotel.user_reviews) ? hotel.user_reviews : [],
@@ -337,12 +347,15 @@ class HotelSearchService {
             weeklyViews: hotel.views.weekly_views || 0
           } : { totalViews: 0, weeklyViews: 0 },
           totalViews: hotel.views?.total_views || 0, // Add flat property for easier access
-          weeklyViews: hotel.views?.weekly_views || 0,
-          
-          // Include all original fields for compatibility
-          ...hotel
+          weeklyViews: hotel.views?.weekly_views || 0
         };
       });
+      
+      // Return both hotels and searching_place
+      return {
+        hotels: transformedHotels,
+        searchingPlace: searchingPlace
+      };
     } catch (error) {
       console.error('Error searching hotels:', error);
       throw error;
@@ -438,8 +451,9 @@ class HotelSearchService {
         // Amenities
         amenities: Array.isArray(data.amenities) ? data.amenities : [],
         
-        // Reviews
+        // Reviews - map to both userReviews AND reviews for compatibility
         userReviews: Array.isArray(data.user_reviews) ? data.user_reviews : [],
+        reviews: Array.isArray(data.user_reviews) ? data.user_reviews : [],
         analyzedReviews: Array.isArray(data.ai_sentiment?.analyzed_reviews) ? data.ai_sentiment.analyzed_reviews : [],
         
         // AI Summary

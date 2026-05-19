@@ -39,7 +39,7 @@ export function fmtDate(d) {
 
 export function normalizeAmenityKey(rawAmenity) {
   if (!rawAmenity) return "";
-  const value = String(rawAmenity).trim().toLowerCase();
+  const value = String(rawAmenity).toLowerCase();
   if (value.includes("wifi")) return "wifi";
   if (value.includes("breakfast")) return "breakfast";
   if (value.includes("parking")) return "parking";

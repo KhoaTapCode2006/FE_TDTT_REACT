@@ -114,7 +114,7 @@ function Header({ hideNavigation = false }) {
                         : 'text-on-surface-variant hover:text-primary'
                     }`}
                   >
-                    Information & Liked Places
+                    My Account
                   </Link>
                 </>
               )}

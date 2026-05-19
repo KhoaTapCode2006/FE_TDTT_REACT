@@ -4,7 +4,6 @@ import { hotelSearchService } from "@/services/backend/hotelSearch.service";
 import Icon from "@/components/ui/Icon";
 import DateRangePicker from "@/components/ui/DateRangePicker";
 import GuestsSelector from "@/components/ui/GuestsSelector";
-import { geolocationService } from "@/services/geolocation.service";
 function SearchBar() {
   const {
     location,
@@ -20,7 +19,8 @@ function SearchBar() {
     filters,
     radiusM,
     currentGps,
-    userLoc
+    userLoc,
+    setSearchGps
   } = useApp();
 
   const [showCal, setShowCal] = useState(false);
@@ -191,7 +191,7 @@ function SearchBar() {
       const geohash = calculateGeohash(gpsData.latitude, gpsData.longitude);
 
       // Build request body matching API schema order
-      const results = await hotelSearchService.searchHotels({
+      const response = await hotelSearchService.searchHotels({
         address: addressStr,
         gps: {
           latitude: gpsData.latitude,
@@ -205,6 +205,26 @@ function SearchBar() {
         adults: guests.adults || 2,
         personality: personality || ''
       });
+      
+      // Extract hotels and searching_place from response
+      const results = response.hotels || response || [];
+      const searchingPlace = response.searchingPlace || null;
+      
+      // Extract searching_place GPS from response and set it for map navigation
+      if (searchingPlace && searchingPlace.gps) {
+        console.log('✅ Setting map GPS from searching_place:', searchingPlace.gps);
+        setSearchGps({
+          latitude: searchingPlace.gps.latitude,
+          longitude: searchingPlace.gps.longitude
+        });
+      } else if (gpsData.latitude && gpsData.longitude) {
+        // Fallback to search GPS if searching_place not available
+        console.log('⚠️ No searching_place in response, using search GPS');
+        setSearchGps({
+          latitude: gpsData.latitude,
+          longitude: gpsData.longitude
+        });
+      }
       
       setHotels(results);
     } catch (error) {

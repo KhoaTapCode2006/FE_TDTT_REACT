@@ -5,6 +5,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import InfoSection from '@/components/profile/InfoSection';
 import EditInfoModal from '@/components/profile/EditInfoModal';
+import AvatarEditor from '@/components/profile/AvatarEditor';
 import Icon from '@/components/ui/Icon';
 import { profileService } from '@/services/profile/profile.service';
 import FavoritesSection from '@/components/profile/FavoritesSection';
@@ -20,6 +21,7 @@ const InformationPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [showAvatarEditor, setShowAvatarEditor] = useState(false);
 
   /**
    * Fetch profile data
@@ -106,6 +108,33 @@ const InformationPage = () => {
     setIsEditModalOpen(false);
   };
 
+  /**
+   * Handle avatar save (Task 10.2 - Requirement 10.6)
+   */
+  const handleAvatarSave = async (blob) => {
+    if (!user?.uid) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // Create FormData with blob
+      const formData = new FormData();
+      formData.append('avatar', blob, 'avatar.jpg');
+      
+      // Upload avatar to server
+      const response = await profileService.uploadAvatar(user.uid, blob);
+      
+      // Update profile data with new avatar URL
+      const updatedProfile = await profileService.getProfile(user.uid);
+      setProfileData(updatedProfile);
+      
+      return response;
+    } catch (err) {
+      console.error('Error uploading avatar:', err);
+      throw err;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
 
@@ -147,8 +176,12 @@ const InformationPage = () => {
               <InfoSection 
                 profileData={profileData} 
                 onEdit={handleEditProfile}
+                onAvatarClick={() => setShowAvatarEditor(true)}
                 loading={loading}
               />
+
+              {/* Spacing adjustment between sections (Task 10.2 - Requirement 10.7) */}
+              <div className="h-8" />
 
               {/* Edit Info Modal */}
               <EditInfoModal
@@ -156,6 +189,14 @@ const InformationPage = () => {
                 onClose={handleCloseModal}
                 profileData={profileData}
                 onSave={handleProfileUpdate}
+              />
+
+              {/* Avatar Editor Modal (Task 10.2 - Requirement 10.1, 10.2, 10.3) */}
+              <AvatarEditor
+                isOpen={showAvatarEditor}
+                onClose={() => setShowAvatarEditor(false)}
+                currentAvatar={profileData?.avatar?.url || profileData?.photoURL}
+                onSave={handleAvatarSave}
               />
             </>
           )}
