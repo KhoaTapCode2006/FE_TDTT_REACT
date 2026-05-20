@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
 
 // step mặc định 5 mét
@@ -13,7 +13,7 @@ function meterToLngDeg(meters, lat) {
   return meters / (111320 * Math.cos((lat * Math.PI) / 180));
 }
 
-export default function FakeGpsControl({ tripId, initialLat, initialLng, onActivate, onStop }) {
+export default function FakeGpsControl({ tripId, initialLat, initialLng, onActivate, onStop, onStopSharing }) {
   const [open, setOpen]   = useState(false);
   const [active, setActive] = useState(false);
   const [step, setStep]   = useState(DEFAULT_STEP);
@@ -69,22 +69,32 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
   };
 
   const handleStop = useCallback(async () => {
-    const uid = auth.currentUser?.uid;
-    if (uid && tripId) {
-      try {
-        await setDoc(
-          doc(db, "trips", tripId, "members", uid),
-          { tracking: { status: "no_share", updated_at: serverTimestamp() } },
-          { merge: true }
-        );
-      } catch (err) {
-        console.warn("[FakeGpsControl] stop failed:", err);
+    // Dùng onStopSharing từ useGpsTracking để đảm bảo GPS thực không ghi đè
+    if (onStopSharing) {
+      await onStopSharing(tripId);
+    } else {
+      // Fallback nếu không có onStopSharing
+      const uid = auth.currentUser?.uid;
+      if (uid && tripId) {
+        try {
+          await updateDoc(
+            doc(db, "trips", tripId, "members", uid),
+            {
+              "tracking.status":     "no_share",
+              "tracking.lat":        deleteField(),
+              "tracking.lng":        deleteField(),
+              "tracking.updated_at": serverTimestamp(),
+            }
+          );
+        } catch (err) {
+          console.warn("[FakeGpsControl] stop failed:", err);
+        }
       }
     }
     setActive(false);
     setOpen(false);
     onStop?.();
-  }, [tripId, onStop]);
+  }, [tripId, onStop, onStopSharing]);
 
   return (
     <div className="absolute bottom-14 right-4 z-[999] flex flex-col items-end gap-2 pointer-events-auto">

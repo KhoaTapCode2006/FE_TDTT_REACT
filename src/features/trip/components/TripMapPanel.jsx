@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
 import { useTripMembers } from "../hooks/useTripMembers";
 import { useAccidentAlert } from "../hooks/useAccidentAlert";
@@ -19,7 +19,7 @@ const statusLabel = {
   no_share:        { text: "Không chia sẻ",   color: "text-gray-400" },
 };
 
-export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
+export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopSharing }) {
   const mapRef     = useRef(null);
   const mapObjRef  = useRef(null);
   const markersRef = useRef({});
@@ -61,9 +61,16 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
     name: trip?.place?.name ?? "Điểm đến",
   };
 
+  const stoppedSharingRef = useRef(false); // true khi user chủ động ngưng chia sẻ
+
   // ── Push GPS ──────────────────────────────────────────────────────────────
   const pushTracking = useCallback(async (lat, lng) => {
     if (!currentUid || !tripId) return;
+    if (stoppedSharingRef.current) {
+      console.log("[TripMapPanel] pushTracking BLOCKED by stoppedSharingRef");
+      return;
+    }
+    console.log("[TripMapPanel] pushTracking lat:", lat, "lng:", lng);
     const R = 6371000;
     const dLat = (DEST.lat - lat) * Math.PI / 180;
     const dLng = (DEST.lng - lng) * Math.PI / 180;
@@ -86,14 +93,23 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
     if (!currentUid || !tripId) return;
     if (!navigator.geolocation) return;
 
-    // Nếu đang fake GPS thì không watch GPS thực, không cleanup status
+    // Nếu đang fake GPS thì không watch GPS thực
     if (fakeActive) return;
+
+    // Nếu user đã chủ động ngưng chia sẻ thì không restart GPS
+    if (stoppedSharingRef.current) {
+      console.log("[TripMapPanel] GPS effect SKIPPED — stoppedSharingRef=true");
+      return;
+    }
+
+    console.log("[TripMapPanel] GPS effect STARTING — fakeActive:", fakeActive);
 
     const ref = doc(db, "trips", tripId, "members", currentUid);
     setDoc(ref, { tracking: { status: "active", updated_at: serverTimestamp() } }, { merge: true }).catch(() => {});
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        console.log("[TripMapPanel] getCurrentPosition callback — stopped:", stoppedSharingRef.current);
         setMyRealPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude);
       },
@@ -101,19 +117,28 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
     );
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
+        console.log("[TripMapPanel] watchPosition callback — stopped:", stoppedSharingRef.current);
         setMyRealPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude);
       },
       () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
     return () => {
+      console.log("[TripMapPanel] GPS effect cleanup — fakeActive:", fakeActive, "stopped:", stoppedSharingRef.current);
       if (watchIdRef.current != null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
-      // Chỉ set no_share khi thực sự rời trang (fakeActive = false)
-      // Không set no_share khi chuyển sang fake mode
-      setDoc(ref, { tracking: { status: "no_share", updated_at: serverTimestamp() } }, { merge: true }).catch(() => {});
+      // Chỉ set no_share khi rời trang thật (không phải khi chuyển sang fake/stop)
+      // stoppedSharingRef và fakeActive sẽ tự xử lý các trường hợp đó
+      if (!stoppedSharingRef.current && !fakeActive) {
+        updateDoc(ref, {
+          "tracking.status":     "no_share",
+          "tracking.lat":        deleteField(),
+          "tracking.lng":        deleteField(),
+          "tracking.updated_at": serverTimestamp(),
+        }).catch(() => {});
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUid, tripId, fakeActive]);
@@ -125,7 +150,8 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
     ? firestoreMembers
     : firestoreMembers.filter((m) => m.uid === currentUid);
 
-  const members = visibleFirestoreMembers
+  // allMembers: dùng cho sidebar — hiện tất cả member đã từng có tracking (kể cả no_share)
+  const allMembers = visibleFirestoreMembers
     .map((m, i) => {
       const t = memberTracking[m.uid];
       const hasRealGps = !!(t?.lat != null && t?.lng != null);
@@ -144,7 +170,10 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
         isMe:     m.uid === currentUid,
       };
     })
-    .filter((m) => m.hasRealGps);
+    .filter((m) => m.status !== "no_share" || m.isMe); // sidebar: luôn hiện bản thân, ẩn người khác nếu no_share
+
+  // members: dùng cho map markers — chỉ member đang active có GPS
+  const members = allMembers.filter((m) => m.hasRealGps && m.status !== "no_share");
 
   // ── Init map ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -244,7 +273,24 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
         .setLngLat([DEST.lng, DEST.lat]).addTo(map);
     }
 
+    // Xóa marker của member không còn trong danh sách (ngưng chia sẻ / rời trip)
+    const activeMemberIds = new Set(members.filter((m) => m.status !== "no_share").map((m) => m.id));
+    Object.keys(markersRef.current).forEach((id) => {
+      if (id === "__dest__") return;
+      if (!activeMemberIds.has(id)) {
+        markersRef.current[id].remove();
+        delete markersRef.current[id];
+        // Xóa route line tương ứng
+        const layerId  = `route-line-${id}`;
+        const sourceId = `route-${id}`;
+        if (map.getLayer(layerId))   map.removeLayer(layerId);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
+      }
+    });
+
     members.forEach((m) => {
+      // Không render marker cho member đang no_share
+      if (m.status === "no_share") return;
       if (markersRef.current[m.id]) {
         markersRef.current[m.id].setLngLat([m.lng, m.lat]);
         const el = markersRef.current[m.id].getElement();
@@ -270,6 +316,20 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, memberTracking]);
+
+  // Dọn routeInfoMap khi member ngưng chia sẻ (không còn trong members)
+  useEffect(() => {
+    const activeMemberIds = new Set(members.filter((m) => m.status !== "no_share").map((m) => m.id));
+    setRouteInfoMap((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      Object.keys(next).forEach((id) => {
+        if (!activeMemberIds.has(id)) { delete next[id]; changed = true; }
+      });
+      return changed ? next : prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberTracking]);
 
   // ── Route helpers ─────────────────────────────────────────────────────────
   const fetchAndDrawRoute = useCallback(async (map, member) => {
@@ -342,8 +402,8 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
   }, [mapReady, fakeActive, memberTrackingKey]);
 
   // ── Accident / Arrive ─────────────────────────────────────────────────────
-  const meAccident = members.find((m) => m.isMe)?.accident === true;
-  const meArrived  = members.find((m) => m.isMe)?.status === "arrived";
+  const meAccident = allMembers.find((m) => m.isMe)?.accident === true;
+  const meArrived  = allMembers.find((m) => m.isMe)?.status === "arrived";
   const canArrive  = distToDestM !== null && distToDestM < 500;
 
   const handleAccident = useCallback(async () => {
@@ -386,7 +446,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
           )}
 
           {/* Nút Accident + Arrive — chỉ khi active */}
-          {isActive && members.some((m) => m.isMe) && (
+          {isActive && allMembers.some((m) => m.isMe) && (
             <div className="flex gap-2 mt-2">
               <button
                 onClick={handleAccident}
@@ -407,16 +467,16 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
         </div>
 
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 pt-3 pb-2">
-          {isActive ? `Thành viên (${members.length})` : "Vị trí của bạn"}
+          {isActive ? `Thành viên (${allMembers.length})` : "Vị trí của bạn"}
         </p>
         <div className="flex-1 overflow-y-auto">
-          {members.length === 0 && (
+          {allMembers.length === 0 && (
             <div className="px-4 py-6 text-center text-xs text-gray-400">
               <span className="block text-2xl mb-2">📡</span>
               {isActive ? "Chưa có thành viên nào chia sẻ vị trí" : "Đang chờ GPS của bạn..."}
             </div>
           )}
-          {members.map((m) => {
+          {allMembers.map((m) => {
             const sl   = statusLabel[m.status] || statusLabel.no_share;
             const info = routeInfoMap[m.id];
             return (
@@ -473,14 +533,27 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
             Nhấn vào thành viên để focus tuyến đường
           </div>
         )}
-        {/* Fake GPS control — chỉ hiện khi trip active và user là thành viên */}
-        {isActive && members.some((m) => m.isMe) && (
+        {/* Fake GPS control — chỉ hiện khi trip active */}
+        {isActive && (
           <FakeGpsControl
             tripId={tripId}
             initialLat={myRealPos?.lat ?? members.find((m) => m.isMe)?.lat}
             initialLng={myRealPos?.lng ?? members.find((m) => m.isMe)?.lng}
-            onActivate={() => { setFakeActive(true); onFakeStart?.(); }}
+            onActivate={() => {
+              stoppedSharingRef.current = false;
+              setFakeActive(true);
+              onFakeStart?.();
+            }}
             onStop={() => { setFakeActive(false); onFakeStop?.(); }}
+            onStopSharing={async (tid) => {
+              // Clear watch GPS của TripMapPanel ngay lập tức
+              stoppedSharingRef.current = true;
+              if (watchIdRef.current != null) {
+                navigator.geolocation.clearWatch(watchIdRef.current);
+                watchIdRef.current = null;
+              }
+              await onStopSharing?.(tid);
+            }}
           />
         )}
       </div>

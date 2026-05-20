@@ -3,17 +3,18 @@
 // Gọi hook này ở TripPage — tracking bắt đầu khi vào trang, dừng khi rời trang.
 
 import { useEffect, useRef, useCallback } from "react";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
 
 /**
  * @param {string[]} tripIds - Danh sách trip IDs mà user là thành viên
- * @returns {{ pause: () => void, resume: () => void }}
+ * @returns {{ pause: () => void, resume: () => void, stopSharing: (tripId?: string) => Promise<void> }}
  */
 export function useGpsTracking(tripIds) {
   const watchIdRef  = useRef(null);
   const tripIdsRef  = useRef(tripIds);
   const pausedRef   = useRef(false); // true khi fake GPS đang bật
+  const stoppedRef  = useRef(false); // true khi user chủ động ngưng chia sẻ
 
   // Giữ ref luôn up-to-date khi tripIds thay đổi
   useEffect(() => {
@@ -21,12 +22,16 @@ export function useGpsTracking(tripIds) {
   }, [tripIds]);
 
   const pushToAllTrips = useCallback(async (lat, lng) => {
-    // Không push nếu đang bị pause (fake GPS đang chiếm quyền)
-    if (pausedRef.current) return;
+    // Không push nếu đang bị pause (fake GPS đang chiếm quyền) hoặc đã stop
+    if (pausedRef.current || stoppedRef.current) {
+      console.log("[useGpsTracking] pushToAllTrips BLOCKED — paused:", pausedRef.current, "stopped:", stoppedRef.current);
+      return;
+    }
 
     const uid = auth.currentUser?.uid;
     if (!uid || !tripIdsRef.current?.length) return;
 
+    console.log("[useGpsTracking] pushToAllTrips lat:", lat, "lng:", lng);
     const payload = {
       tracking: {
         lat,
@@ -49,6 +54,9 @@ export function useGpsTracking(tripIds) {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
+    // Reset stopped state khi mount lại
+    stoppedRef.current = false;
+
     // Lấy ngay lần đầu khi vào trang
     navigator.geolocation.getCurrentPosition(
       (pos) => pushToAllTrips(pos.coords.latitude, pos.coords.longitude),
@@ -70,16 +78,17 @@ export function useGpsTracking(tripIds) {
         watchIdRef.current = null;
       }
 
-      // Đặt status = no_share cho tất cả trips
+      // Xóa lat/lng và set no_share cho tất cả trips khi rời trang
       const uid2 = auth.currentUser?.uid;
       if (uid2 && tripIdsRef.current?.length) {
         Promise.allSettled(
           tripIdsRef.current.map((tripId) =>
-            setDoc(
-              doc(db, "trips", tripId, "members", uid2),
-              { tracking: { status: "no_share" } },
-              { merge: true }
-            )
+            updateDoc(doc(db, "trips", tripId, "members", uid2), {
+              "tracking.status":     "no_share",
+              "tracking.lat":        deleteField(),
+              "tracking.lng":        deleteField(),
+              "tracking.updated_at": serverTimestamp(),
+            })
           )
         ).catch(() => {});
       }
@@ -87,7 +96,58 @@ export function useGpsTracking(tripIds) {
   }, [pushToAllTrips]);
 
   const pause  = useCallback(() => { pausedRef.current = true;  }, []);
-  const resume = useCallback(() => { pausedRef.current = false; }, []);
+  const resume = useCallback(() => {
+    pausedRef.current = false;
+    stoppedRef.current = false;
+  }, []);
 
-  return { pause, resume };
+  /**
+   * Dừng hẳn GPS thực + xóa lat/lng trên Firestore cho một trip cụ thể (hoặc tất cả).
+   * Dùng khi user nhấn "Ngưng chia sẻ" trong FakeGpsControl.
+   */
+  const stopSharing = useCallback(async (specificTripId) => {
+    // Set stopped TRƯỚC để block bất kỳ push nào đang pending
+    console.log("[useGpsTracking] stopSharing called, setting stoppedRef=true");
+    stoppedRef.current = true;
+
+    // Clear watch ngay lập tức để không có callback nào được gọi thêm
+    if (watchIdRef.current != null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+      console.log("[useGpsTracking] watchPosition cleared");
+    }
+
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+
+    const targets = specificTripId ? [specificTripId] : (tripIdsRef.current ?? []);
+    if (!targets.length) return;
+
+    await Promise.allSettled(
+      targets.map(async (tripId) => {
+        try {
+          await updateDoc(doc(db, "trips", tripId, "members", uid), {
+            "tracking.status":     "no_share",
+            "tracking.lat":        deleteField(),
+            "tracking.lng":        deleteField(),
+            "tracking.updated_at": serverTimestamp(),
+          });
+          console.log("[useGpsTracking] stopSharing updateDoc SUCCESS for trip:", tripId);
+        } catch (err) {
+          console.error("[useGpsTracking] stopSharing updateDoc FAILED:", err);
+          // Fallback: dùng setDoc nếu updateDoc fail
+          try {
+            await setDoc(doc(db, "trips", tripId, "members", uid), {
+              tracking: { status: "no_share", updated_at: serverTimestamp() },
+            }, { merge: true });
+            console.log("[useGpsTracking] stopSharing setDoc fallback SUCCESS");
+          } catch (err2) {
+            console.error("[useGpsTracking] stopSharing setDoc fallback FAILED:", err2);
+          }
+        }
+      })
+    );
+  }, []);
+
+  return { pause, resume, stopSharing };
 }
