@@ -612,14 +612,10 @@ export function useGroupChat() {
   };
 
   const handleAddMember = async (uid) => {
-    try {
-      await addMembers(activeGroup, [uid]);
-      // Gọi API lấy danh sách members mới nhất (có đầy đủ display_name, avatar_url)
-      const freshMembers = await getMembersFromAPI(activeGroup);
-      setMembersByGroup((prev) => ({ ...prev, [activeGroup]: freshMembers }));
-    } catch (err) {
-      console.error("handleAddMember error:", err);
-    }
+    // POST /conversations/{id}/members → backend tự gửi invitation cho user được mời.
+    // Không cập nhật members list ngay vì user chưa accept — chờ Firestore listener
+    // cập nhật khi user accept invitation.
+    await addMembers(activeGroup, [uid]);
   };
 
   const handleRemoveMember = async (uid) => {

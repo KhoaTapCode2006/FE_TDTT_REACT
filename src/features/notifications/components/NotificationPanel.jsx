@@ -31,6 +31,12 @@ function InvitationItem({ notif, onMarkAsRead }) {
   const [errorMsg, setErrorMsg] = useState("");
   const navigate = useNavigate();
 
+  // Phân biệt invitation trip vs chat dựa trên ref_type (nếu có) hoặc content
+  const isChatInvitation =
+    notif.ref_type === "conversation" ||
+    (typeof notif.content === "string" &&
+      (notif.content.includes("nhóm chat") || notif.content.includes("group chat")));
+
   const handleAccept = async () => {
     setStatus("accepting");
     setErrorMsg("");
@@ -38,7 +44,7 @@ function InvitationItem({ notif, onMarkAsRead }) {
       await invitationService.accept(notif.ref_id);
       setStatus("accepted");
       onMarkAsRead(notif.id);
-      setTimeout(() => navigate("/trips"), 1500);
+      setTimeout(() => navigate(isChatInvitation ? "/chat" : "/trips"), 1500);
     } catch (err) {
       setStatus("error");
       setErrorMsg(err.message || "Có lỗi xảy ra");
