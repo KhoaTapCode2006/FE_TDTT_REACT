@@ -6,6 +6,9 @@ import { profileService } from '../services/profile/profile.service.js';
 import { sessionService } from '../services/profile/session.service.js';
 import { ErrorLogger } from '../utils/errorHandling.js';
 import { authenticateWithBackend } from '../services/backend/backendAuth.service.js';
+import { clearTrackingOnLogout } from '../services/trip/trackingCleanup.js';
+import { activeTripStore } from '../services/trip/activeTripStore.js';
+import { trackingState } from '../services/trip/trackingState.js';
 
 /**
  * Authentication Context
@@ -60,6 +63,9 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       
       if (firebaseUser) {
+        // Reset tracking state khi user login lại
+        trackingState.reset();
+
         // Sync user with backend DB (creates user if not exists)
         try {
           await authenticateWithBackend();
@@ -262,9 +268,24 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      
+
+      // Stop tất cả GPS push ngay lập tức trước khi clear Firestore
+      trackingState.setLoggedOut();
+
+      // Set tracking.status = "lost_signal" cho tất cả trips trước khi sign out
+      const uid = user?.uid;
+      const tripIds = activeTripStore.get();
+      console.log("[AuthContext.logout] uid:", uid, "tripIds:", tripIds);
+      if (uid) {
+        // Luôn gọi clearTrackingOnLogout — nếu tripIds rỗng, hàm sẽ tự query Firestore
+        await clearTrackingOnLogout(uid, tripIds);
+      } else {
+        console.warn("[AuthContext.logout] Skipped clearTracking — no uid");
+      }
+      activeTripStore.clear();
+
       await authService.logout();
-      
+
       // User state will be updated by the auth state listener
     } catch (error) {
       console.error('Logout error:', error);

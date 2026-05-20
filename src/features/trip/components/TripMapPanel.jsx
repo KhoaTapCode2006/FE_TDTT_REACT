@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { doc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
 import { useTripMembers } from "../hooks/useTripMembers";
 import { useAccidentAlert } from "../hooks/useAccidentAlert";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
 import FakeGpsControl from "./FakeGpsControl";
+import { trackingState } from "../../../services/trip/trackingState";
 
 // ─── TripMapPanel ─────────────────────────────────────────────────────────────
 // Giống TripMapModal nhưng là panel inline (không có modal wrapper).
@@ -17,7 +18,7 @@ const statusLabel = {
   arrived:         { text: "Đã đến",          color: "text-blue-600" },
   left:            { text: "Đã rời",           color: "text-gray-400" },
   no_share:        { text: "Không chia sẻ",   color: "text-gray-400" },
-};
+  offline:         { text: "Offline",          color: "text-gray-400" },};
 
 export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopSharing }) {
   const mapRef     = useRef(null);
@@ -66,8 +67,8 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
   // ── Push GPS ──────────────────────────────────────────────────────────────
   const pushTracking = useCallback(async (lat, lng) => {
     if (!currentUid || !tripId) return;
-    if (stoppedSharingRef.current) {
-      console.log("[TripMapPanel] pushTracking BLOCKED by stoppedSharingRef");
+    if (stoppedSharingRef.current || trackingState.isLoggedOut()) {
+      console.log("[TripMapPanel] pushTracking BLOCKED");
       return;
     }
     console.log("[TripMapPanel] pushTracking lat:", lat, "lng:", lng);
@@ -133,9 +134,8 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
       // stoppedSharingRef và fakeActive sẽ tự xử lý các trường hợp đó
       if (!stoppedSharingRef.current && !fakeActive) {
         updateDoc(ref, {
+          // Không xóa lat/lng vì Firestore rules yêu cầu chúng là number
           "tracking.status":     "no_share",
-          "tracking.lat":        deleteField(),
-          "tracking.lng":        deleteField(),
           "tracking.updated_at": serverTimestamp(),
         }).catch(() => {});
       }

@@ -8,6 +8,7 @@ import { doc, onSnapshot, getDoc } from "firebase/firestore";
 import { db } from "../../../config/firebase";
 import { tripService, normalizeTripData } from "../../../services/backend/trip.service";
 import { useAuth } from "../../../contexts/AuthContext";
+import { activeTripStore } from "../../../services/trip/activeTripStore";
 
 export const NAV_ITEMS = [
   { id: "info",    label: "Thông tin" },
@@ -160,6 +161,11 @@ export function useTrip() {
 
     return () => unsubs.forEach((unsub) => unsub());
   }, [tripIds, isAuthenticated]); // re-subscribe khi trip IDs hoặc auth thay đổi
+
+  // ── Sync trip IDs vào activeTripStore để AuthContext dùng khi logout ──────────
+  useEffect(() => {
+    activeTripStore.set(trips.map((t) => t.id));
+  }, [trips]);
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const infoTrip = infoTripId ? trips.find((t) => t.id === infoTripId) ?? null : null;

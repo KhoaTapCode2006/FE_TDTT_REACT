@@ -3,8 +3,9 @@
 // Gọi hook này ở TripPage — tracking bắt đầu khi vào trang, dừng khi rời trang.
 
 import { useEffect, useRef, useCallback } from "react";
-import { doc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
+import { trackingState } from "../../../services/trip/trackingState";
 
 /**
  * @param {string[]} tripIds - Danh sách trip IDs mà user là thành viên
@@ -15,20 +16,25 @@ export function useGpsTracking(tripIds) {
   const tripIdsRef  = useRef(tripIds);
   const pausedRef   = useRef(false); // true khi fake GPS đang bật
   const stoppedRef  = useRef(false); // true khi user chủ động ngưng chia sẻ
+  const uidRef      = useRef(auth.currentUser?.uid ?? null); // lưu uid lúc mount, tránh mất khi logout
 
   // Giữ ref luôn up-to-date khi tripIds thay đổi
   useEffect(() => {
     tripIdsRef.current = tripIds;
   }, [tripIds]);
 
+  // Cập nhật uidRef khi auth thay đổi
+  useEffect(() => {
+    uidRef.current = auth.currentUser?.uid ?? null;
+  });
+
   const pushToAllTrips = useCallback(async (lat, lng) => {
-    // Không push nếu đang bị pause (fake GPS đang chiếm quyền) hoặc đã stop
-    if (pausedRef.current || stoppedRef.current) {
-      console.log("[useGpsTracking] pushToAllTrips BLOCKED — paused:", pausedRef.current, "stopped:", stoppedRef.current);
+    // Không push nếu đang bị pause, đã stop, hoặc user đã logout
+    if (pausedRef.current || stoppedRef.current || trackingState.isLoggedOut()) {
       return;
     }
 
-    const uid = auth.currentUser?.uid;
+    const uid = uidRef.current;
     if (!uid || !tripIdsRef.current?.length) return;
 
     console.log("[useGpsTracking] pushToAllTrips lat:", lat, "lng:", lng);
@@ -54,6 +60,9 @@ export function useGpsTracking(tripIds) {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
+    // Lưu uid vào ref ngay khi bắt đầu tracking
+    uidRef.current = uid;
+
     // Reset stopped state khi mount lại
     stoppedRef.current = false;
 
@@ -78,15 +87,13 @@ export function useGpsTracking(tripIds) {
         watchIdRef.current = null;
       }
 
-      // Xóa lat/lng và set no_share cho tất cả trips khi rời trang
-      const uid2 = auth.currentUser?.uid;
+      // Set no_share khi rời trang — không xóa lat/lng vì Firestore rules yêu cầu chúng là number
+      const uid2 = uidRef.current;
       if (uid2 && tripIdsRef.current?.length) {
         Promise.allSettled(
           tripIdsRef.current.map((tripId) =>
             updateDoc(doc(db, "trips", tripId, "members", uid2), {
               "tracking.status":     "no_share",
-              "tracking.lat":        deleteField(),
-              "tracking.lng":        deleteField(),
               "tracking.updated_at": serverTimestamp(),
             })
           )
@@ -117,7 +124,7 @@ export function useGpsTracking(tripIds) {
       console.log("[useGpsTracking] watchPosition cleared");
     }
 
-    const uid = auth.currentUser?.uid;
+    const uid = uidRef.current;
     if (!uid) return;
 
     const targets = specificTripId ? [specificTripId] : (tripIdsRef.current ?? []);
@@ -127,15 +134,13 @@ export function useGpsTracking(tripIds) {
       targets.map(async (tripId) => {
         try {
           await updateDoc(doc(db, "trips", tripId, "members", uid), {
+            // Không xóa lat/lng vì Firestore rules yêu cầu chúng là number
             "tracking.status":     "no_share",
-            "tracking.lat":        deleteField(),
-            "tracking.lng":        deleteField(),
             "tracking.updated_at": serverTimestamp(),
           });
           console.log("[useGpsTracking] stopSharing updateDoc SUCCESS for trip:", tripId);
         } catch (err) {
           console.error("[useGpsTracking] stopSharing updateDoc FAILED:", err);
-          // Fallback: dùng setDoc nếu updateDoc fail
           try {
             await setDoc(doc(db, "trips", tripId, "members", uid), {
               tracking: { status: "no_share", updated_at: serverTimestamp() },

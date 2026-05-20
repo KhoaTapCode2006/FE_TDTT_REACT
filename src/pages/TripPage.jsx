@@ -2,6 +2,7 @@ import {
   useTrip,
   NAV_ITEMS,
   useGpsTracking,
+  usePresence,
   TripInfoPanel,
   TripMemberPanel,
   TripMapPanel,
@@ -62,6 +63,9 @@ function NoTripState({ onCreateNew }) {
 export default function TripPage() {
   const { user } = useAuth();
   const currentUid = user?.uid ?? null;
+
+  // Ghi presence online/offline cho user hiện tại lên RTDB
+  usePresence(currentUid);
 
   const {
     activeNav,

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
 import ConfirmModal from "./modals/ConfirmModal";
 import { useTripMembers } from "../hooks/useTripMembers";
+import { useMembersPresence } from "../hooks/useMembersPresence";
 
 // ─── TripMemberPanel ───────────────────────────────────────────────────────────
 // Hiển thị danh sách thành viên của trip dưới dạng panel inline.
@@ -9,6 +10,8 @@ import { useTripMembers } from "../hooks/useTripMembers";
 
 export default function TripMemberPanel({ trip, onRemoveMember, onAddMember, refreshKey = 0 }) {
   const { members: firestoreMembers } = useTripMembers(trip?.id ?? null, refreshKey);
+  const memberUids = useMemo(() => firestoreMembers.map((m) => m.uid), [firestoreMembers]);
+  const presenceMap = useMembersPresence(memberUids);
   const [confirmRemove, setConfirmRemove] = useState(null); // { uid, display_name }
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -127,14 +130,20 @@ export default function TripMemberPanel({ trip, onRemoveMember, onAddMember, ref
 
             return (
               <div key={m.uid} className="flex items-center gap-3 group py-3 px-4 rounded-xl bg-white border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all">
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 overflow-hidden"
-                  style={{ background: MEMBER_COLORS[i % MEMBER_COLORS.length] }}
-                >
-                  {m.avatar_url
-                    ? <img src={m.avatar_url} alt={m.display_name ?? m.uid} className="w-full h-full object-cover" />
-                    : (m.display_name ?? m.username ?? m.uid).slice(0, 2).toUpperCase()
-                  }
+                <div className="relative shrink-0">
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold overflow-hidden"
+                    style={{ background: MEMBER_COLORS[i % MEMBER_COLORS.length] }}
+                  >
+                    {m.avatar_url
+                      ? <img src={m.avatar_url} alt={m.display_name ?? m.uid} className="w-full h-full object-cover" />
+                      : (m.display_name ?? m.username ?? m.uid).slice(0, 2).toUpperCase()
+                    }
+                  </div>
+                  {/* Chỉ hiện khi offline (presenceMap[uid] === false, tức đã từng connect nhưng giờ offline) */}
+                  {presenceMap[m.uid] === false && (
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-gray-400 border-2 border-white" title="Offline" />
+                  )}
                 </div>
                 <div className="flex flex-col min-w-0 flex-1">
                   <span className="text-sm text-gray-800 font-semibold truncate">
@@ -145,6 +154,9 @@ export default function TripMemberPanel({ trip, onRemoveMember, onAddMember, ref
                   )}
                   {joinedStr && (
                     <span className="text-[10px] text-gray-400 mt-0.5">Tham gia {joinedStr}</span>
+                  )}
+                  {presenceMap[m.uid] === false && (
+                    <span className="text-[10px] text-gray-400 mt-0.5">● Offline</span>
                   )}
                 </div>
                 <button
