@@ -28,7 +28,7 @@ function Header({ hideNavigation = false }) {
   const accountRef = useRef(null);
   const notifRef = useRef(null);
 
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications(
     isAuthenticated ? user?.uid : null
   );
 
@@ -185,7 +185,7 @@ function Header({ hideNavigation = false }) {
                 <NotificationPanel
                   notifications={notifications}
                   onMarkAsRead={markAsRead}
-                  onMarkAllAsRead={markAllAsRead}
+                  onDeleteNotification={deleteNotification}
                   onClose={() => setNotifOpen(false)}
                 />
               )}
