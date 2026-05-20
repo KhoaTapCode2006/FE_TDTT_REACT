@@ -955,6 +955,28 @@ export async function getGroups() {
     } catch { /* ignore */ }
   }
 
+  // ── Bổ sung: thử fetch chatbot conversation theo pattern ID ─────────────
+  // Firestore Rules không cho phép query where('owner_uid'==uid) trên collection,
+  // nhưng cho phép đọc document trực tiếp nếu user là member.
+  // Chatbot conversation có ID pattern: chatbot_conv_{uid}
+  try {
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      const chatbotId = `chatbot_conv_${uid}`;
+      if (!userCacheMap[chatbotId]) {
+        const chatbotSnap = await getDoc(doc(db, 'conversations', chatbotId));
+        if (chatbotSnap.exists()) {
+          console.log('[getGroups] found chatbot conversation by direct ID:', chatbotId);
+          userCacheMap[chatbotId] = chatbotSnap.data();
+          ids.push(chatbotId);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[getGroups] chatbot conversation fetch failed:', err);
+  }
+  console.log('[getGroups] final ids to fetch:', ids);
+
   if (ids.length === 0) return [];
 
   // ── Bước 2: Fetch từng conversation (Firestore → REST fallback) ──────────

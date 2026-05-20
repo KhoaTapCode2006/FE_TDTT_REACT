@@ -23,7 +23,13 @@ function Sidebar({ activeGroup, setActiveGroup, groups, onOpenCreate }) {
 
       {/* Group list */}
       <nav className="flex-1 overflow-y-auto py-2">
-        {groups.map((group) => (
+        {[...groups].sort((a, b) => {
+          const aIsBot = a.id.startsWith('chatbot_conv_');
+          const bIsBot = b.id.startsWith('chatbot_conv_');
+          if (aIsBot && !bIsBot) return -1;
+          if (!aIsBot && bIsBot) return 1;
+          return 0;
+        }).map((group) => (
           <button
             key={group.id}
             onClick={() => setActiveGroup(group.id)}
