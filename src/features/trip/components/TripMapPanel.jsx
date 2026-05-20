@@ -89,6 +89,18 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
   const pushTrackingRef = useRef(pushTracking);
   useEffect(() => { pushTrackingRef.current = pushTracking; }, [pushTracking]);
 
+  // ── Tính distToDestM từ myRealPos khi GPS đã có (phòng trường hợp pushTracking bị block) ──
+  useEffect(() => {
+    if (!myRealPos) return;
+    const { lat, lng } = myRealPos;
+    const R = 6371000;
+    const dLat = (DEST.lat - lat) * Math.PI / 180;
+    const dLng = (DEST.lng - lng) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    setDistToDestM(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myRealPos, DEST.lat, DEST.lng]);
+
   // ── GPS setup ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentUid || !tripId) return;
@@ -108,10 +120,19 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
     const ref = doc(db, "trips", tripId, "members", currentUid);
     setDoc(ref, { tracking: { status: "active", updated_at: serverTimestamp() } }, { merge: true }).catch(() => {});
 
+    const updateDistToDestM = (lat, lng) => {
+      const R = 6371000;
+      const dLat = (DEST.lat - lat) * Math.PI / 180;
+      const dLng = (DEST.lng - lng) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      setDistToDestM(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+    };
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         console.log("[TripMapPanel] getCurrentPosition callback — stopped:", stoppedSharingRef.current);
         setMyRealPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        updateDistToDestM(pos.coords.latitude, pos.coords.longitude);
         pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude);
       },
       () => {}, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
@@ -120,6 +141,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
       (pos) => {
         console.log("[TripMapPanel] watchPosition callback — stopped:", stoppedSharingRef.current);
         setMyRealPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        updateDistToDestM(pos.coords.latitude, pos.coords.longitude);
         pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude);
       },
       () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
@@ -545,6 +567,13 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
               onFakeStart?.();
             }}
             onStop={() => { setFakeActive(false); onFakeStop?.(); }}
+            onPositionChange={(lat, lng) => {
+              const R = 6371000;
+              const dLat = (DEST.lat - lat) * Math.PI / 180;
+              const dLng = (DEST.lng - lng) * Math.PI / 180;
+              const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+              setDistToDestM(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+            }}
             onStopSharing={async (tid) => {
               // Clear watch GPS của TripMapPanel ngay lập tức
               stoppedSharingRef.current = true;

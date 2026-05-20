@@ -13,7 +13,7 @@ function meterToLngDeg(meters, lat) {
   return meters / (111320 * Math.cos((lat * Math.PI) / 180));
 }
 
-export default function FakeGpsControl({ tripId, initialLat, initialLng, onActivate, onStop, onStopSharing }) {
+export default function FakeGpsControl({ tripId, initialLat, initialLng, onActivate, onStop, onStopSharing, onPositionChange }) {
   const [open, setOpen]   = useState(false);
   const [active, setActive] = useState(false);
   const [step, setStep]   = useState(DEFAULT_STEP);
@@ -58,7 +58,8 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
 
     posRef.current = { lat: newLat, lng: newLng };
     pushFakePos(newLat, newLng);
-  }, [pushFakePos, step]);
+    onPositionChange?.(newLat, newLng);
+  }, [pushFakePos, step, onPositionChange]);
 
   const handleActivate = () => {
     setActive(true);
@@ -66,6 +67,7 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
     onActivate?.();
     // Push ngay vị trí hiện tại để bắt đầu fake session
     pushFakePos(posRef.current.lat, posRef.current.lng);
+    onPositionChange?.(posRef.current.lat, posRef.current.lng);
   };
 
   const handleLostSignal = useCallback(async () => {
