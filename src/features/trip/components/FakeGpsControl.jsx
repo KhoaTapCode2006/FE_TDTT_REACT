@@ -24,7 +24,6 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
 
   const pushFakePos = useCallback(async (lat, lng) => {
     const uid = auth.currentUser?.uid;
-    console.log("[FakeGPS] pushFakePos uid:", uid, "tripId:", tripId, "pos:", lat, lng);
     if (!uid || !tripId) return;
     try {
       await setDoc(
@@ -32,7 +31,6 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
         { tracking: { lat, lng, updated_at: serverTimestamp(), status: "active" } },
         { merge: true }
       );
-      console.log("[FakeGPS] Firestore write OK");
     } catch (err) {
       console.warn("[FakeGpsControl] push failed:", err);
     }
@@ -54,7 +52,6 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
     }
 
     posRef.current = { lat: newLat, lng: newLng };
-    console.log("[FakeGPS] move", direction, "→", newLat, newLng, "tripId:", tripId);
     pushFakePos(newLat, newLng);
   }, [pushFakePos]);
 
@@ -94,33 +91,43 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
             GPS ảo — 5m/bước
           </span>
 
-          <button
-            onClick={() => { console.log("[FakeGPS] UP clicked"); move("up"); }}
-            className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-95 flex items-center justify-center text-gray-700 font-bold text-lg transition-all"
-            title="Di chuyển lên (Bắc)"
-          >↑</button>
+          {/* D-pad kiểu PlayStation — 4 nút rời nhau */}
+          <div className="grid grid-cols-3 grid-rows-3 gap-px w-32 h-32">
+            {/* Hàng 1 */}
+            <div />
+            <button
+              onClick={() => move("up")}
+              title="Bắc"
+              className="bg-gray-800 hover:bg-gray-600 active:bg-gray-900 active:scale-95 transition-all"
+              style={{ clipPath: "polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%)", borderRadius: "8px 8px 0 0" }}
+            />
+            <div />
 
-          <div className="flex gap-2">
+            {/* Hàng 2 */}
             <button
-              onClick={() => { console.log("[FakeGPS] LEFT clicked"); move("left"); }}
-              className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-95 flex items-center justify-center text-gray-700 font-bold text-lg transition-all"
-              title="Di chuyển trái (Tây)"
-            >←</button>
-            <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center">
-              <span className="text-orange-400 text-xs font-bold">📍</span>
-            </div>
+              onClick={() => move("left")}
+              title="Tây"
+              className="bg-gray-800 hover:bg-gray-600 active:bg-gray-900 active:scale-95 transition-all"
+              style={{ clipPath: "polygon(0 0, 55% 0, 100% 50%, 55% 100%, 0 100%)", borderRadius: "8px 0 0 8px" }}
+            />
+            <div />
             <button
-              onClick={() => { console.log("[FakeGPS] RIGHT clicked"); move("right"); }}
-              className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-95 flex items-center justify-center text-gray-700 font-bold text-lg transition-all"
-              title="Di chuyển phải (Đông)"
-            >→</button>
+              onClick={() => move("right")}
+              title="Đông"
+              className="bg-gray-800 hover:bg-gray-600 active:bg-gray-900 active:scale-95 transition-all"
+              style={{ clipPath: "polygon(45% 0, 100% 0, 100% 100%, 45% 100%, 0 50%)", borderRadius: "0 8px 8px 0" }}
+            />
+
+            {/* Hàng 3 */}
+            <div />
+            <button
+              onClick={() => move("down")}
+              title="Nam"
+              className="bg-gray-800 hover:bg-gray-600 active:bg-gray-900 active:scale-95 transition-all"
+              style={{ clipPath: "polygon(0 45%, 50% 0, 100% 45%, 100% 100%, 0 100%)", borderRadius: "0 0 8px 8px" }}
+            />
+            <div />
           </div>
-
-          <button
-            onClick={() => { console.log("[FakeGPS] DOWN clicked"); move("down"); }}
-            className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 active:scale-95 flex items-center justify-center text-gray-700 font-bold text-lg transition-all"
-            title="Di chuyển xuống (Nam)"
-          >↓</button>
 
           <button
             onClick={handleStop}
