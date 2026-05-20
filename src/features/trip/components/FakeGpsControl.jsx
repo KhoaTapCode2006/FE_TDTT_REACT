@@ -68,6 +68,22 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
     pushFakePos(posRef.current.lat, posRef.current.lng);
   };
 
+  const handleLostSignal = useCallback(async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid || !tripId) return;
+    try {
+      await updateDoc(
+        doc(db, "trips", tripId, "members", uid),
+        {
+          "tracking.status":     "lost_signal",
+          "tracking.updated_at": serverTimestamp(),
+        }
+      );
+    } catch (err) {
+      console.warn("[FakeGpsControl] lost_signal failed:", err);
+    }
+  }, [tripId]);
+
   const handleStop = useCallback(async () => {
     // Dùng onStopSharing từ useGpsTracking để đảm bảo GPS thực không ghi đè
     if (onStopSharing) {
@@ -160,12 +176,21 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
             <div />
           </div>
 
-          <button
-            onClick={handleStop}
-            className="mt-1 w-full px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 active:scale-95 text-white text-xs font-bold transition-all"
-          >
-            Ngưng chia sẻ
-          </button>
+          <div className="mt-1 w-full flex gap-1.5">
+            <button
+              onClick={handleLostSignal}
+              className="flex-1 px-2 py-1.5 rounded-xl bg-yellow-500 hover:bg-yellow-600 active:scale-95 text-white text-xs font-bold transition-all"
+              title="Ghi trạng thái mất tín hiệu"
+            >
+              Mất tín hiệu
+            </button>
+            <button
+              onClick={handleStop}
+              className="flex-1 px-2 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 active:scale-95 text-white text-xs font-bold transition-all"
+            >
+              Ngưng chia sẻ
+            </button>
+          </div>
         </div>
       )}
 
