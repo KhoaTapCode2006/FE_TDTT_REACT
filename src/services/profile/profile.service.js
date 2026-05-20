@@ -9,6 +9,8 @@ import { transformUserProfile, transformUserProfileUpdate } from '../../utils/sc
 class ProfileService {
   constructor() {
     // No initialization needed - using API client
+    // Promise cache to prevent N+1 queries
+    this.profileRequestPromise = null;
   }
 
   /**
@@ -26,29 +28,43 @@ class ProfileService {
   }
 
   /**
-   * Get current user profile
+   * Get current user profile with promise caching to prevent N+1 queries
    * @param {string} firebaseUid - Firebase user ID (optional, for uid fallback)
    * @returns {Promise<Object>} User profile
    */
   async getCurrentUserProfile(firebaseUid = null) {
-    try {
-      await this.ensureValidToken();
-      
-      // Get current user's profile from backend
-      const backendProfile = await apiClient.get('/me');
-      
-      // Transform backend response to frontend format
-      // Pass firebaseUid as fallback if backend doesn't return uid
-      return transformUserProfile(backendProfile, firebaseUid);
-    } catch (error) {
-      console.error('Error getting current user profile:', error);
-      
-      if (error.status === 401) {
-        throw new Error('Session expired. Please log in again.');
-      }
-      
-      throw new Error(error.message || 'Failed to retrieve user profile. Please try again.');
+    // If a request is already in progress, return the existing promise
+    if (this.profileRequestPromise) {
+      console.log('Reusing existing profile request promise');
+      return this.profileRequestPromise;
     }
+
+    // Create new promise and cache it
+    this.profileRequestPromise = (async () => {
+      try {
+        await this.ensureValidToken();
+        
+        // Get current user's profile from backend
+        const backendProfile = await apiClient.get('/me');
+        
+        // Transform backend response to frontend format
+        // Pass firebaseUid as fallback if backend doesn't return uid
+        return transformUserProfile(backendProfile, firebaseUid);
+      } catch (error) {
+        console.error('Error getting current user profile:', error);
+        
+        if (error.status === 401) {
+          throw new Error('Session expired. Please log in again.');
+        }
+        
+        throw new Error(error.message || 'Failed to retrieve user profile. Please try again.');
+      } finally {
+        // Clear the promise cache after request completes (success or failure)
+        this.profileRequestPromise = null;
+      }
+    })();
+
+    return this.profileRequestPromise;
   }
 
   /**
