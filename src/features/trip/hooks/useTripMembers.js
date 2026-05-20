@@ -35,6 +35,7 @@ export function useTripMembers(tripId, refreshKey = 0) {
       .getTripMembers(tripId)
       .then((members) => {
         if (!cancelled) {
+          console.log("[useTripMembers] fetched members:", members);
           setRestMembers(members);
         }
       })

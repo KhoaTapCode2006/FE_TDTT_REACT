@@ -4,7 +4,7 @@
 // và trạng thái mở/đóng các modal.
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, getDoc } from "firebase/firestore";
 import { db } from "../../../config/firebase";
 import { tripService, normalizeTripData } from "../../../services/backend/trip.service";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -30,24 +30,33 @@ export function useTrip() {
   const [selectedTripId, setSelectedTripId] = useState(null);
   const [memberRefreshKey, setMemberRefreshKey] = useState(0);
   // Lưu current_trip ID đã biết để detect thay đổi từ Firestore
-  const knownTripIdRef = useRef(null);
+  const knownTripIdRef = useRef(undefined); // undefined = chưa init, null = không có trip
   // Lưu trip IDs dạng string để dùng làm dependency cho onSnapshot effect
   const [tripIds, setTripIds] = useState("");
 
   // ── Fetch trips từ API ───────────────────────────────────────────────────────
   const fetchTrips = useCallback(async () => {
+    if (!user?.uid) return;
     try {
       setLoading(true);
       setError(null);
-      const data = await tripService.getMyTrips();
-      setTrips(data);
-      // Auto-select trip đầu tiên nếu chưa có selection
-      if (data.length > 0) {
-        setSelectedTripId((prev) => prev ?? data[0].id);
+
+      // Đọc current_trip từ Firestore (source of truth) thay vì GET /me
+      // để tránh lag giữa REST API và Firestore
+      const userSnap = await getDoc(doc(db, "users", user.uid));
+      const currentTripId = userSnap.exists() ? (userSnap.data()?.current_trip ?? null) : null;
+
+      if (!currentTripId) {
+        setTrips([]);
+        setTripIds("");
+        setLoading(false);
+        return;
       }
-      // Cập nhật ref để Firestore listener biết giá trị hiện tại
-      knownTripIdRef.current = data[0]?.id ?? null;
-      // Cập nhật tripIds để trigger onSnapshot effect
+
+      const trip = await tripService.getTrip(currentTripId);
+      const data = [trip];
+      setTrips(data);
+      setSelectedTripId((prev) => prev ?? data[0].id);
       setTripIds(data.map((t) => t.id).join(","));
     } catch (err) {
       console.error("Failed to fetch trips:", err);
@@ -55,11 +64,11 @@ export function useTrip() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.uid]);
 
   // Đợi Firebase xác nhận auth xong mới fetch — tránh lỗi "not authenticated" khi F5
   useEffect(() => {
-    if (authLoading) return;          // Firebase chưa restore session
+    if (authLoading) return;
     if (!isAuthenticated) {
       setTrips([]);
       setLoading(false);
@@ -91,7 +100,9 @@ export function useTrip() {
         if (!snap.exists()) return;
         const newTripId = snap.data()?.current_trip ?? null;
         // Chỉ re-fetch khi current_trip thực sự thay đổi (tránh fetch thừa khi mount)
-        if (knownTripIdRef.current !== null && knownTripIdRef.current !== newTripId) {
+        // undefined = lần đầu init → chỉ lưu ref, không fetch
+        // null/string → so sánh với giá trị cũ, fetch nếu khác
+        if (knownTripIdRef.current !== undefined && knownTripIdRef.current !== newTripId) {
           fetchTrips();
         }
         knownTripIdRef.current = newTripId;
@@ -208,8 +219,9 @@ export function useTrip() {
 
   const handleAddMember = async (tripId, uid) => {
     try {
-      const updatedTrip = await tripService.addMembersToTrip(tripId, [uid]);
-      setTrips((prev) => prev.map((t) => (t.id === updatedTrip.id ? updatedTrip : t)));
+      await tripService.addMembersToTrip(tripId, [uid]);
+      // Delay nhỏ để backend commit xong trước khi re-fetch
+      await new Promise((r) => setTimeout(r, 500));
       setMemberRefreshKey((k) => k + 1);
     } catch (err) {
       console.error("Failed to add member:", err);
@@ -219,8 +231,9 @@ export function useTrip() {
 
   const handleRemoveMember = async (tripId, uid) => {
     try {
-      const updatedTrip = await tripService.removeMembersFromTrip(tripId, [uid]);
-      setTrips((prev) => prev.map((t) => (t.id === updatedTrip.id ? updatedTrip : t)));
+      await tripService.removeMembersFromTrip(tripId, [uid]);
+      // Delay nhỏ để backend commit xong trước khi re-fetch
+      await new Promise((r) => setTimeout(r, 500));
       setMemberRefreshKey((k) => k + 1);
     } catch (err) {
       console.error("Failed to remove member:", err);
