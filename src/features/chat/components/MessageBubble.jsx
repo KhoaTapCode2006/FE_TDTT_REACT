@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Avatar from "./Avatar";
 import { getHotelById } from "@/services/backend/discover.service";
+import HotelPopup from "@/components/hotel/components/HotelPopup";
 
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 // Render một tin nhắn trong cuộc trò chuyện. 
@@ -21,6 +22,8 @@ function DeleteBtn({ onDelete, msgId }) {
 // ─── Place Card (fetch hotel details khi có placeId) ─────────────────────────
 function PlaceCard({ attachment, isMine, fallbackText }) {
   const [hotel, setHotel] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
 
   // attachment.value là property_token
   const placeId = attachment?.value ?? null;
@@ -28,57 +31,122 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
   useEffect(() => {
     if (!placeId) return;
     let cancelled = false;
+    setLoading(true);
     getHotelById(placeId).then((data) => {
-      if (!cancelled && data) setHotel(data);
+      if (!cancelled) {
+        if (data) setHotel(data);
+        setLoading(false);
+      }
     });
     return () => { cancelled = true; };
   }, [placeId]);
 
-  const thumbnail = hotel?.images?.[0]?.thumbnail ?? null;
-  const name      = hotel?.name ?? attachment?.metadata?.name ?? fallbackText ?? "Địa điểm";
-  const address   = hotel?.address ?? attachment?.metadata?.address ?? null;
-  const price     = hotel?.price ?? null;
-  const deal      = hotel?.deal ?? null;
+  const thumbnail    = hotel?.images?.[0]?.thumbnail ?? null;
+  const name         = hotel?.name ?? attachment?.metadata?.name ?? fallbackText ?? "Địa điểm";
+  const address      = hotel?.address ?? attachment?.metadata?.address ?? null;
+  const price        = hotel?.price ?? null;
+  const rawRating    = hotel?.raw_rating ?? null;
+  const reviewCount  = hotel?.user_reviews?.length ?? null;
+  const amenities    = hotel?.amenities ?? [];
+  const link         = hotel?.link ?? null;
+
+  // Map API data sang format HotelPopup cần
+  const popupHotel = hotel ? {
+    ...hotel,
+    rating: hotel.raw_rating ?? 0,
+    pricePerNight: hotel.price ?? 0,
+    images: hotel.images?.map((img) => img.original_image ?? img.thumbnail).filter(Boolean) ?? [],
+    reviews: hotel.user_reviews?.map((r) => ({
+      author: "Khách",
+      content: r.text,
+      raw_star: r.raw_stars,
+    })) ?? [],
+    nearbyLandmarks: hotel.nearby_places ?? [],
+  } : null;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl shadow-card w-56 overflow-hidden">
-      {/* Thumbnail */}
-      {thumbnail ? (
-        <img src={thumbnail} alt={name} className="w-full h-28 object-cover" />
-      ) : (
-        <div className="w-full h-28 bg-green-50 flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-green-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-            <circle cx="12" cy="9" r="2.5" />
-          </svg>
-        </div>
-      )}
-      {/* Info */}
-      <div className="flex items-center gap-2 px-3 py-2">
-        <div className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center text-green-500 shrink-0">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-            <circle cx="12" cy="9" r="2.5" />
-          </svg>
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold text-gray-800 truncate">{name}</p>
-          {address && <p className="text-xs text-gray-400 truncate">{address}</p>}
-          {(price != null || deal) && (
-            <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-              {price != null && (
-                <span className="text-xs font-medium text-blue-500">
-                  {price.toLocaleString("vi-VN")}₫
-                </span>
-              )}
-              {deal && (
-                <span className="text-xs text-green-500 truncate">{deal}</span>
+    <>
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-card w-64 overflow-hidden">
+        {/* Thumbnail */}
+        <div className="relative">
+          {thumbnail ? (
+            <img src={thumbnail} alt={name} className="w-full h-36 object-cover" />
+          ) : (
+            <div className="w-full h-36 bg-green-50 flex items-center justify-center">
+              {loading ? (
+                <svg className="w-6 h-6 text-green-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-10 h-10 text-green-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+                  <circle cx="12" cy="9" r="2.5" />
+                </svg>
               )}
             </div>
           )}
+          {/* Nút yêu thích */}
+          <button className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-3 pt-2.5 pb-3 flex flex-col gap-2">
+          {/* Tên */}
+          <p className="text-sm font-bold text-gray-900 leading-snug line-clamp-2">{name}</p>
+
+          {/* Rating + Giá */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1">
+              <span className="text-yellow-400 text-sm">★</span>
+              <span className="text-sm font-semibold text-gray-800">
+                {rawRating > 0 ? rawRating.toFixed(2) : "—"}
+              </span>
+              {reviewCount != null && reviewCount > 0 && (
+                <span className="text-xs text-gray-400">({reviewCount} đánh giá)</span>
+              )}
+            </div>
+            {price != null && (
+              <div className="text-right shrink-0">
+                <p className="text-sm font-bold text-gray-900">{price.toLocaleString("vi-VN")} đ</p>
+                <p className="text-xs text-gray-400">/ đêm</p>
+              </div>
+            )}
+          </div>
+
+          {/* Amenities tags */}
+          {amenities.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {amenities.slice(0, 3).map((a, i) => (
+                <span
+                  key={i}
+                  className="text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-0.5 truncate max-w-[90px]"
+                >
+                  {a}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Nút xem chi tiết */}
+          <button
+            onClick={() => setShowPopup(true)}
+            className="mt-0.5 w-full text-center text-sm font-semibold text-blue-500 border border-blue-300 rounded-xl py-1.5 hover:bg-blue-50 transition-colors"
+          >
+            Xem chi tiết
+          </button>
         </div>
       </div>
-    </div>
+
+      {/* Hotel Popup */}
+      {showPopup && popupHotel && (
+        <HotelPopup hotel={popupHotel} onClose={() => setShowPopup(false)} />
+      )}
+    </>
   );
 }
 
