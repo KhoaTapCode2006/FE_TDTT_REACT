@@ -171,6 +171,65 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripId]);
 
+  // ── Helper: build marker DOM element ─────────────────────────────────────
+  const buildMarkerEl = useCallback((m, onClickFn) => {
+    // Wrapper bao ngoài để chứa cả ping rings + avatar circle
+    const wrapper = document.createElement("div");
+    wrapper.className = "accident-marker-wrapper";
+    wrapper.title = m.isMe ? `${m.name} (bạn)` : m.name;
+
+    // Avatar circle (inner)
+    const inner = document.createElement("div");
+    const bg    = m.accident ? "#dc2626" : m.color;
+    const pulse = m.isMe
+      ? `box-shadow:0 0 0 4px ${m.color}44,0 2px 8px rgba(0,0,0,0.3);`
+      : `box-shadow:0 2px 8px rgba(0,0,0,0.3);`;
+    inner.style.cssText = `position:relative;z-index:1;width:36px;height:36px;border-radius:50%;background:${bg};border:3px solid white;${pulse}display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;cursor:pointer;transition:transform 0.2s,background 0.3s;`;
+    inner.innerHTML = m.avatar;
+
+    // Ping rings — chỉ khi accident
+    if (m.accident) {
+      const ring1 = document.createElement("div");
+      ring1.className = "accident-ping-ring";
+      const ring2 = document.createElement("div");
+      ring2.className = "accident-ping-ring";
+      wrapper.appendChild(ring1);
+      wrapper.appendChild(ring2);
+    }
+
+    wrapper.appendChild(inner);
+
+    inner.addEventListener("mouseenter", () => { inner.style.transform = "scale(1.2)"; });
+    inner.addEventListener("mouseleave", () => { inner.style.transform = "scale(1)"; });
+    wrapper.addEventListener("click", onClickFn);
+
+    return wrapper;
+  }, []);
+
+  // ── Helper: sync existing marker element to current accident state ────────
+  const syncMarkerEl = useCallback((el, m) => {
+    // el là wrapper; inner là child cuối (avatar circle)
+    const inner = el.querySelector("div[style]") ?? el.lastElementChild;
+    if (!inner) return;
+
+    const bg = m.accident ? "#dc2626" : m.color;
+    inner.style.background = bg;
+    inner.innerHTML = m.avatar;
+
+    // Thêm / xóa ping rings
+    const existingRings = el.querySelectorAll(".accident-ping-ring");
+    if (m.accident && existingRings.length === 0) {
+      const ring1 = document.createElement("div");
+      ring1.className = "accident-ping-ring";
+      const ring2 = document.createElement("div");
+      ring2.className = "accident-ping-ring";
+      el.insertBefore(ring2, inner);
+      el.insertBefore(ring1, ring2);
+    } else if (!m.accident) {
+      existingRings.forEach((r) => r.remove());
+    }
+  }, []);
+
   // ── Update markers ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapReady || !mapObjRef.current || !window.vietmapgl) return;
@@ -189,17 +248,9 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
       if (markersRef.current[m.id]) {
         markersRef.current[m.id].setLngLat([m.lng, m.lat]);
         const el = markersRef.current[m.id].getElement();
-        if (el) { el.style.background = m.accident ? "#dc2626" : m.color; el.innerHTML = m.accident ? "🚨" : m.avatar; }
+        if (el) syncMarkerEl(el, m);
       } else {
-        const el = document.createElement("div");
-        const bg = m.accident ? "#dc2626" : m.color;
-        const pulse = m.isMe ? `box-shadow:0 0 0 4px ${m.color}44,0 2px 8px rgba(0,0,0,0.3);` : `box-shadow:0 2px 8px rgba(0,0,0,0.3);`;
-        el.style.cssText = `width:36px;height:36px;border-radius:50%;background:${bg};border:3px solid white;${pulse}display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;cursor:pointer;transition:transform 0.2s;`;
-        el.innerHTML = m.accident ? "🚨" : m.avatar;
-        el.title = m.isMe ? `${m.name} (bạn)` : m.name;
-        el.addEventListener("mouseenter", () => { el.style.transform = "scale(1.2)"; });
-        el.addEventListener("mouseleave", () => { el.style.transform = "scale(1)"; });
-        el.addEventListener("click", () => handleMemberClick(m));
+        const el = buildMarkerEl(m, () => handleMemberClick(m));
         markersRef.current[m.id] = new window.vietmapgl.Marker({ element: el, anchor: "center" })
           .setLngLat([m.lng, m.lat]).addTo(map);
       }

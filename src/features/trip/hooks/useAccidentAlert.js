@@ -1,41 +1,64 @@
 // ─── useAccidentAlert ──────────────────────────────────────────────────────────
-// Theo dõi danh sách members, phát âm thanh cảnh báo khi có member mới
-// chuyển sang trạng thái accident = true.
+// Theo dõi danh sách members, phát âm thanh cảnh báo liên tục khi có member
+// đang ở trạng thái accident = true.
+// Dừng âm thanh khi tất cả accident được giải quyết (accident = false).
 // Không phát âm cho chính user hiện tại (họ là người bấm nút).
 
 import { useEffect, useRef } from "react";
 
 /**
- * Phát âm thanh cảnh báo khẩn cấp bằng Web Audio API.
+ * Tạo một AudioContext loop phát cảnh báo liên tục.
+ * Trả về hàm stop() để dừng.
  */
-function playAlertSound() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+function startAlertLoop() {
+  let stopped = false;
+  let ctx;
 
-    const beepAt = (startTime, freq = 880) => {
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+  } catch (err) {
+    console.warn("[useAccidentAlert] Web Audio API not available:", err);
+    return () => {};
+  }
+
+  // Một chu kỳ beep: 3 tiếng, tổng ~0.7s, sau đó lặp lại sau 0.3s nghỉ → chu kỳ 1s
+  const CYCLE = 1.0;
+
+  const scheduleBeeps = (startTime) => {
+    if (stopped) return;
+
+    const beepAt = (t, freq) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.type = "square";
-      osc.frequency.setValueAtTime(freq, startTime);
-      gain.gain.setValueAtTime(0, startTime);
-      gain.gain.linearRampToValueAtTime(0.4, startTime + 0.01);
-      gain.gain.setValueAtTime(0.4, startTime + 0.12);
-      gain.gain.linearRampToValueAtTime(0, startTime + 0.15);
-      osc.start(startTime);
-      osc.stop(startTime + 0.15);
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.4, t + 0.01);
+      gain.gain.setValueAtTime(0.4, t + 0.12);
+      gain.gain.linearRampToValueAtTime(0, t + 0.15);
+      osc.start(t);
+      osc.stop(t + 0.15);
     };
 
-    const now = ctx.currentTime;
-    beepAt(now,        880);
-    beepAt(now + 0.2,  880);
-    beepAt(now + 0.4, 1100);
+    beepAt(startTime,        880);
+    beepAt(startTime + 0.2,  880);
+    beepAt(startTime + 0.4, 1100);
 
-    setTimeout(() => ctx.close(), 1500);
-  } catch (err) {
-    console.warn("[useAccidentAlert] Web Audio API not available:", err);
-  }
+    // Lên lịch chu kỳ tiếp theo
+    const delay = (startTime + CYCLE - ctx.currentTime) * 1000;
+    setTimeout(() => {
+      if (!stopped) scheduleBeeps(ctx.currentTime);
+    }, Math.max(delay, 0));
+  };
+
+  scheduleBeeps(ctx.currentTime);
+
+  return () => {
+    stopped = true;
+    try { ctx.close(); } catch (_) {}
+  };
 }
 
 /**
@@ -44,22 +67,48 @@ function playAlertSound() {
  */
 export function useAccidentAlert(members, currentUid) {
   const prevAccidentRef = useRef({});
+  const stopAlertRef    = useRef(null); // hàm dừng loop hiện tại
 
   useEffect(() => {
     const prev = prevAccidentRef.current;
-    let shouldAlert = false;
 
-    members.forEach((m) => {
-      if (m.uid === currentUid) return;
-      const wasAccident = prev[m.uid] === true;
-      const isAccident  = m.tracking?.accident === true;
-      if (!wasAccident && isAccident) shouldAlert = true;
+    // Kiểm tra có member nào (không phải mình) đang accident không
+    const anyAccident = members.some(
+      (m) => m.uid !== currentUid && m.tracking?.accident === true
+    );
+
+    // Phát hiện member mới vừa chuyển sang accident
+    const newAccident = members.some((m) => {
+      if (m.uid === currentUid) return false;
+      return !prev[m.uid] && m.tracking?.accident === true;
     });
 
-    if (shouldAlert) playAlertSound();
+    if (anyAccident) {
+      // Bắt đầu loop nếu chưa chạy và có member mới báo accident
+      if (newAccident && !stopAlertRef.current) {
+        stopAlertRef.current = startAlertLoop();
+      }
+    } else {
+      // Không còn ai accident → dừng âm thanh
+      if (stopAlertRef.current) {
+        stopAlertRef.current();
+        stopAlertRef.current = null;
+      }
+    }
 
+    // Cập nhật snapshot trạng thái
     const next = {};
     members.forEach((m) => { next[m.uid] = m.tracking?.accident === true; });
     prevAccidentRef.current = next;
   }, [members, currentUid]);
+
+  // Dọn dẹp khi component unmount
+  useEffect(() => {
+    return () => {
+      if (stopAlertRef.current) {
+        stopAlertRef.current();
+        stopAlertRef.current = null;
+      }
+    };
+  }, []);
 }
