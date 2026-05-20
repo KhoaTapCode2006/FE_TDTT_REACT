@@ -2,16 +2,21 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
 
-// 5 mét mỗi lần nhấn
-const METER_TO_DEG_LAT = 5 / 111320;
+// step mặc định 5 mét
+const DEFAULT_STEP = 5;
 
-function meterToLng(lat) {
-  return 5 / (111320 * Math.cos((lat * Math.PI) / 180));
+function meterToLatDeg(meters) {
+  return meters / 111320;
+}
+
+function meterToLngDeg(meters, lat) {
+  return meters / (111320 * Math.cos((lat * Math.PI) / 180));
 }
 
 export default function FakeGpsControl({ tripId, initialLat, initialLng, onActivate, onStop }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]   = useState(false);
   const [active, setActive] = useState(false);
+  const [step, setStep]   = useState(DEFAULT_STEP);
   const posRef = useRef({ lat: initialLat ?? 10.7626, lng: initialLng ?? 106.6822 });
 
   // Khi chưa active: luôn sync posRef theo vị trí GPS thực mới nhất
@@ -38,8 +43,8 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
 
   const move = useCallback((direction) => {
     const { lat, lng } = posRef.current;
-    const dLat = METER_TO_DEG_LAT;
-    const dLng = meterToLng(lat);
+    const dLat = meterToLatDeg(step);
+    const dLng = meterToLngDeg(step, lat);
 
     let newLat = lat;
     let newLng = lng;
@@ -53,7 +58,7 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
 
     posRef.current = { lat: newLat, lng: newLng };
     pushFakePos(newLat, newLng);
-  }, [pushFakePos]);
+  }, [pushFakePos, step]);
 
   const handleActivate = () => {
     setActive(true);
@@ -88,8 +93,24 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
       {open && active && (
         <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 p-3 flex flex-col items-center gap-2 select-none">
           <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wide">
-            GPS ảo — 5m/bước
+            GPS ảo — {step}m/bước
           </span>
+
+          {/* Slider tốc độ bước */}
+          <div className="w-full flex flex-col gap-1 px-1">
+            <input
+              type="range"
+              min={1}
+              max={100}
+              value={step}
+              onChange={(e) => setStep(Number(e.target.value))}
+              className="w-full h-1.5 accent-orange-500 cursor-pointer"
+            />
+            <div className="flex justify-between text-[9px] text-gray-400 font-medium">
+              <span>1m</span>
+              <span>100m</span>
+            </div>
+          </div>
 
           {/* D-pad kiểu PlayStation — 4 nút rời nhau */}
           <div className="grid grid-cols-3 grid-rows-3 gap-px w-32 h-32">

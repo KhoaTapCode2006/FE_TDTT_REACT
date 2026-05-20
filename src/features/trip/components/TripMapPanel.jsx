@@ -125,26 +125,26 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
     ? firestoreMembers
     : firestoreMembers.filter((m) => m.uid === currentUid);
 
-  const members = visibleFirestoreMembers.map((m, i) => {
-    const t = memberTracking[m.uid];
-    const hasRealGps = !!(t?.lat != null && t?.lng != null);
-    const angle = (i / (firestoreMembers.length || 1)) * 2 * Math.PI;
-    const r     = 0.008 + (i % 3) * 0.005;
-    const displayName = m.display_name ?? m.username ?? m.uid;
-    return {
-      id:     m.uid,
-      name:   displayName,
-      avatar: displayName.slice(0, 2).toUpperCase(),
-      avatar_url: m.avatar_url ?? null,
-      color:  MEMBER_COLORS[i % MEMBER_COLORS.length],
-      lat:    hasRealGps ? t.lat : DEST.lat + Math.sin(angle) * r,
-      lng:    hasRealGps ? t.lng : DEST.lng + Math.cos(angle) * r,
-      hasRealGps,
-      status:   t?.status || "no_share",
-      accident: t?.accident === true,
-      isMe:     m.uid === currentUid,
-    };
-  });
+  const members = visibleFirestoreMembers
+    .map((m, i) => {
+      const t = memberTracking[m.uid];
+      const hasRealGps = !!(t?.lat != null && t?.lng != null);
+      const displayName = m.display_name ?? m.username ?? m.uid;
+      return {
+        id:     m.uid,
+        name:   displayName,
+        avatar: displayName.slice(0, 2).toUpperCase(),
+        avatar_url: m.avatar_url ?? null,
+        color:  MEMBER_COLORS[i % MEMBER_COLORS.length],
+        lat:    hasRealGps ? t.lat : null,
+        lng:    hasRealGps ? t.lng : null,
+        hasRealGps,
+        status:   t?.status || "no_share",
+        accident: t?.accident === true,
+        isMe:     m.uid === currentUid,
+      };
+    })
+    .filter((m) => m.hasRealGps);
 
   // ── Init map ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -322,12 +322,13 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
     mapObjRef.current.flyTo({ center: [member.lng, member.lat], zoom: 14, duration: 800 });
   }, [mapReady]);
 
-  const memberIdsKey = visibleFirestoreMembers.map((m) => m.uid).join(",");
+  // Key bao gồm cả tọa độ để trigger lại khi GPS cập nhật lần đầu
+  const memberGpsKey = members.map((m) => `${m.id}:${m.lat?.toFixed(5)},${m.lng?.toFixed(5)}`).join("|");
   useEffect(() => {
     if (!mapReady || members.length === 0) return;
     loadAllRoutes(members);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady, memberIdsKey]);
+  }, [mapReady, memberGpsKey]);
 
   // Khi fake GPS active: redraw route mỗi khi memberTracking thay đổi
   // (vị trí fake được push lên Firestore → useTripMembers cập nhật → memberTracking thay đổi)
@@ -378,9 +379,8 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
           {/* Badge trạng thái trip */}
           {!isActive && (
             <div className="mt-2 flex items-center gap-1.5 bg-yellow-50 border border-yellow-200 rounded-lg px-2.5 py-1.5">
-              <span className="text-yellow-500 text-xs">⏳</span>
               <span className="text-xs text-yellow-700 font-medium">
-                {trip.status === "ended" ? "Chuyến đi đã kết thúc" : "Chờ owner bắt đầu"}
+                {trip.status === "ended" ? "Chuyến đi đã kết thúc" : "Chờ chủ chuyến đi bắt đầu"}
               </span>
             </div>
           )}
@@ -410,6 +410,12 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
           {isActive ? `Thành viên (${members.length})` : "Vị trí của bạn"}
         </p>
         <div className="flex-1 overflow-y-auto">
+          {members.length === 0 && (
+            <div className="px-4 py-6 text-center text-xs text-gray-400">
+              <span className="block text-2xl mb-2">📡</span>
+              {isActive ? "Chưa có thành viên nào chia sẻ vị trí" : "Đang chờ GPS của bạn..."}
+            </div>
+          )}
           {members.map((m) => {
             const sl   = statusLabel[m.status] || statusLabel.no_share;
             const info = routeInfoMap[m.id];
