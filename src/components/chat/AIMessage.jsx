@@ -24,7 +24,7 @@ function Cursor() {
  *   <AIMessage text="Xin chào! Tôi có thể giúp gì cho bạn?" />
  *   <AIMessage text={response} speed={30} mode="word" />
  */
-export function AIMessage({ text, speed = 25, mode = 'char' }) {
+export function AIMessage({ text, speed = 10, mode = 'char' }) {
   const displayed = useTypewriter(text, speed, mode)
   const done = displayed.length === text.length
 
