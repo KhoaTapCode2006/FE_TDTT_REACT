@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Icon from '@/components/ui/Icon';
 import { useAuth } from '@/contexts/AuthContext';
 import { auth } from '@/config/firebase';
@@ -33,6 +34,7 @@ export default function NotificationDropdown({
   onNotificationUpdate 
 }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [processingIds, setProcessingIds] = useState(new Set());
   
   const API_BASE_URL = 'https://api.haubaka.xyz';
@@ -91,16 +93,27 @@ export default function NotificationDropdown({
   /**
    * Check if action buttons should be shown
    * Show Accept/Decline buttons only for unread invitations where user is the receiver
+   * Distinguish between actionable invitations and informational receipts using content
    * 
    * @param {Object} notification - Notification object
    * @returns {boolean} Whether to show action buttons
    */
   const shouldShowActions = (notification) => {
-    return (
-      notification.type === 'invitation' &&
-      notification.receiver_id === user?.uid &&
-      !notification.read
-    );
+    // Must be an invitation type
+    if (notification.type !== 'invitation') return false;
+    
+    // Must be for the current user
+    if (notification.receiver_id !== user?.uid) return false;
+    
+    // Must be unread
+    if (notification.read) return false;
+    
+    // Must be an actionable invitation (not a receipt)
+    // Check if content contains "đã mời bạn" to distinguish from receipts like "đã chấp nhận" or "đã từ chối"
+    const content = (notification.content || '').toLowerCase();
+    if (!content.includes('đã mời bạn')) return false;
+    
+    return true;
   };
 
   /**
@@ -177,6 +190,72 @@ export default function NotificationDropdown({
     } catch (error) {
       console.error('Failed to get auth token:', error);
       throw new Error('Không thể lấy token xác thực. Vui lòng đăng nhập lại.');
+    }
+  };
+
+  /**
+   * Handle notification row click - mark as read and navigate to target entity
+   * 
+   * @param {Object} notification - Notification object
+   */
+  const handleNotificationClick = async (notification) => {
+    // Prevent action if already processing
+    if (processingIds.has(notification.id)) return;
+    
+    // Only handle invitation type notifications
+    if (notification.type !== 'invitation') return;
+
+    try {
+      // Mark as read if unread (fire-and-forget)
+      if (!notification.read) {
+        handleMarkAsRead(notification.id).catch(err => 
+          console.error('Failed to mark as read:', err)
+        );
+      }
+
+      // Fetch invitation details to get the actual entity type and ID
+      const token = await getAuthToken();
+      const response = await fetch(`${API_BASE_URL}/invitations/${notification.ref_id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch invitation: HTTP ${response.status}`);
+      }
+
+      // 1. Lấy dữ liệu thô từ API
+      const rawResponse = await response.json();
+      
+      // Đặt console.log ở đây để bạn dễ dàng bắt quả tang API trả về cái gì
+      console.log("=== API RESPONSE TRẢ VỀ ===", rawResponse);
+      
+      // 2. Xử lý thông minh: Lấy lõi .data (nếu có), không có thì lấy chính nó
+      const targetData = rawResponse.data ? rawResponse.data : rawResponse;
+
+      // 3. Lúc này targetData chắc chắn là cái ruột bên trong rồi!
+      if (!targetData || !targetData.type) {
+        console.error("Dữ liệu rỗng hoặc mất trường type!", targetData);
+        throw new Error("Lỗi cấu trúc dữ liệu từ server");
+      }
+
+      // 4. Bắt đầu chuyển trang bằng targetData
+      if (targetData.type === 'collection') {
+        navigate(`/collections/${targetData.ref_id}`);
+      } else if (targetData.type === 'trip') {
+        navigate(`/trips/${targetData.ref_id}`);
+      } else {
+        // Nếu lọt vào đây, chắc chắn là BE nhả ra một type lạ hoắc
+        console.warn("Loại lời mời không được hỗ trợ:", targetData.type);
+      }
+      
+      onClose?.();
+    } catch (error) {
+      console.error('Failed to handle notification click:', error);
+      // Don't show alert for navigation errors - just log them
     }
   };
 
@@ -434,7 +513,8 @@ export default function NotificationDropdown({
               return (
                 <div
                   key={notification.id}
-                  className={`p-4 transition-colors ${
+                  onClick={() => handleNotificationClick(notification)}
+                  className={`p-4 transition-colors cursor-pointer ${
                     isUnread ? 'bg-blue-50/50' : 'bg-white'
                   } hover:bg-gray-50 ${processing ? 'opacity-60 pointer-events-none' : ''}`}
                 >
@@ -465,7 +545,10 @@ export default function NotificationDropdown({
                       {showActions && (
                         <div className="flex gap-2 mt-3">
                           <button
-                            onClick={() => handleAcceptInvite(notification.ref_id, notification.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAcceptInvite(notification.ref_id, notification.id);
+                            }}
                             disabled={processing}
                             className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed"
                           >
@@ -482,7 +565,10 @@ export default function NotificationDropdown({
                             )}
                           </button>
                           <button
-                            onClick={() => handleRejectInvite(notification.ref_id, notification.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRejectInvite(notification.ref_id, notification.id);
+                            }}
                             disabled={processing}
                             className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
@@ -495,7 +581,10 @@ export default function NotificationDropdown({
                       {/* Mark as Read Button (for non-pending or self-sent notifications) */}
                       {!showActions && isUnread && (
                         <button
-                          onClick={() => handleMarkAsRead(notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMarkAsRead(notification.id);
+                          }}
                           disabled={processing}
                           className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors disabled:opacity-50"
                         >

@@ -822,6 +822,56 @@ function CollectionPage() {
     }
   };
 
+  /**
+   * Handle revoking a pending invitation
+   * @param {string} invitationId - The invitation ID to revoke
+   */
+  const handleRevokeInvitation = async (invitationId) => {
+    if (!collection || !invitationId) return;
+
+    if (!window.confirm("Bạn có chắc muốn thu hồi lời mời này?")) {
+      return;
+    }
+
+    setActionBusy(true);
+
+    try {
+      // Get auth token
+      const token = await user?.getIdToken();
+      if (!token) {
+        throw new Error("Không tìm thấy token xác thực");
+      }
+
+      // Call DELETE /invitations/{invitationId}
+      const response = await fetch(`https://api.haubaka.xyz/invitations/${invitationId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+
+      // Refresh contributors list to update UI
+      const rows = await collectionService.getCollectionContributors(collection.id).catch(() => null);
+      setCollection(prev => ({
+        ...prev,
+        contributors: rows ?? prev.contributors ?? [],
+      }));
+
+      showToast("Thành công", "Đã thu hồi lời mời!", "success");
+    } catch (error) {
+      console.error("Revoke invitation failed:", error);
+      showToast("Lỗi", error.message || "Thu hồi lời mời không thành công.", "error");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   const renderCollectionMeta = () => {
     if (!collection) return null;
 
@@ -1027,12 +1077,13 @@ function CollectionPage() {
                   collection.contributors.map((contributor) => {
                     // Handle both owner_uid (string) and owner.uid (object) formats
                     const ownerUid = collection.owner_uid || collection.owner?.uid;
-                    const isOwnerRow = contributor.uid === ownerUid;
+                    const isOwnerRow = contributor.uid === ownerUid || contributor.role === 'owner';
+                    const isPending = contributor.status === 'pending';
                     const displayLabel =
                       contributor.display_name || contributor.username || contributor.uid;
 
                     return (
-                      <div key={contributor.uid} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3">
+                      <div key={contributor.uid || contributor.invitation_id} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
                           {/* Avatar (Requirement 15.5) */}
                           {contributor.avatar_url ? (
@@ -1043,34 +1094,55 @@ function CollectionPage() {
                             />
                           ) : (
                             <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-medium flex-shrink-0">
-                              {(contributor.username || contributor.uid).charAt(0).toUpperCase()}
+                              {(contributor.username || contributor.uid || 'U').charAt(0).toUpperCase()}
                             </div>
                           )}
                           
                           {/* User Info */}
                           <div className="flex-1 min-w-0 space-y-1">
                             <p className="text-sm font-semibold text-on-surface truncate">{displayLabel}</p>
-                            <p className="text-xs text-on-surface-variant font-mono truncate">@{contributor.username || contributor.uid}</p>
-                            <p className="text-xs text-on-surface-variant truncate">
-                              Đóng góp: {contributor.contributed_count || 0} · Tham gia: {formatDate(contributor.joined_at)}
-                            </p>
+                            <p className="text-xs text-on-surface-variant font-mono truncate">@{contributor.username || contributor.uid || 'pending'}</p>
+                            {!isPending && (
+                              <p className="text-xs text-on-surface-variant truncate">
+                                Đóng góp: {contributor.contributed_count || 0} · Tham gia: {formatDate(contributor.joined_at)}
+                              </p>
+                            )}
                           </div>
                         </div>
                         
-                        {/* Remove Button or Owner Badge (Requirement 15.5) */}
+                        {/* Status Badge or Action Button */}
                         {isOwnerRow ? (
                           <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">
-                            Owner
+                            Chủ sở hữu
                           </span>
+                        ) : isPending ? (
+                          <div className="flex flex-col gap-2">
+                            <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-yellow-100 px-4 py-2 text-xs font-semibold text-yellow-700">
+                              Đang chờ
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeInvitation(contributor.invitation_id)}
+                              disabled={actionBusy}
+                              className="inline-flex items-center justify-center gap-2 rounded-full border border-red-400/80 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Icon name="close" size={16} /> Thu hồi lời mời
+                            </button>
+                          </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveContributor(contributor.uid)}
-                            disabled={actionBusy}
-                            className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <Icon name="close" size={16} /> Xóa
-                          </button>
+                          <div className="flex flex-col gap-2">
+                            <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-surface-container-high px-4 py-2 text-xs font-semibold text-on-surface-variant">
+                              Thành viên
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveContributor(contributor.uid)}
+                              disabled={actionBusy}
+                              className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Icon name="close" size={16} /> Xóa
+                            </button>
+                          </div>
                         )}
                       </div>
                     );
