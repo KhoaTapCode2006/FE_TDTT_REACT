@@ -434,6 +434,51 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, fakeActive, memberTrackingKey]);
 
+  // ── Lost signal detection ─────────────────────────────────────────────────
+  // Mỗi 5s kiểm tra: nếu now - updated_at >= 30s và status là active/wrong_direction
+  // thì set lost_signal trên Firestore
+  useEffect(() => {
+    if (!tripId || !isActive) return;
+
+    const LOST_SIGNAL_MS = 15_000;
+    const STALE_STATUSES = new Set(["active", "wrong_direction"]);
+
+    const interval = setInterval(async () => {
+      const now = Date.now();
+      const staleMembers = firestoreMembers.filter((m) => {
+        const t = m.tracking;
+        if (!t) return false;
+        if (!STALE_STATUSES.has(t.status)) return false;
+
+        // updated_at có thể là Firestore Timestamp hoặc null (serverTimestamp chưa resolve)
+        let updatedMs = null;
+        if (t.updated_at) {
+          if (typeof t.updated_at.toMillis === "function") {
+            updatedMs = t.updated_at.toMillis();
+          } else if (t.updated_at.seconds) {
+            updatedMs = t.updated_at.seconds * 1000;
+          }
+        }
+        if (updatedMs === null) return false;
+
+        return now - updatedMs >= LOST_SIGNAL_MS;
+      });
+
+      if (!staleMembers.length) return;
+
+      await Promise.allSettled(
+        staleMembers.map((m) =>
+          updateDoc(doc(db, "trips", tripId, "members", m.uid), {
+            "tracking.status":     "lost_signal",
+            "tracking.updated_at": serverTimestamp(),
+          }).catch(() => {})
+        )
+      );
+    }, 5_000);
+
+    return () => clearInterval(interval);
+  }, [tripId, isActive, firestoreMembers]);
+
   // ── Accident / Arrive ─────────────────────────────────────────────────────
   const meAccident = allMembers.find((m) => m.isMe)?.accident === true;
   const meArrived  = allMembers.find((m) => m.isMe)?.status === "arrived";
