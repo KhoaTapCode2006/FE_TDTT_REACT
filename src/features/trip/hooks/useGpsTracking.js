@@ -9,27 +9,24 @@ import { trackingState } from "../../../services/trip/trackingState";
 
 /**
  * @param {string[]} tripIds - Danh sách trip IDs mà user là thành viên
- * @returns {{ pause: () => void, resume: () => void, stopSharing: (tripId?: string) => Promise<void> }}
+ * @returns {{ pause: () => void, resume: () => void }}
  */
 export function useGpsTracking(tripIds) {
   const watchIdRef  = useRef(null);
   const tripIdsRef  = useRef(tripIds);
   const pausedRef   = useRef(false); // true khi fake GPS đang bật
-  const stoppedRef  = useRef(false); // true khi user chủ động ngưng chia sẻ
-  const uidRef      = useRef(auth.currentUser?.uid ?? null); // lưu uid lúc mount, tránh mất khi logout
+  const stoppedRef  = useRef(false);
+  const uidRef      = useRef(auth.currentUser?.uid ?? null);
 
-  // Giữ ref luôn up-to-date khi tripIds thay đổi
   useEffect(() => {
     tripIdsRef.current = tripIds;
   }, [tripIds]);
 
-  // Cập nhật uidRef khi auth thay đổi
   useEffect(() => {
     uidRef.current = auth.currentUser?.uid ?? null;
   });
 
   const pushToAllTrips = useCallback(async (lat, lng) => {
-    // Không push nếu đang bị pause, đã stop, hoặc user đã logout
     if (pausedRef.current || stoppedRef.current || trackingState.isLoggedOut()) {
       return;
     }
@@ -47,7 +44,6 @@ export function useGpsTracking(tripIds) {
       },
     };
 
-    // Push song song lên tất cả trips
     await Promise.allSettled(
       tripIdsRef.current.map((tripId) =>
         setDoc(doc(db, "trips", tripId, "members", uid), payload, { merge: true })
@@ -60,20 +56,15 @@ export function useGpsTracking(tripIds) {
     const uid = auth.currentUser?.uid;
     if (!uid) return;
 
-    // Lưu uid vào ref ngay khi bắt đầu tracking
     uidRef.current = uid;
-
-    // Reset stopped state khi mount lại
     stoppedRef.current = false;
 
-    // Lấy ngay lần đầu khi vào trang
     navigator.geolocation.getCurrentPosition(
       (pos) => pushToAllTrips(pos.coords.latitude, pos.coords.longitude),
       (err) => console.warn("[useGpsTracking] initial position error:", err.message),
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
 
-    // Watch liên tục
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => pushToAllTrips(pos.coords.latitude, pos.coords.longitude),
       (err) => console.warn("[useGpsTracking] watch error:", err.message),
@@ -81,13 +72,12 @@ export function useGpsTracking(tripIds) {
     );
 
     return () => {
-      // Dừng tracking khi rời trang
       if (watchIdRef.current != null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
 
-      // Set no_share khi rời trang — không xóa lat/lng vì Firestore rules yêu cầu chúng là number
+      // Set no_share khi rời trang
       const uid2 = uidRef.current;
       if (uid2 && tripIdsRef.current?.length) {
         Promise.allSettled(
@@ -108,51 +98,5 @@ export function useGpsTracking(tripIds) {
     stoppedRef.current = false;
   }, []);
 
-  /**
-   * Dừng hẳn GPS thực + xóa lat/lng trên Firestore cho một trip cụ thể (hoặc tất cả).
-   * Dùng khi user nhấn "Ngưng chia sẻ" trong FakeGpsControl.
-   */
-  const stopSharing = useCallback(async (specificTripId) => {
-    // Set stopped TRƯỚC để block bất kỳ push nào đang pending
-    console.log("[useGpsTracking] stopSharing called, setting stoppedRef=true");
-    stoppedRef.current = true;
-
-    // Clear watch ngay lập tức để không có callback nào được gọi thêm
-    if (watchIdRef.current != null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-      console.log("[useGpsTracking] watchPosition cleared");
-    }
-
-    const uid = uidRef.current;
-    if (!uid) return;
-
-    const targets = specificTripId ? [specificTripId] : (tripIdsRef.current ?? []);
-    if (!targets.length) return;
-
-    await Promise.allSettled(
-      targets.map(async (tripId) => {
-        try {
-          await updateDoc(doc(db, "trips", tripId, "members", uid), {
-            // Không xóa lat/lng vì Firestore rules yêu cầu chúng là number
-            "tracking.status":     "no_share",
-            "tracking.updated_at": serverTimestamp(),
-          });
-          console.log("[useGpsTracking] stopSharing updateDoc SUCCESS for trip:", tripId);
-        } catch (err) {
-          console.error("[useGpsTracking] stopSharing updateDoc FAILED:", err);
-          try {
-            await setDoc(doc(db, "trips", tripId, "members", uid), {
-              tracking: { status: "no_share", updated_at: serverTimestamp() },
-            }, { merge: true });
-            console.log("[useGpsTracking] stopSharing setDoc fallback SUCCESS");
-          } catch (err2) {
-            console.error("[useGpsTracking] stopSharing setDoc fallback FAILED:", err2);
-          }
-        }
-      })
-    );
-  }, []);
-
-  return { pause, resume, stopSharing };
+  return { pause, resume };
 }

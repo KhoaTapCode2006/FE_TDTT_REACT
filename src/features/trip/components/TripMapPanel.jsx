@@ -20,7 +20,7 @@ const statusLabel = {
   no_share:        { text: "Không chia sẻ",   color: "text-gray-400" },
   offline:         { text: "Offline",          color: "text-gray-400" },};
 
-export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopSharing }) {
+export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
   const mapRef     = useRef(null);
   const mapObjRef  = useRef(null);
   const markersRef = useRef({});
@@ -32,6 +32,11 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
   const [loadingRoutes, setLoadingRoutes]   = useState(false);
   const [distToDestM, setDistToDestM]       = useState(null);
   const [fakeActive, setFakeActive]         = useState(false);
+  const [gpsBlocked, setGpsBlocked]         = useState(() => {
+    // Khôi phục trạng thái lost_signal sau F5
+    if (!trip?.id || !auth.currentUser?.uid) return false;
+    return localStorage.getItem(`gpsBlocked:${trip.id}:${auth.currentUser.uid}`) === "1";
+  });
   const [myRealPos, setMyRealPos]           = useState(null); // { lat, lng }
 
   const hasInitialFitRef = useRef(false);
@@ -39,7 +44,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
   const tripId      = trip?.id;
   const isActive    = trip?.status === "active";
 
-  const { members: firestoreMembers } = useTripMembers(tripId ?? null);
+  const { members: firestoreMembers, trackingReady } = useTripMembers(tripId ?? null);
 
   // Chỉ alert accident khi trip đang active
   useAccidentAlert(isActive ? firestoreMembers : [], currentUid);
@@ -62,12 +67,26 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
     name: trip?.place?.name ?? "Điểm đến",
   };
 
-  const stoppedSharingRef = useRef(false); // true khi user chủ động ngưng chia sẻ
+  const stoppedSharingRef = useRef(false); // giữ lại để block pushTracking khi logout
+  const gpsBlockedRef = useRef(gpsBlocked);
+
+  // Persist gpsBlocked vào localStorage để giữ sau F5
+  const setGpsBlockedPersist = useCallback((val) => {
+    gpsBlockedRef.current = val; // update ref ngay lập tức trước re-render
+    setGpsBlocked(val);
+    if (tripId && currentUid) {
+      if (val) {
+        localStorage.setItem(`gpsBlocked:${tripId}:${currentUid}`, "1");
+      } else {
+        localStorage.removeItem(`gpsBlocked:${tripId}:${currentUid}`);
+      }
+    }
+  }, [tripId, currentUid]);
 
   // ── Push GPS ──────────────────────────────────────────────────────────────
   const pushTracking = useCallback(async (lat, lng) => {
     if (!currentUid || !tripId) return;
-    if (stoppedSharingRef.current || trackingState.isLoggedOut()) {
+    if (trackingState.isLoggedOut()) {
       console.log("[TripMapPanel] pushTracking BLOCKED");
       return;
     }
@@ -101,6 +120,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myRealPos, DEST.lat, DEST.lng]);
 
+
   // ── GPS setup ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentUid || !tripId) return;
@@ -109,11 +129,8 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
     // Nếu đang fake GPS thì không watch GPS thực
     if (fakeActive) return;
 
-    // Nếu user đã chủ động ngưng chia sẻ thì không restart GPS
-    if (stoppedSharingRef.current) {
-      console.log("[TripMapPanel] GPS effect SKIPPED — stoppedSharingRef=true");
-      return;
-    }
+    // Nếu user nhấn Mất tín hiệu thì không push GPS
+    if (gpsBlocked) return;
 
     console.log("[TripMapPanel] GPS effect STARTING — fakeActive:", fakeActive);
 
@@ -130,7 +147,6 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        console.log("[TripMapPanel] getCurrentPosition callback — stopped:", stoppedSharingRef.current);
         setMyRealPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         updateDistToDestM(pos.coords.latitude, pos.coords.longitude);
         pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude);
@@ -139,7 +155,6 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
     );
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        console.log("[TripMapPanel] watchPosition callback — stopped:", stoppedSharingRef.current);
         setMyRealPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         updateDistToDestM(pos.coords.latitude, pos.coords.longitude);
         pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude);
@@ -147,23 +162,20 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
       () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
     return () => {
-      console.log("[TripMapPanel] GPS effect cleanup — fakeActive:", fakeActive, "stopped:", stoppedSharingRef.current);
       if (watchIdRef.current != null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
-      // Chỉ set no_share khi rời trang thật (không phải khi chuyển sang fake/stop)
-      // stoppedSharingRef và fakeActive sẽ tự xử lý các trường hợp đó
-      if (!stoppedSharingRef.current && !fakeActive) {
+      // Chỉ set no_share khi rời trang thật — không ghi đè khi đang lost_signal hoặc fake GPS
+      if (!fakeActive && !gpsBlockedRef.current) {
         updateDoc(ref, {
-          // Không xóa lat/lng vì Firestore rules yêu cầu chúng là number
           "tracking.status":     "no_share",
           "tracking.updated_at": serverTimestamp(),
         }).catch(() => {});
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUid, tripId, fakeActive]);
+  }, [currentUid, tripId, fakeActive, gpsBlocked]);
 
   // ── Build members ─────────────────────────────────────────────────────────
   // Khi trip chưa active: chỉ hiển thị bản thân
@@ -463,51 +475,6 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, fakeActive, memberTrackingKey]);
 
-  // ── Lost signal detection ─────────────────────────────────────────────────
-  // Mỗi 5s kiểm tra: nếu now - updated_at >= 30s và status là active/wrong_direction
-  // thì set lost_signal trên Firestore
-  useEffect(() => {
-    if (!tripId || !isActive) return;
-
-    const LOST_SIGNAL_MS = 15_000;
-    const STALE_STATUSES = new Set(["active", "wrong_direction"]);
-
-    const interval = setInterval(async () => {
-      const now = Date.now();
-      const staleMembers = firestoreMembers.filter((m) => {
-        const t = m.tracking;
-        if (!t) return false;
-        if (!STALE_STATUSES.has(t.status)) return false;
-
-        // updated_at có thể là Firestore Timestamp hoặc null (serverTimestamp chưa resolve)
-        let updatedMs = null;
-        if (t.updated_at) {
-          if (typeof t.updated_at.toMillis === "function") {
-            updatedMs = t.updated_at.toMillis();
-          } else if (t.updated_at.seconds) {
-            updatedMs = t.updated_at.seconds * 1000;
-          }
-        }
-        if (updatedMs === null) return false;
-
-        return now - updatedMs >= LOST_SIGNAL_MS;
-      });
-
-      if (!staleMembers.length) return;
-
-      await Promise.allSettled(
-        staleMembers.map((m) =>
-          updateDoc(doc(db, "trips", tripId, "members", m.uid), {
-            "tracking.status":     "lost_signal",
-            "tracking.updated_at": serverTimestamp(),
-          }).catch(() => {})
-        )
-      );
-    }, 5_000);
-
-    return () => clearInterval(interval);
-  }, [tripId, isActive, firestoreMembers]);
-
   // ── Accident / Arrive ─────────────────────────────────────────────────────
   const meAccident = allMembers.find((m) => m.isMe)?.accident === true;
   const meArrived  = allMembers.find((m) => m.isMe)?.status === "arrived";
@@ -559,7 +526,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
                 onClick={handleAccident}
                 className={`flex-1 py-1 rounded-lg text-xs font-semibold transition-colors ${meAccident ? "bg-red-100 text-red-600 hover:bg-red-200" : "bg-red-500 hover:bg-red-600 text-white"}`}
               >
-                {meAccident ? "🚨 Hủy báo" : "🚨 Báo tai nạn"}
+                {meAccident ? "Hủy báo" : "Báo tai nạn"}
               </button>
               <button
                 onClick={handleArrive}
@@ -567,7 +534,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
                 title={!canArrive ? `Cần đến gần hơn (${distToDestM != null ? Math.round(distToDestM) + "m" : "?"})` : ""}
                 className={`flex-1 py-1 rounded-lg text-xs font-semibold transition-colors ${meArrived ? "bg-blue-100 text-blue-400 cursor-not-allowed" : canArrive ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
               >
-                🏁 Đã đến
+                Đã đến
               </button>
             </div>
           )}
@@ -642,27 +609,20 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
             tripId={tripId}
             initialLat={myRealPos?.lat ?? members.find((m) => m.isMe)?.lat}
             initialLng={myRealPos?.lng ?? members.find((m) => m.isMe)?.lng}
+            initialLostSignal={gpsBlocked}
             onActivate={() => {
-              stoppedSharingRef.current = false;
               setFakeActive(true);
               onFakeStart?.();
             }}
-            onStop={() => { setFakeActive(false); onFakeStop?.(); }}
+            onStop={() => { setFakeActive(false); setGpsBlockedPersist(false); onFakeStop?.(); }}
+            onLostSignal={() => setGpsBlockedPersist(true)}
+            onResumeSignal={() => setGpsBlockedPersist(false)}
             onPositionChange={(lat, lng) => {
               const R = 6371000;
               const dLat = (DEST.lat - lat) * Math.PI / 180;
               const dLng = (DEST.lng - lng) * Math.PI / 180;
               const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
               setDistToDestM(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-            }}
-            onStopSharing={async (tid) => {
-              // Clear watch GPS của TripMapPanel ngay lập tức
-              stoppedSharingRef.current = true;
-              if (watchIdRef.current != null) {
-                navigator.geolocation.clearWatch(watchIdRef.current);
-                watchIdRef.current = null;
-              }
-              await onStopSharing?.(tid);
             }}
           />
         )}

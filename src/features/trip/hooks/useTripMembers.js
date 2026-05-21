@@ -16,6 +16,7 @@ import { tripService } from "../../../services/backend/trip.service";
 export function useTripMembers(tripId, refreshKey = 0) {
   const [restMembers, setRestMembers] = useState([]); // full member objects từ REST
   const [trackingMap, setTrackingMap] = useState({}); // uid -> { joined_at, tracking } từ Firestore
+  const [trackingReady, setTrackingReady] = useState(false); // true sau khi snapshot đầu tiên về
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -74,14 +75,15 @@ export function useTripMembers(tripId, refreshKey = 0) {
           };
         });
         setTrackingMap(map);
+        setTrackingReady(true);
       },
       (err) => {
         console.error("[useTripMembers] Firestore tracking error:", err);
-        // Tracking là optional, không block UI
+        setTrackingReady(true); // unblock GPS even on error
       }
     );
 
-    return () => unsub();
+    return () => { unsub(); setTrackingReady(false); };
   }, [tripId]);
 
   // ── 3. Merge REST members + Firestore tracking (Firestore override REST tracking) ──
@@ -96,5 +98,5 @@ export function useTripMembers(tripId, refreshKey = 0) {
 
   const memberUids = members.map((m) => m.uid);
 
-  return { members, memberUids, loading, error };
+  return { members, memberUids, loading, trackingReady, error };
 }

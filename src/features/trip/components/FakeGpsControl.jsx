@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { doc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
 
 // step mặc định 5 mét
@@ -13,10 +13,11 @@ function meterToLngDeg(meters, lat) {
   return meters / (111320 * Math.cos((lat * Math.PI) / 180));
 }
 
-export default function FakeGpsControl({ tripId, initialLat, initialLng, onActivate, onStop, onStopSharing, onPositionChange }) {
-  const [open, setOpen]   = useState(false);
-  const [active, setActive] = useState(false);
+export default function FakeGpsControl({ tripId, initialLat, initialLng, initialLostSignal, onActivate, onStop, onLostSignal, onResumeSignal, onPositionChange }) {
+  const [open, setOpen]   = useState(initialLostSignal ?? false);
+  const [active, setActive] = useState(initialLostSignal ?? false);
   const [step, setStep]   = useState(DEFAULT_STEP);
+  const [lostSignal, setLostSignal] = useState(initialLostSignal ?? false);
   const posRef = useRef({ lat: initialLat ?? 10.7626, lng: initialLng ?? 106.6822 });
 
   // Khi chưa active: luôn sync posRef theo vị trí GPS thực mới nhất
@@ -42,6 +43,7 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
   }, [tripId]);
 
   const move = useCallback((direction) => {
+    if (lostSignal) return; // đang mất tín hiệu, không di chuyển
     const { lat, lng } = posRef.current;
     const dLat = meterToLatDeg(step);
     const dLng = meterToLngDeg(step, lat);
@@ -59,20 +61,25 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
     posRef.current = { lat: newLat, lng: newLng };
     pushFakePos(newLat, newLng);
     onPositionChange?.(newLat, newLng);
-  }, [pushFakePos, step, onPositionChange]);
+  }, [pushFakePos, step, onPositionChange, lostSignal]);
 
   const handleActivate = () => {
     setActive(true);
     setOpen(true);
     onActivate?.();
-    // Push ngay vị trí hiện tại để bắt đầu fake session
-    pushFakePos(posRef.current.lat, posRef.current.lng);
-    onPositionChange?.(posRef.current.lat, posRef.current.lng);
+    // Chỉ resume nếu không đang lost_signal
+    if (!lostSignal) {
+      // Push ngay vị trí hiện tại để bắt đầu fake session
+      pushFakePos(posRef.current.lat, posRef.current.lng);
+      onPositionChange?.(posRef.current.lat, posRef.current.lng);
+    }
   };
 
   const handleLostSignal = useCallback(async () => {
     const uid = auth.currentUser?.uid;
     if (!uid || !tripId) return;
+    setLostSignal(true);
+    onLostSignal?.(); // block GPS push trong TripMapPanel
     try {
       await updateDoc(
         doc(db, "trips", tripId, "members", uid),
@@ -84,35 +91,15 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
     } catch (err) {
       console.warn("[FakeGpsControl] lost_signal failed:", err);
     }
-  }, [tripId]);
+  }, [tripId, onLostSignal]);
 
   const handleStop = useCallback(async () => {
-    // Dùng onStopSharing từ useGpsTracking để đảm bảo GPS thực không ghi đè
-    if (onStopSharing) {
-      await onStopSharing(tripId);
-    } else {
-      // Fallback nếu không có onStopSharing
-      const uid = auth.currentUser?.uid;
-      if (uid && tripId) {
-        try {
-          await updateDoc(
-            doc(db, "trips", tripId, "members", uid),
-            {
-              "tracking.status":     "no_share",
-              "tracking.lat":        deleteField(),
-              "tracking.lng":        deleteField(),
-              "tracking.updated_at": serverTimestamp(),
-            }
-          );
-        } catch (err) {
-          console.warn("[FakeGpsControl] stop failed:", err);
-        }
-      }
-    }
     setActive(false);
+    setLostSignal(false);
     setOpen(false);
+    onResumeSignal?.();
     onStop?.();
-  }, [tripId, onStop, onStopSharing]);
+  }, [onStop, onResumeSignal]);
 
   return (
     <div className="absolute bottom-14 right-4 z-[999] flex flex-col items-end gap-2 pointer-events-auto">
@@ -141,7 +128,7 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
           </div>
 
           {/* D-pad kiểu PlayStation — 4 nút rời nhau */}
-          <div className="grid grid-cols-3 grid-rows-3 gap-px w-32 h-32">
+          <div className={`grid grid-cols-3 grid-rows-3 gap-px w-32 h-32 ${lostSignal ? "opacity-30 pointer-events-none" : ""}`}>
             {/* Hàng 1 */}
             <div />
             <button
@@ -179,19 +166,28 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, onActiv
           </div>
 
           <div className="mt-1 w-full flex gap-1.5">
-            <button
-              onClick={handleLostSignal}
-              className="flex-1 px-2 py-1.5 rounded-xl bg-yellow-500 hover:bg-yellow-600 active:scale-95 text-white text-xs font-bold transition-all"
-              title="Ghi trạng thái mất tín hiệu"
-            >
-              Mất tín hiệu
-            </button>
-            <button
-              onClick={handleStop}
-              className="flex-1 px-2 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 active:scale-95 text-white text-xs font-bold transition-all"
-            >
-              Ngưng chia sẻ
-            </button>
+            {lostSignal ? (
+              <button
+                onClick={() => {
+                  setLostSignal(false);
+                  onResumeSignal?.(); // unblock GPS push trong TripMapPanel
+                  // Resume: push lại vị trí hiện tại với status active
+                  pushFakePos(posRef.current.lat, posRef.current.lng);
+                  onPositionChange?.(posRef.current.lat, posRef.current.lng);
+                }}
+                className="flex-1 px-2 py-1.5 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white text-xs font-bold transition-all"
+              >
+                Khôi phục
+              </button>
+            ) : (
+              <button
+                onClick={handleLostSignal}
+                className="flex-1 px-2 py-1.5 rounded-xl bg-yellow-500 hover:bg-yellow-600 active:scale-95 text-white text-xs font-bold transition-all"
+                title="Ghi trạng thái mất tín hiệu"
+              >
+                Mất tín hiệu
+              </button>
+            )}
           </div>
         </div>
       )}
