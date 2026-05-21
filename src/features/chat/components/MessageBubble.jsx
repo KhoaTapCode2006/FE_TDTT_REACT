@@ -59,7 +59,7 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
 
   return (
     <>
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-card w-72 overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-card w-full overflow-hidden">
         {/* Thumbnail */}
         <div className="relative">
           {thumbnail ? (
@@ -137,7 +137,7 @@ function ChatbotMessage({ msg }) {
   return (
     <div className="flex flex-col gap-2">
       {answer && (
-        <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed bg-white text-gray-800 border border-gray-100 shadow-card max-w-[400px]">
+        <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed bg-white text-gray-800 border border-gray-100 shadow-card max-w-[560px]">
           {answer}
         </div>
       )}
@@ -145,18 +145,20 @@ function ChatbotMessage({ msg }) {
       {recommendations.length > 0 && (
         <div className="flex flex-col gap-2">
           <p className="text-xs font-semibold text-gray-400 px-1">Gợi ý cho bạn</p>
-          {recommendations.map((rec, i) => (
-            <PlaceCard
-              key={rec.property_token ?? i}
-              attachment={{
-                type: 'place',
-                value: rec.property_token ?? rec.name ?? '',
-                metadata: { name: rec.name ?? '', address: '' },
-              }}
-              isMine={false}
-              fallbackText={rec.name ?? 'Khách sạn'}
-            />
-          ))}
+          <div className="grid grid-cols-2 gap-2">
+            {recommendations.map((rec, i) => (
+              <PlaceCard
+                key={rec.property_token ?? i}
+                attachment={{
+                  type: 'place',
+                  value: rec.property_token ?? rec.name ?? '',
+                  metadata: { name: rec.name ?? '', address: '' },
+                }}
+                isMine={false}
+                fallbackText={rec.name ?? 'Khách sạn'}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -297,7 +299,7 @@ function MessageBubble({ msg, onDelete }) {
   return (
     <div className="flex items-start gap-3 mb-4">
       <Avatar initials={msg.avatar} size="md" color="#255dad" />
-      <div className="max-w-[400px]">
+      <div className={msg.isChatbot ? "max-w-[640px] w-full" : "max-w-[400px]"}>
         <p className="text-xs font-semibold text-gray-500 mb-1">{msg.sender}</p>
         <MessageContent msg={msg} />
         <p className="text-xs text-gray-400 mt-1">{msg.time}</p>

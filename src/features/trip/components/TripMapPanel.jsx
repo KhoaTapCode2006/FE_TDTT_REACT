@@ -635,11 +635,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         )}
-        {mapReady && !selectedMember && !loadingRoutes && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow text-xs text-gray-600 font-medium">
-            Nhấn vào thành viên để focus tuyến đường
-          </div>
-        )}
+
         {/* Fake GPS control — chỉ hiện khi trip active */}
         {isActive && (
           <FakeGpsControl
