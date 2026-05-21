@@ -662,6 +662,22 @@ function normalizeMessage(data) {
     } catch { /* ignore */ }
   }
 
+  // Parse chatbot structured response nếu content là JSON với field answer/recommendations
+  const rawContent = data.content ?? '';
+  let chatbotAnswer = null;
+  let chatbotRecommendations = null;
+  let isChatbot = false;
+  if (!isMine && rawContent && typeof rawContent === 'string' && rawContent.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(rawContent);
+      if (parsed && typeof parsed === 'object' && ('answer' in parsed || 'recommendations' in parsed)) {
+        isChatbot = true;
+        chatbotAnswer = parsed.answer ?? '';
+        chatbotRecommendations = Array.isArray(parsed.recommendations) ? parsed.recommendations : [];
+      }
+    } catch { /* không phải JSON hợp lệ */ }
+  }
+
   return {
     id:          data.id       ?? '',
     sender:      senderName,
@@ -669,7 +685,7 @@ function normalizeMessage(data) {
     avatar,
     time:        formatTime(rawDate),
     dateKey,
-    text:        data.content  ?? '',
+    text:        isChatbot ? chatbotAnswer : rawContent,
     isMine,
     type,
     seen:        isMine ? true : undefined,
@@ -678,6 +694,12 @@ function normalizeMessage(data) {
     placeId:     data.place_id  ?? firstAttachment?.metadata?.address ?? null,
     placeName,
     attachments,
+    // Chatbot structured fields
+    ...(isChatbot && {
+      isChatbot: true,
+      chatbotAnswer,
+      chatbotRecommendations,
+    }),
   };
 }
 
@@ -1375,6 +1397,22 @@ export function subscribeToMessages(groupId, callback, membersDisplayNames = {})
           ? sentDate.toLocaleDateString('sv-SE')
           : '';
 
+        // Parse chatbot structured response nếu content là JSON với field answer/recommendations
+        const rawContent = d.content ?? '';
+        let isChatbot = false;
+        let chatbotAnswer = null;
+        let chatbotRecommendations = null;
+        if (!isMine && rawContent && typeof rawContent === 'string' && rawContent.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(rawContent);
+            if (parsed && typeof parsed === 'object' && ('answer' in parsed || 'recommendations' in parsed)) {
+              isChatbot = true;
+              chatbotAnswer = parsed.answer ?? '';
+              chatbotRecommendations = Array.isArray(parsed.recommendations) ? parsed.recommendations : [];
+            }
+          } catch { /* không phải JSON hợp lệ */ }
+        }
+
         return {
           id:          docSnap.id,
           sender:      senderName,
@@ -1382,7 +1420,7 @@ export function subscribeToMessages(groupId, callback, membersDisplayNames = {})
           avatar,
           time:        sentDate?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) ?? '',
           dateKey,
-          text:        d.content   ?? '',
+          text:        isChatbot ? chatbotAnswer : rawContent,
           isMine,
           type,
           seen:        isMine ? true : undefined,
@@ -1391,6 +1429,12 @@ export function subscribeToMessages(groupId, callback, membersDisplayNames = {})
           placeId:     d.place_id  ?? firstAttachment?.metadata?.address ?? null,
           placeName,
           attachments,
+          // Chatbot structured fields
+          ...(isChatbot && {
+            isChatbot: true,
+            chatbotAnswer,
+            chatbotRecommendations,
+          }),
         };
       });
       callback(messages);
@@ -1501,9 +1545,20 @@ export async function sendConversation(messages) {
   }
 
   const data = await res.json();
-  return (
+  const raw =
     data.response ??
     data.messages?.[data.messages.length - 1]?.content ??
-    ''
-  );
+    '';
+
+  // Thử parse JSON nếu bot trả về structured response
+  if (raw && typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && ('answer' in parsed || 'recommendations' in parsed)) {
+        return parsed; // { intent, message, answer, recommendations }
+      }
+    } catch { /* không phải JSON, trả về string bình thường */ }
+  }
+
+  return raw;
 }

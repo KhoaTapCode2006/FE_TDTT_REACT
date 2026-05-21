@@ -4,9 +4,6 @@ import { getHotelById } from "@/services/backend/discover.service";
 import HotelPopup from "@/components/hotel/components/HotelPopup";
 
 // ─── Message Bubble ───────────────────────────────────────────────────────────
-// Render một tin nhắn trong cuộc trò chuyện. 
-// Xử lý 5 loại nội dung khác nhau: text, image, video, file, place.
-// Tự điều chỉnh layout tùy thuộc tin nhắn là của mình (isMine) hay của người khác
 function DeleteBtn({ onDelete, msgId }) {
   return (
     <button
@@ -19,13 +16,12 @@ function DeleteBtn({ onDelete, msgId }) {
   );
 }
 
-// ─── Place Card (fetch hotel details khi có placeId) ─────────────────────────
+// ─── Place Card ───────────────────────────────────────────────────────────────
 function PlaceCard({ attachment, isMine, fallbackText }) {
   const [hotel, setHotel] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showPopup, setShowPopup] = useState(false);
 
-  // attachment.value là property_token
   const placeId = attachment?.value ?? null;
 
   useEffect(() => {
@@ -41,16 +37,13 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
     return () => { cancelled = true; };
   }, [placeId]);
 
-  const thumbnail    = hotel?.images?.[0]?.thumbnail ?? null;
-  const name         = hotel?.name ?? attachment?.metadata?.name ?? fallbackText ?? "Địa điểm";
-  const address      = hotel?.address ?? attachment?.metadata?.address ?? null;
-  const price        = hotel?.price ?? null;
-  const rawRating    = hotel?.raw_rating ?? null;
-  const reviewCount  = hotel?.user_reviews?.length ?? null;
-  const amenities    = hotel?.amenities ?? [];
-  const link         = hotel?.link ?? null;
+  const thumbnail   = hotel?.images?.[0]?.thumbnail ?? null;
+  const name        = hotel?.name ?? attachment?.metadata?.name ?? fallbackText ?? "Địa điểm";
+  const price       = hotel?.price ?? null;
+  const rawRating   = hotel?.raw_rating ?? null;
+  const reviewCount = hotel?.user_reviews?.length ?? null;
+  const amenities   = hotel?.amenities ?? [];
 
-  // Map API data sang format HotelPopup cần
   const popupHotel = hotel ? {
     ...hotel,
     rating: hotel.raw_rating ?? 0,
@@ -66,13 +59,13 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
 
   return (
     <>
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-card w-64 overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-card w-72 overflow-hidden">
         {/* Thumbnail */}
         <div className="relative">
           {thumbnail ? (
-            <img src={thumbnail} alt={name} className="w-full h-36 object-cover" />
+            <img src={thumbnail} alt={name} className="w-full h-40 object-cover" />
           ) : (
-            <div className="w-full h-36 bg-green-50 flex items-center justify-center">
+            <div className="w-full h-40 bg-green-50 flex items-center justify-center">
               {loading ? (
                 <svg className="w-6 h-6 text-green-400 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -86,20 +79,12 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
               )}
             </div>
           )}
-          {/* Nút yêu thích */}
-          <button className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/70 backdrop-blur-sm flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors shadow-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-            </svg>
-          </button>
         </div>
 
         {/* Body */}
         <div className="px-3 pt-2.5 pb-3 flex flex-col gap-2">
-          {/* Tên */}
           <p className="text-sm font-bold text-gray-900 leading-snug line-clamp-2">{name}</p>
 
-          {/* Rating + Giá */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1">
               <span className="text-yellow-400 text-sm">★</span>
@@ -118,21 +103,16 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
             )}
           </div>
 
-          {/* Amenities tags */}
           {amenities.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {amenities.slice(0, 3).map((a, i) => (
-                <span
-                  key={i}
-                  className="text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-0.5 truncate max-w-[90px]"
-                >
+                <span key={i} className="text-xs text-gray-500 bg-gray-100 rounded-full px-2 py-0.5 truncate max-w-[90px]">
                   {a}
                 </span>
               ))}
             </div>
           )}
 
-          {/* Nút xem chi tiết */}
           <button
             onClick={() => setShowPopup(true)}
             className="mt-0.5 w-full text-center text-sm font-semibold text-blue-500 border border-blue-300 rounded-xl py-1.5 hover:bg-blue-50 transition-colors"
@@ -142,7 +122,6 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
         </div>
       </div>
 
-      {/* Hotel Popup */}
       {showPopup && popupHotel && (
         <HotelPopup hotel={popupHotel} onClose={() => setShowPopup(false)} />
       )}
@@ -150,53 +129,71 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
   );
 }
 
+// ─── Chatbot Message ──────────────────────────────────────────────────────────
+function ChatbotMessage({ msg }) {
+  const answer = msg.chatbotAnswer ?? msg.text ?? '';
+  const recommendations = msg.chatbotRecommendations ?? [];
+
+  return (
+    <div className="flex flex-col gap-2">
+      {answer && (
+        <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed bg-white text-gray-800 border border-gray-100 shadow-card max-w-[400px]">
+          {answer}
+        </div>
+      )}
+
+      {recommendations.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-semibold text-gray-400 px-1">Gợi ý cho bạn</p>
+          {recommendations.map((rec, i) => (
+            <PlaceCard
+              key={rec.property_token ?? i}
+              attachment={{
+                type: 'place',
+                value: rec.property_token ?? rec.name ?? '',
+                metadata: { name: rec.name ?? '', address: '' },
+              }}
+              isMine={false}
+              fallbackText={rec.name ?? 'Khách sạn'}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function MessageContent({ msg }) {
   const attachments = msg.attachments ?? [];
 
-  // Nếu có attachments array (multi-attachment), render tất cả theo thứ tự
+  if (msg.isChatbot) {
+    return <ChatbotMessage msg={msg} />;
+  }
+
   if (attachments.length > 0) {
     return (
       <div className={`flex flex-col gap-2 ${msg.isMine ? "items-end" : "items-start"}`}>
         {attachments.map((att, idx) => {
           if (att.type === "image") {
             return att.value ? (
-              <img
-                key={idx}
-                src={att.value}
-                alt="ảnh"
-                className="w-56 rounded-2xl object-cover shadow-card block"
-              />
+              <img key={idx} src={att.value} alt="ảnh" className="w-64 rounded-2xl object-cover shadow-card block" />
             ) : (
-              <div key={idx} className="rounded-2xl overflow-hidden w-56 shadow-card">
-                <div
-                  className="w-full h-36"
-                  style={{ background: "linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%)" }}
-                />
+              <div key={idx} className="rounded-2xl overflow-hidden w-64 shadow-card">
+                <div className="w-full h-40" style={{ background: "linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%)" }} />
               </div>
             );
           }
           if (att.type === "place") {
             return (
-              <PlaceCard
-                key={idx}
-                attachment={att}
-                isMine={msg.isMine}
-                fallbackText={msg.placeName ?? msg.text}
-              />
+              <PlaceCard key={idx} attachment={att} isMine={msg.isMine} fallbackText={msg.placeName ?? msg.text} />
             );
           }
           return null;
         })}
-        {/* Text caption bên dưới nếu có */}
         {msg.text && (
-          <div
-            className={`px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-xs ${
-              msg.isMine
-                ? "bg-primary text-white rounded-tr-sm"
-                : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
-            }`}
-          >
+          <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-[400px] ${
+            msg.isMine ? "bg-primary text-white rounded-tr-sm" : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
+          }`}>
             {msg.text}
           </div>
         )}
@@ -204,29 +201,21 @@ function MessageContent({ msg }) {
     );
   }
 
-  // Fallback: legacy single-attachment hoặc text thuần
   switch (msg.type) {
     case "image":
       return (
         <div className={`flex flex-col gap-1 ${msg.isMine ? "items-end" : "items-start"}`}>
           {msg.url ? (
-            <img src={msg.url} alt="ảnh" className="w-56 rounded-2xl object-cover shadow-card block" />
+            <img src={msg.url} alt="ảnh" className="w-64 rounded-2xl object-cover shadow-card block" />
           ) : (
-            <div className="rounded-2xl overflow-hidden w-56 shadow-card">
-              <div
-                className="w-full h-36"
-                style={{ background: "linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%)" }}
-              />
+            <div className="rounded-2xl overflow-hidden w-64 shadow-card">
+              <div className="w-full h-40" style={{ background: "linear-gradient(135deg, #8e9eab 0%, #eef2f3 100%)" }} />
             </div>
           )}
           {msg.text && (
-            <div
-              className={`px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-xs ${
-                msg.isMine
-                  ? "bg-primary text-white rounded-tr-sm"
-                  : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
-              }`}
-            >
+            <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-[400px] ${
+              msg.isMine ? "bg-primary text-white rounded-tr-sm" : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
+            }`}>
               {msg.text}
             </div>
           )}
@@ -235,16 +224,16 @@ function MessageContent({ msg }) {
 
     case "video":
       return msg.url ? (
-        <video src={msg.url} controls className="w-56 rounded-2xl shadow-card" />
+        <video src={msg.url} controls className="w-64 rounded-2xl shadow-card" />
       ) : (
-        <div className="w-56 h-32 rounded-2xl bg-gray-800 flex items-center justify-center shadow-card">
+        <div className="w-64 h-36 rounded-2xl bg-gray-800 flex items-center justify-center shadow-card">
           <span className="text-white text-3xl">▶</span>
         </div>
       );
 
     case "file":
       return (
-        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-card w-56">
+        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-card w-64">
           <div className="w-9 h-9 rounded-xl bg-orange-100 flex items-center justify-center text-orange-500 shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
@@ -267,13 +256,9 @@ function MessageContent({ msg }) {
             fallbackText={msg.placeName ?? msg.text}
           />
           {msg.text && msg.placeName && (
-            <div
-              className={`px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-xs ${
-                msg.isMine
-                  ? "bg-primary text-white rounded-tr-sm"
-                  : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
-              }`}
-            >
+            <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-[400px] ${
+              msg.isMine ? "bg-primary text-white rounded-tr-sm" : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
+            }`}>
               {msg.text}
             </div>
           )}
@@ -282,13 +267,9 @@ function MessageContent({ msg }) {
 
     default:
       return (
-        <div
-          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-xs ${
-            msg.isMine
-              ? "bg-primary text-white rounded-tr-sm"
-              : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
-          }`}
-        >
+        <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-[400px] ${
+          msg.isMine ? "bg-primary text-white rounded-tr-sm" : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
+        }`}>
           {msg.text}
         </div>
       );
@@ -301,7 +282,7 @@ function MessageBubble({ msg, onDelete }) {
       <div className="flex flex-col items-end gap-1 mb-4">
         <div className="flex items-end gap-2 group">
           <DeleteBtn onDelete={onDelete} msgId={msg.id} />
-          <div className="max-w-xs flex flex-col items-end">
+          <div className="max-w-[400px] flex flex-col items-end">
             <MessageContent msg={msg} />
             <div className="flex items-center justify-end gap-1 mt-1">
               <span className="text-xs text-gray-400">{msg.time}</span>
@@ -316,7 +297,7 @@ function MessageBubble({ msg, onDelete }) {
   return (
     <div className="flex items-start gap-3 mb-4">
       <Avatar initials={msg.avatar} size="md" color="#255dad" />
-      <div className="max-w-xs">
+      <div className="max-w-[400px]">
         <p className="text-xs font-semibold text-gray-500 mb-1">{msg.sender}</p>
         <MessageContent msg={msg} />
         <p className="text-xs text-gray-400 mt-1">{msg.time}</p>

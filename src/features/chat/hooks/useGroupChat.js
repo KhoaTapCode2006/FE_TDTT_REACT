@@ -504,14 +504,22 @@ export function useGroupChat() {
 
           const replyContent = await sendConversation(payload);
           if (replyContent) {
+            // replyContent có thể là string hoặc object { answer, recommendations, ... }
+            const isBotStructured = replyContent && typeof replyContent === 'object' && ('answer' in replyContent || 'recommendations' in replyContent);
             const botMsg = {
               id: Date.now() + 1,
               sender: "AI",
               avatar: "AI",
               time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-              text: replyContent,
+              text: isBotStructured ? (replyContent.answer ?? '') : replyContent,
               isMine: false,
               type: "text",
+              // Chatbot structured response
+              ...(isBotStructured && {
+                isChatbot: true,
+                chatbotAnswer: replyContent.answer ?? '',
+                chatbotRecommendations: replyContent.recommendations ?? [],
+              }),
             };
             setMessagesByGroup((prev) => ({
               ...prev,
