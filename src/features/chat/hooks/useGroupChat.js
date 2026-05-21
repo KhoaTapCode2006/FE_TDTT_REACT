@@ -308,9 +308,8 @@ export function useGroupChat() {
       const enriched = await Promise.all(
         rawMessages.map(async (msg) => {
           if (msg.isMine) return msg;
-          // Nếu đã có tên đẹp (sender_name từ Firestore) thì giữ nguyên
           const uid = msg.senderUid;
-          if (!uid || msg.sender !== uid) return msg; // sender đã được resolve
+          if (!uid || msg.sender !== uid) return msg;
           const name = await resolveDisplayName(uid);
           if (name === uid) return msg;
           return {
@@ -320,11 +319,23 @@ export function useGroupChat() {
           };
         })
       );
-      // Giữ lại các botMsg local (isTyping=true) chưa có trong Firestore
+
       setMessagesByGroup((prev) => {
         const existing = prev[activeGroup] ?? [];
         const localBotMsgs = existing.filter((m) => m.isTyping === true);
-        return { ...prev, [activeGroup]: [...enriched, ...localBotMsgs] };
+
+        // Nếu Firestore vừa trả về message AI mới (isChatbot, không phải của mình)
+        // mà trước đó có localBotMsg tương ứng → đánh dấu isTyping=true để animate
+        const enrichedWithFlag = enriched.map((msg) => {
+          if (!msg.isChatbot || msg.isMine) return msg;
+          const matchLocal = localBotMsgs.find(
+            (local) => local.chatbotAnswer === msg.chatbotAnswer && local.chatbotAnswer
+          );
+          if (matchLocal) return { ...msg, isTyping: true };
+          return msg;
+        });
+
+        return { ...prev, [activeGroup]: enrichedWithFlag };
       });
     });
 

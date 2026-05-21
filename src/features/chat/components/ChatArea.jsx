@@ -282,11 +282,22 @@ function ChatArea({
           <input
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              const words = e.target.value.trim() === "" ? 0 : e.target.value.trim().split(/\s+/).length;
+              if (words <= 2000) setInput(e.target.value);
+            }}
             onKeyDown={(e) => e.key === "Enter" && canSend && onSend()}
             placeholder={`Nhắn tin ${group.name}...`}
             className="flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none"
           />
+          {(() => {
+            const wordCount = input.trim() === "" ? 0 : input.trim().split(/\s+/).length;
+            return wordCount > 1800 ? (
+              <span className={`text-xs shrink-0 ${wordCount >= 2000 ? "text-red-500" : "text-amber-500"}`}>
+                {wordCount}/2000
+              </span>
+            ) : null;
+          })()}
           <button
             onClick={() => canSend && onSend()}
             disabled={!canSend}

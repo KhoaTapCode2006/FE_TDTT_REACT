@@ -134,16 +134,24 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
 const TYPEWRITER_SPEED_MS = 18; // ms mỗi ký tự
 const RECS_PER_PAGE = 2;
 
+// Thời điểm app load — tin nhắn có sentAtMs sau mốc này mới animate
+const APP_LOAD_TIME = Date.now();
+
 function ChatbotMessage({ msg }) {
   const recommendations = msg.chatbotRecommendations ?? [];
 
-  // Lấy answer từ Firestore (đã được parse bởi subscribeToMessages)
-  // và truyền thẳng vào useTypewriter — luôn animate khi component mount lần đầu
-  const answer = msg.chatbotAnswer ?? msg.text ?? '';
-  const [frozenAnswer] = useState(() => answer);
+  // Freeze tại lúc mount để tránh re-trigger khi Firestore update prop
+  const [frozenAnswer] = useState(() => msg.chatbotAnswer ?? msg.text ?? '');
 
-  const displayed = useTypewriter(frozenAnswer, TYPEWRITER_SPEED_MS, 'char');
-  const done = displayed.length >= frozenAnswer.length;
+  // Tin nhắn mới = sentAtMs sau khi app load, hoặc có isTyping flag (local botMsg)
+  const [shouldAnimate] = useState(() => {
+    if (msg.sentAtMs != null) return msg.sentAtMs > APP_LOAD_TIME;
+    return msg.isTyping === true;
+  });
+
+  const displayed = useTypewriter(shouldAnimate ? frozenAnswer : '', TYPEWRITER_SPEED_MS, 'char');
+  const shownText = shouldAnimate ? displayed : frozenAnswer;
+  const done = shouldAnimate ? displayed.length >= frozenAnswer.length : true;
 
   const [page, setPage] = useState(0);
 
@@ -152,9 +160,9 @@ function ChatbotMessage({ msg }) {
 
   return (
     <div className="flex flex-col gap-2">
-      {(displayed || !done) && (
+      {(shownText || !done) && (
         <div className="px-4 py-3 rounded-2xl rounded-tl-sm text-sm leading-relaxed bg-white text-gray-800 border border-gray-100 shadow-card max-w-[560px] w-fit">
-          {displayed}
+          {shownText}
           {!done && (
             <span className="inline-block w-[2px] h-[1em] bg-gray-400 ml-0.5 align-middle animate-pulse" />
           )}
@@ -250,7 +258,7 @@ function MessageContent({ msg }) {
           return null;
         })}
         {msg.text && (
-          <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-[400px] ${
+          <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-[400px] break-words ${
             msg.isMine ? "bg-primary text-white rounded-tr-sm" : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
           }`}>
             {msg.text}
@@ -272,7 +280,7 @@ function MessageContent({ msg }) {
             </div>
           )}
           {msg.text && (
-            <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-[400px] ${
+            <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-[400px] break-words ${
               msg.isMine ? "bg-primary text-white rounded-tr-sm" : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
             }`}>
               {msg.text}
@@ -315,7 +323,7 @@ function MessageContent({ msg }) {
             fallbackText={msg.placeName ?? msg.text}
           />
           {msg.text && msg.placeName && (
-            <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-[400px] ${
+            <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-[400px] break-words ${
               msg.isMine ? "bg-primary text-white rounded-tr-sm" : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
             }`}>
               {msg.text}
@@ -326,7 +334,7 @@ function MessageContent({ msg }) {
 
     default:
       return (
-        <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-[400px] ${
+        <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-card inline-block max-w-[400px] break-words ${
           msg.isMine ? "bg-primary text-white rounded-tr-sm" : "bg-white text-gray-800 rounded-tl-sm border border-gray-100"
         }`}>
           {msg.text}

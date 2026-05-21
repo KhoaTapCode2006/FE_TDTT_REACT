@@ -1420,6 +1420,7 @@ export function subscribeToMessages(groupId, callback, membersDisplayNames = {})
           avatar,
           time:        sentDate?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) ?? '',
           dateKey,
+          sentAtMs:    sentDate ? sentDate.getTime() : null,
           text:        isChatbot ? chatbotAnswer : rawContent,
           isMine,
           type,
