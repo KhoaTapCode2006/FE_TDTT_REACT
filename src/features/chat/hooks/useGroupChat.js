@@ -514,6 +514,7 @@ export function useGroupChat() {
               text: isBotStructured ? (replyContent.answer ?? '') : replyContent,
               isMine: false,
               type: "text",
+              isTyping: true,
               // Chatbot structured response
               ...(isBotStructured && {
                 isChatbot: true,
