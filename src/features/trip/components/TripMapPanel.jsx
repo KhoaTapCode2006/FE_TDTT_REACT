@@ -368,8 +368,23 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
   const fetchAndDrawRoute = useCallback(async (map, member) => {
     const layerId  = `route-line-${member.id}`;
     const sourceId = `route-${member.id}`;
-    if (map.getLayer(layerId))   map.removeLayer(layerId);
-    if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+    // Đảm bảo source + layer tồn tại trước khi fetch
+    // → route cũ vẫn hiển thị trong khi đang tải route mới
+    if (!map.getSource(sourceId)) {
+      map.addSource(sourceId, {
+        type: "geojson",
+        data: { type: "Feature", geometry: { type: "LineString", coordinates: [] } },
+      });
+    }
+    if (!map.getLayer(layerId)) {
+      map.addLayer({
+        id: layerId, type: "line", source: sourceId,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": member.color, "line-width": 4, "line-opacity": 0.85 },
+      });
+    }
+
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -383,12 +398,26 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
       const route  = data?.routes?.[0];
       const coords = route?.geometry?.coordinates;
       if (!coords?.length) throw new Error();
-      map.addSource(sourceId, { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: coords } } });
-      map.addLayer({ id: layerId, type: "line", source: sourceId, layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": member.color, "line-width": 4, "line-opacity": 0.85 } });
+
+      // Cập nhật data của source hiện có — không xóa/thêm lại layer
+      map.getSource(sourceId).setData({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: coords },
+      });
+      // Đảm bảo style đúng (solid line)
+      map.setPaintProperty(layerId, "line-width", 4);
+      map.setPaintProperty(layerId, "line-opacity", 0.85);
+      map.setPaintProperty(layerId, "line-dasharray", [1, 0]); // reset về solid
       return { distKm: (route.distance / 1000).toFixed(1), timeMin: Math.round(route.duration / 60), memberName: member.name, hasRealGps: member.hasRealGps };
     } catch {
-      map.addSource(sourceId, { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: [[member.lng, member.lat], [DEST.lng, DEST.lat]] } } } );
-      map.addLayer({ id: layerId, type: "line", source: sourceId, layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": member.color, "line-width": 3, "line-dasharray": [2, 2] } });
+      // Fallback: vẽ đường thẳng nét đứt
+      map.getSource(sourceId).setData({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: [[member.lng, member.lat], [DEST.lng, DEST.lat]] },
+      });
+      map.setPaintProperty(layerId, "line-width", 3);
+      map.setPaintProperty(layerId, "line-opacity", 0.7);
+      map.setPaintProperty(layerId, "line-dasharray", [2, 2]);
       const R = 6371;
       const dLat = (DEST.lat - member.lat) * Math.PI / 180;
       const dLng = (DEST.lng - member.lng) * Math.PI / 180;
@@ -581,14 +610,14 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
                 </div>
                 {/* Route info — bên phải */}
                 <div className="shrink-0 flex flex-col items-end gap-0.5">
-                  {loadingRoutes ? (
-                    <span className="text-[10px] text-gray-300">...</span>
-                  ) : info ? (
+                  {info ? (
                     <>
                       <span className="text-[10px] text-gray-500 font-medium">{info.distKm} km</span>
                       <span className="text-[10px] text-gray-400">⏱ ~{info.timeMin} ph</span>
                       {!info.hasRealGps && <span className="text-[9px] text-yellow-500">⚠</span>}
                     </>
+                  ) : loadingRoutes ? (
+                    <span className="text-[10px] text-gray-300">...</span>
                   ) : null}
                 </div>
               </button>
