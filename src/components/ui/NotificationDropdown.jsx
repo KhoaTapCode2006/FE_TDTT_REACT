@@ -39,44 +39,7 @@ export default function NotificationDropdown({
   
   const API_BASE_URL = 'https://api.haubaka.xyz';
   
-  // Dummy notifications for development (Firestore structure)
-  const dummyNotifications = [
-    {
-      id: "Js031jxiU6IFki1K1epV",
-      actor_id: "IcxW7IPTXfepO1W6DKX7RfBRY8G2",
-      receiver_id: user?.uid || "nGUVEXtQgqhvxmaxHplZ93sPomm2",
-      content: "Booking4U f9ba2a đã mời bạn tham gia bộ sưu tập (ID: A6yC7KOppRZ67h6q3DFW).",
-      type: "invitation",
-      read: false,
-      ref_id: "Ad6XRXdIEcP4ku3ZGNgj",
-      send_at: "May 20, 2026 at 4:37:27 PM UTC+7",
-      updated_at: "May 20, 2026 at 5:05:05 PM UTC+7"
-    },
-    {
-      id: "bY7TTeFSLy2xqZ9VePEW",
-      actor_id: "pHWFYtRhriwymbyoIqmA94tQpnn3",
-      receiver_id: user?.uid || "nGUVEXtQgqhvxmaxHplZ93sPomm2",
-      content: "User ABC đã mời bạn tham gia bộ sưu tập Hà Nội.",
-      type: "invitation",
-      read: false,
-      ref_id: "ABC123XYZ456DEF789",
-      send_at: "May 21, 2026 at 10:30:00 AM UTC+7",
-      updated_at: "May 21, 2026 at 10:30:00 AM UTC+7"
-    },
-    {
-      id: "cZ8UUfGTMz3yrA0WfQFX",
-      actor_id: "qIXGZuSisjxznczpJrnB05uRqoo4",
-      receiver_id: user?.uid || "nGUVEXtQgqhvxmaxHplZ93sPomm2",
-      content: "Lời mời tham gia bộ sưu tập đã được chấp nhận.",
-      type: "invitation",
-      read: true,
-      ref_id: "COLLECTION_ID_123",
-      send_at: "May 19, 2026 at 3:45:00 PM UTC+7",
-      updated_at: "May 19, 2026 at 4:00:00 PM UTC+7"
-    }
-  ];
-
-  const displayNotifications = notifications.length > 0 ? notifications : dummyNotifications;
+  const displayNotifications = notifications;
 
   /**
    * Generate notification content from backend-provided string
