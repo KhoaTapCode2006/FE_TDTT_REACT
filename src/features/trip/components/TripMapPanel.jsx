@@ -14,7 +14,7 @@ import { trackingState } from "../../../services/trip/trackingState";
 const statusLabel = {
   active:          { text: "Đang di chuyển", color: "text-green-600" },
   lost_signal:     { text: "Mất tín hiệu",   color: "text-yellow-600" },
-  wrong_direction: { text: "Sai hướng",       color: "text-red-500" },
+  change_route:    { text: "Đổi lộ trình",   color: "text-orange-500" },
   arrived:         { text: "Đã đến",          color: "text-blue-600" },
   left:            { text: "Đã rời",           color: "text-gray-400" },
   no_share:        { text: "Không chia sẻ",   color: "text-gray-400" },
@@ -39,7 +39,8 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
   });
   const [myRealPos, setMyRealPos]           = useState(null); // { lat, lng }
 
-  const hasInitialFitRef = useRef(false);
+  const hasInitialFitRef    = useRef(false);
+  const routeSignaturesRef  = useRef({}); // { [memberId]: signature string }
   const currentUid  = auth.currentUser?.uid;
   const tripId      = trip?.id;
   const isActive    = trip?.status === "active";
@@ -362,7 +363,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, memberTracking]);
 
-  // Dọn routeInfoMap khi member ngưng chia sẻ (không còn trong members)
+  // Dọn routeInfoMap + routeSignaturesRef khi member ngưng chia sẻ (không còn trong members)
   useEffect(() => {
     const activeMemberIds = new Set(members.filter((m) => m.status !== "no_share").map((m) => m.id));
     setRouteInfoMap((prev) => {
@@ -373,10 +374,23 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
       });
       return changed ? next : prev;
     });
+    // Dọn signature của member không còn active
+    Object.keys(routeSignaturesRef.current).forEach((id) => {
+      if (!activeMemberIds.has(id)) delete routeSignaturesRef.current[id];
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberTracking]);
 
   // ── Route helpers ─────────────────────────────────────────────────────────
+  // Tạo "signature" đại diện cho hành trình — dùng điểm giữa + điểm cuối
+  // (bỏ qua coordinates[0] vì nó luôn thay đổi theo vị trí GPS hiện tại)
+  const routeSignature = (coords) => {
+    if (!coords?.length) return "";
+    const mid = coords[Math.floor(coords.length / 2)];
+    const end = coords[coords.length - 1];
+    return `${mid[0].toFixed(4)},${mid[1].toFixed(4)}|${end[0].toFixed(4)},${end[1].toFixed(4)}`;
+  };
+
   const fetchAndDrawRoute = useCallback(async (map, member) => {
     const layerId  = `route-line-${member.id}`;
     const sourceId = `route-${member.id}`;
@@ -410,6 +424,21 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
       const route  = data?.routes?.[0];
       const coords = route?.geometry?.coordinates;
       if (!coords?.length) throw new Error();
+
+      // ── Route change detection ──────────────────────────────────────────
+      const newSig  = routeSignature(coords);
+      const prevSig = routeSignaturesRef.current[member.id];
+
+      if (prevSig !== undefined && prevSig !== newSig) {
+        // Hành trình thay đổi → push status change_route lên Firestore
+        setDoc(
+          doc(db, "trips", tripId, "members", member.id),
+          { tracking: { status: "change_route", updated_at: serverTimestamp() } },
+          { merge: true }
+        ).catch((err) => console.warn("[TripMapPanel] change_route push failed:", err));
+      }
+      routeSignaturesRef.current[member.id] = newSig;
+      // ───────────────────────────────────────────────────────────────────
 
       // Cập nhật data của source hiện có — không xóa/thêm lại layer
       map.getSource(sourceId).setData({
