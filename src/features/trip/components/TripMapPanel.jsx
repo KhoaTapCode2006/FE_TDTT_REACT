@@ -192,7 +192,18 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onStopShar
         isMe:     m.uid === currentUid,
       };
     })
-    .filter((m) => m.status !== "no_share" || m.isMe); // sidebar: luôn hiện bản thân, ẩn người khác nếu no_share
+    .filter((m) => m.status !== "no_share" || m.isMe) // sidebar: luôn hiện bản thân, ẩn người khác nếu no_share
+    .sort((a, b) => {
+      // Ưu tiên 1: tai nạn lên đầu
+      if (a.accident && !b.accident) return -1;
+      if (!a.accident && b.accident) return 1;
+      // Ưu tiên 2: mất tín hiệu lên thứ hai
+      const aLost = a.status === "lost_signal";
+      const bLost = b.status === "lost_signal";
+      if (aLost && !bLost) return -1;
+      if (!aLost && bLost) return 1;
+      return 0;
+    });
 
   // members: dùng cho map markers — chỉ member đang active có GPS
   const members = allMembers.filter((m) => m.hasRealGps && m.status !== "no_share");
