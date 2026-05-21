@@ -320,7 +320,12 @@ export function useGroupChat() {
           };
         })
       );
-      setMessagesByGroup((prev) => ({ ...prev, [activeGroup]: enriched }));
+      // Giữ lại các botMsg local (isTyping=true) chưa có trong Firestore
+      setMessagesByGroup((prev) => {
+        const existing = prev[activeGroup] ?? [];
+        const localBotMsgs = existing.filter((m) => m.isTyping === true);
+        return { ...prev, [activeGroup]: [...enriched, ...localBotMsgs] };
+      });
     });
 
     const unsubMembers = subscribeToMembers(activeGroup, (newMembers) => {

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Avatar from "./Avatar";
 import { getHotelById } from "@/services/backend/discover.service";
 import HotelPopup from "@/components/hotel/components/HotelPopup";
+import { useTypewriter } from "@/hooks/useTypewriter";
 
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 function DeleteBtn({ onDelete, msgId }) {
@@ -134,43 +135,20 @@ const TYPEWRITER_SPEED_MS = 18; // ms mỗi ký tự
 const RECS_PER_PAGE = 2;
 
 function ChatbotMessage({ msg }) {
-  const fullAnswer = msg.chatbotAnswer ?? msg.text ?? '';
   const recommendations = msg.chatbotRecommendations ?? [];
-  const isNew = msg.isTyping === true;
 
-  const [displayed, setDisplayed] = useState(isNew ? '' : fullAnswer);
-  const [done, setDone] = useState(!isNew);
+  // Lấy answer từ Firestore (đã được parse bởi subscribeToMessages)
+  // và truyền thẳng vào useTypewriter — luôn animate khi component mount lần đầu
+  const answer = msg.chatbotAnswer ?? msg.text ?? '';
+  const [frozenAnswer] = useState(() => answer);
+
+  const displayed = useTypewriter(frozenAnswer, TYPEWRITER_SPEED_MS, 'char');
+  const done = displayed.length >= frozenAnswer.length;
+
   const [page, setPage] = useState(0);
 
   const totalPages = Math.ceil(recommendations.length / RECS_PER_PAGE);
   const visibleRecs = recommendations.slice(page * RECS_PER_PAGE, page * RECS_PER_PAGE + RECS_PER_PAGE);
-
-  useEffect(() => {
-    if (!isNew) {
-      setDisplayed(fullAnswer);
-      setDone(true);
-      return;
-    }
-    if (!fullAnswer) { setDone(true); return; }
-
-    let i = 0;
-    setDisplayed('');
-    setDone(false);
-
-    const tick = () => {
-      i += 1;
-      setDisplayed(fullAnswer.slice(0, i));
-      if (i < fullAnswer.length) {
-        timerId = setTimeout(tick, TYPEWRITER_SPEED_MS);
-      } else {
-        setDone(true);
-      }
-    };
-
-    let timerId = setTimeout(tick, TYPEWRITER_SPEED_MS);
-    return () => clearTimeout(timerId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [msg.id]);
 
   return (
     <div className="flex flex-col gap-2">
