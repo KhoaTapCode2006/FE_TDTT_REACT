@@ -260,6 +260,65 @@ export default function NotificationDropdown({
   };
 
   /**
+   * Handle deleting a notification
+   * CRITICAL: Must call e.stopPropagation() first to prevent row click
+   * 
+   * @param {Event} e - Click event
+   * @param {string} notificationId - The ID of the notification to delete
+   */
+  const handleDeleteNotification = async (e, notificationId) => {
+    // CRITICAL: Prevent row click event from firing
+    e.stopPropagation();
+
+    // Prevent action if already processing
+    if (processingIds.has(notificationId)) return;
+
+    setProcessingIds(prev => new Set(prev).add(notificationId));
+
+    try {
+      // Get fresh Firebase token
+      const token = await getAuthToken();
+
+      const response = await fetch(`${API_BASE_URL}/users/me/notifications/${notificationId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+      
+      console.log('Notification deleted:', notificationId);
+      
+      // Trigger callback to refresh notifications
+      onNotificationUpdate?.();
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+      
+      // Show error message
+      if (error.message.includes('404')) {
+        alert('Thông báo không tồn tại.');
+      } else if (error.message.includes('403')) {
+        alert('Bạn không có quyền xóa thông báo này.');
+      } else if (error.message.includes('đăng nhập')) {
+        alert(error.message);
+      } else {
+        alert('Không thể xóa thông báo. Vui lòng thử lại.');
+      }
+    } finally {
+      setProcessingIds(prev => {
+        const next = new Set(prev);
+        next.delete(notificationId);
+        return next;
+      });
+    }
+  };
+
+  /**
    * Mark notification as read
    * 
    * API: PATCH https://api.haubaka.xyz/users/me/notifications/{notificationId}
@@ -514,11 +573,21 @@ export default function NotificationDropdown({
                 <div
                   key={notification.id}
                   onClick={() => handleNotificationClick(notification)}
-                  className={`p-4 transition-colors cursor-pointer ${
+                  className={`group relative p-4 transition-colors cursor-pointer ${
                     isUnread ? 'bg-blue-50/50' : 'bg-white'
                   } hover:bg-gray-50 ${processing ? 'opacity-60 pointer-events-none' : ''}`}
                 >
-                  <div className="flex gap-3">
+                  {/* Delete Button - Positioned absolutely in top-right corner */}
+                  <button
+                    onClick={(e) => handleDeleteNotification(e, notification.id)}
+                    disabled={processing}
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                    aria-label="Xóa thông báo"
+                  >
+                    <Icon name="delete_outline" size={18} />
+                  </button>
+
+                  <div className="flex gap-3 pr-8">
                     {/* Icon */}
                     <div className={`flex-shrink-0 w-10 h-10 rounded-full ${icon.bg} flex items-center justify-center`}>
                       <Icon name={icon.name} size={20} className={icon.color} />
@@ -599,22 +668,6 @@ export default function NotificationDropdown({
           </div>
         )}
       </div>
-
-      {/* Footer */}
-      {displayNotifications.length > 0 && (
-        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-100 px-4 py-3">
-          <button
-            onClick={() => {
-              onClose?.();
-              // TODO: Navigate to notifications page
-              // navigate('/notifications');
-            }}
-            className="w-full text-center text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
-          >
-            Xem tất cả thông báo
-          </button>
-        </div>
-      )}
     </div>
   );
 }
