@@ -3,7 +3,7 @@ import { doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
 import { useTripMembers } from "../hooks/useTripMembers";
 import { useAccidentAlert } from "../hooks/useAccidentAlert";
-import { useLostSignalAlert } from "../hooks/useLostSignalAlert";
+import { useLostSignalAlert, playLostSignalPing } from "../hooks/useLostSignalAlert";
 import { useRouteChangeAlert } from "../hooks/useRouteChangeAlert";
 import { useMemberLeftAlert } from "../hooks/useMemberLeftAlert";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
@@ -82,6 +82,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
 
   const stoppedSharingRef = useRef(false); // giữ lại để block pushTracking khi logout
   const gpsBlockedRef = useRef(gpsBlocked);
+  const pinggedUidsRef = useRef(new Set()); // uid đã phát ping lost_signal, tránh ping lặp
 
   // Persist gpsBlocked vào localStorage để giữ sau F5
   const setGpsBlockedPersist = useCallback((val) => {
@@ -520,6 +521,59 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
     loadAllRoutes(members);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, fakeActive, memberTrackingKey]);
+
+  // ── Lost signal detection ─────────────────────────────────────────────────
+  // Mỗi 30 giây, kiểm tra member nào có updated_at quá 120s mà vẫn "active"
+  // → push status "lost_signal" lên Firestore.
+  // Chỉ chạy khi fake GPS tắt và trip đang active.
+  useEffect(() => {
+    if (!isActive || !tripId) return;
+
+    const checkLostSignal = () => {
+      // Không chạy khi fake GPS đang bật
+      if (fakeActive) return;
+
+      const now = Date.now();
+      firestoreMembers.forEach((m) => {
+        // Bỏ qua bản thân
+        if (m.uid === currentUid) return;
+
+        const t = m.tracking;
+
+        // Nếu member đã active trở lại → reset ping để lần sau có thể ping lại
+        if (t?.status === "active") {
+          pinggedUidsRef.current.delete(m.uid);
+        }
+
+        if (!t || t.status !== "active") return;
+
+        // updated_at có thể là Firestore Timestamp hoặc null
+        const updatedAt = t.updated_at?.toMillis?.() ?? t.updated_at?.seconds * 1000 ?? null;
+        if (updatedAt === null) return;
+
+        const diffSec = (now - updatedAt) / 1000;
+        if (diffSec > 90) {
+          console.log(`[TripMapPanel] lost_signal detected for ${m.uid}, diff=${Math.round(diffSec)}s`);
+
+          // Phát ping một lần duy nhất khi vừa vượt ngưỡng
+          if (!pinggedUidsRef.current.has(m.uid)) {
+            pinggedUidsRef.current.add(m.uid);
+            playLostSignalPing();
+          }
+
+          setDoc(
+            doc(db, "trips", tripId, "members", m.uid),
+            { tracking: { status: "lost_signal", updated_at: serverTimestamp() } },
+            { merge: true }
+          ).catch((err) => console.warn("[TripMapPanel] lost_signal push failed:", err));
+        }
+      });
+    };
+
+    const intervalId = setInterval(checkLostSignal, 30_000);
+    return () => clearInterval(intervalId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, tripId, fakeActive, firestoreMembers, currentUid]);
 
   // ── Accident / Arrive ─────────────────────────────────────────────────────
   const meAccident = allMembers.find((m) => m.isMe)?.accident === true;

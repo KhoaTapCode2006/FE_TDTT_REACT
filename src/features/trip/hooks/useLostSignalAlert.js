@@ -9,7 +9,7 @@ import { useEffect, useRef } from "react";
  * Phát 2 tiếng beep ngắn — báo hiệu có member mất tín hiệu.
  * Dùng Web Audio API, không cần file âm thanh.
  */
-function playLostSignalPing() {
+export function playLostSignalPing() {
   let ctx;
   try {
     ctx = new (window.AudioContext || window.webkitAudioContext)();

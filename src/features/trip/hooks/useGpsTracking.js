@@ -59,21 +59,23 @@ export function useGpsTracking(tripIds) {
     uidRef.current = uid;
     stoppedRef.current = false;
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => pushToAllTrips(pos.coords.latitude, pos.coords.longitude),
-      (err) => console.warn("[useGpsTracking] initial position error:", err.message),
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-    );
+    const fetchAndPush = () => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => pushToAllTrips(pos.coords.latitude, pos.coords.longitude),
+        (err) => console.warn("[useGpsTracking] position error:", err.message),
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    };
 
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => pushToAllTrips(pos.coords.latitude, pos.coords.longitude),
-      (err) => console.warn("[useGpsTracking] watch error:", err.message),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
-    );
+    // Push ngay lần đầu khi mount
+    fetchAndPush();
+
+    // Sau đó cứ 30 giây push một lần
+    watchIdRef.current = setInterval(fetchAndPush, 30_000);
 
     return () => {
       if (watchIdRef.current != null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
+        clearInterval(watchIdRef.current);
         watchIdRef.current = null;
       }
 
