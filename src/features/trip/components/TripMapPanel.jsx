@@ -3,6 +3,7 @@ import { doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
 import { useTripMembers } from "../hooks/useTripMembers";
 import { useAccidentAlert } from "../hooks/useAccidentAlert";
+import { useLostSignalAlert } from "../hooks/useLostSignalAlert";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
 import FakeGpsControl from "./FakeGpsControl";
 import { trackingState } from "../../../services/trip/trackingState";
@@ -49,6 +50,9 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
 
   // Chỉ alert accident khi trip đang active
   useAccidentAlert(isActive ? firestoreMembers : [], currentUid);
+
+  // Phát ping khi có member mất tín hiệu (lost_signal) — chỉ khi trip active
+  useLostSignalAlert(isActive ? firestoreMembers : [], currentUid);
 
   const memberTracking = Object.fromEntries(
     firestoreMembers
