@@ -6,6 +6,42 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 /**
+ * Phát 1 tiếng ping nhẹ — báo hiệu có member rời chuyến đi.
+ * Dùng sine wave 520Hz, fade out mượt ~0.4s.
+ */
+function playMemberLeftPing() {
+  let ctx;
+  try {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+  } catch (err) {
+    console.warn("[useMemberLeftAlert] Web Audio API not available:", err);
+    return;
+  }
+
+  const now = ctx.currentTime;
+  const osc  = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(520, now);
+
+  // Attack nhanh, decay mượt
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(0.6, now + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+
+  osc.start(now);
+  osc.stop(now + 0.45);
+
+  setTimeout(() => {
+    try { ctx.close(); } catch (_) {}
+  }, 700);
+}
+
+/**
  * @param {Array}  members    - danh sách members từ useTripMembers
  * @param {string} currentUid - UID của user hiện tại
  * @returns {{ toasts: Array, dismissToast: (id) => void }}
@@ -34,6 +70,7 @@ export function useMemberLeftAlert(members, currentUid) {
           name: info.display_name ?? info.username ?? "Thành viên",
         }));
         setToasts((prev) => [...prev, ...newToasts]);
+        playMemberLeftPing();
 
         // Tự động dismiss sau 4 giây
         newToasts.forEach((t) => {

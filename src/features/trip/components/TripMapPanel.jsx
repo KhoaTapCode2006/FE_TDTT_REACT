@@ -227,6 +227,11 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
       const bLost = b.status === "lost_signal";
       if (aLost && !bLost) return -1;
       if (!aLost && bLost) return 1;
+      // Ưu tiên 3: đổi lộ trình lên thứ ba
+      const aChange = a.status === "change_route";
+      const bChange = b.status === "change_route";
+      if (aChange && !bChange) return -1;
+      if (!aChange && bChange) return 1;
       return 0;
     });
 
