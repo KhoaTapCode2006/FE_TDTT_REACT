@@ -8,6 +8,7 @@
  */
 import { geolocationService } from '../geolocation.service.js';
 import { apiClient } from '../api/apiClient.js';
+import { favoritesService } from '../profile/favorites.service.js';
 
 /**
  * Hotel Search Service Class
@@ -351,11 +352,32 @@ class HotelSearchService {
         };
       });
       
-      // Return both hotels and searching_place
-      return {
-        hotels: transformedHotels,
-        searchingPlace: searchingPlace
-      };
+      // Sync favorites with discover results - fetch user's favorites and annotate hotels
+      try {
+        const favoritePlaces = await favoritesService.getFavorites();
+        const favoriteSet = new Set(
+          favoritePlaces.map(f => f.propertyToken || f.id || f.hotelId)
+        );
+        
+        // Annotate each hotel with isFavorited flag
+        const annotatedHotels = transformedHotels.map(h => ({
+          ...h,
+          isFavorited: favoriteSet.has(h.propertyToken || h.id)
+        }));
+        
+        return {
+          hotels: annotatedHotels,
+          searchingPlace: searchingPlace
+        };
+      } catch (favErr) {
+        // If favorites fetch fails (user not authenticated or network error),
+        // return plain results without isFavorited annotation
+        console.debug('Could not fetch favorites for discover results:', favErr?.message || favErr);
+        return {
+          hotels: transformedHotels,
+          searchingPlace: searchingPlace
+        };
+      }
     } catch (error) {
       console.error('Error searching hotels:', error);
       throw error;
@@ -595,6 +617,84 @@ async getTopViewsHotelsWeekly(limit = 16) {
         weeklyViews: hotel.views?.weekly_views || 0
       };
     });
+
+    // Synchronize with user's favorites
+    const mappedHotels = rawHotels.map(hotel => {
+      // Xử lý tọa độ GPS an toàn
+      const gpsLat = hotel.gps_coordinates?.latitude || null;
+      const gpsLng = hotel.gps_coordinates?.longitude || null;
+
+      // Xử lý mảng ảnh (Backend trả về mảy các Object chứa ảnh)
+      const images = Array.isArray(hotel.images) ? hotel.images.map(img => {
+        if (typeof img === 'string') {
+          return { url: img, thumbnail: img, original: img };
+        }
+        // Giữ cấu trúc Object của ảnh nếu backend trả về object
+        return {
+          url: img.url || img.original_image || img.original || img.thumbnail || '',
+          thumbnail: img.thumbnail || img.url || '',
+          original: img.original || img.original_image || img.url || ''
+        };
+      }).filter(img => img.url) : [];
+
+      // Trả về Object chuẩn hóa đồng bộ với component hiển thị
+      return {
+        id: hotel.property_token || hotel.id,
+        propertyToken: hotel.property_token,
+        hotel_id: hotel.property_token,
+        name: hotel.name || 'Unknown Hotel',
+        description: hotel.description || null,
+        address: hotel.address || null,
+        location: hotel.address || null,
+        phone: hotel.phone || null,
+        link: hotel.link || null,
+        
+        latitude: gpsLat,
+        longitude: gpsLng,
+        coordinates: {
+          latitude: gpsLat || 0,
+          longitude: gpsLng || 0,
+          geohash: hotel.gps_coordinates?.geohash || ''
+        },
+        
+        price: hotel.price || 0,
+        pricePerNight: hotel.price || 0,
+        deal: hotel.deal || null,
+        currency: 'VND',
+        
+        // Map rating từ ai_sentiment.ai_score trong dữ liệu mẫu của bạn
+        rating: hotel.ai_sentiment?.ai_score || hotel.raw_rating || 0,
+        rawRating: hotel.raw_rating || 0,
+        ai_score: hotel.ai_sentiment?.ai_score || 0,
+        trustWeight: hotel.ai_sentiment?.trust_weight || 0,
+        
+        images: images,
+        // Lấy ảnh đầu tiên làm thumbnail phẳng nếu cần
+        thumbnail: images.length > 0 ? images[0].thumbnail : null,
+        
+        amenities: Array.isArray(hotel.amenities) ? hotel.amenities : [],
+        userReviews: Array.isArray(hotel.user_reviews) ? hotel.user_reviews : [],
+        
+        // ĐẶC BIỆT: Map chính xác từ views.weekly_views và views.total_views của backend
+        totalViews: hotel.views?.total_views || 0,
+        weeklyViews: hotel.views?.weekly_views || 0
+      };
+    });
+
+    // Annotate with favorite status
+    try {
+      const favorites = await favoritesService.getFavorites();
+      const favoriteSet = new Set(favorites.map(fav => fav.propertyToken || fav.id || fav.hotel_id));
+      
+      return mappedHotels.map(hotel => ({
+        ...hotel,
+        isFavorited: favoriteSet.has(hotel.propertyToken || hotel.id)
+      }));
+    } catch (error) {
+      // Fail gracefully if user not authenticated or favorites fetch fails
+      console.debug('Could not fetch favorites for topView weekly hotels:', error.message);
+      return mappedHotels.map(hotel => ({ ...hotel, isFavorited: false }));
+    }
   } catch (error) {
     console.error("Error in getTopViewsHotels:", error);
     return []; // Trả về mảng rỗng để bảo vệ app không bị crash
@@ -679,6 +779,21 @@ async getTopViewsHotelsAllTime(limit = 16) {
         weeklyViews: hotel.views?.weekly_views || 0
       };
     });
+
+    // Synchronize with user's favorites
+    try {
+      const favorites = await favoritesService.getFavorites();
+      const favoriteSet = new Set(favorites.map(fav => fav.propertyToken || fav.id || fav.hotel_id));
+      
+      return mappedHotels.map(hotel => ({
+        ...hotel,
+        isFavorited: favoriteSet.has(hotel.propertyToken || hotel.id)
+      }));
+    } catch (error) {
+      // Fail gracefully if user not authenticated or favorites fetch fails
+      console.debug('Could not fetch favorites for topView alltime hotels:', error.message);
+      return mappedHotels.map(hotel => ({ ...hotel, isFavorited: false }));
+    }
   } catch (error) {
     console.error("Error in getTopViewsHotels:", error);
     return []; // Trả về mảng rỗng để bảo vệ app không bị crash

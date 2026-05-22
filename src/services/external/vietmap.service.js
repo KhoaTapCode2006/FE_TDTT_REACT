@@ -435,11 +435,6 @@ export function convertHotelsToSuperclusterPoints(hotels) {
  * @returns {string} Thumbnail URL or placeholder
  */
 export function getHotelThumbnailUrl(hotel) {
-  if (!hotel) {
-    console.warn('getHotelThumbnailUrl: No hotel provided');
-    return 'https://via.placeholder.com/60x60?text=Hotel';
-  }
-  
   // Try thumbnail first
   if (hotel.thumbnail) {
     return hotel.thumbnail;
@@ -454,7 +449,7 @@ export function getHotelThumbnailUrl(hotel) {
   console.warn(`Hotel ${hotel.name || hotel.id} has no thumbnail or images`);
   
   // Fallback to placeholder
-  return 'https://via.placeholder.com/60x60?text=Hotel';
+  return hotel.thumbnail;
 }
 
 /**

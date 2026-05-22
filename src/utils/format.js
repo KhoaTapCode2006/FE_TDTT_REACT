@@ -196,3 +196,23 @@ export function normalizeHotelResult(raw, fallbackLocation) {
 
   return result;
 }
+
+/**
+* Return full numeric price without K/M suffixes (e.g., 250.000đ)
+ * @param {number} n
+ * @param {string} currency
+ * @returns {string}
+ */
+export function fmtPriceExact(n, currency = 'VND') {
+  const value = Number(n) || 0;
+  if (currency === 'VND') {
+    // Định dạng phân cách hàng nghìn bằng dấu chấm và thêm đuôi đ (e.g., 250.000đ)
+    return `${Math.round(value).toLocaleString('vi-VN')}đ`;
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value);
+}

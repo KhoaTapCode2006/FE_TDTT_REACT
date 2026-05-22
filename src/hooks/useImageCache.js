@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
  * Global image cache using Map for efficient lookups
  */
 const imageCache = new Map();
+// Track URLs that previously failed to load to avoid retrying
+const failedImageSet = new Set();
 
 /**
  * Custom hook for caching and preloading images
@@ -21,6 +23,13 @@ export function useImageCache(url) {
       return;
     }
     
+    // If this URL previously failed, short-circuit to avoid re-requesting
+    if (failedImageSet.has(url)) {
+      setError(new Error(`Previously failed to load image: ${url}`));
+      setIsLoading(false);
+      return;
+    }
+
     // Check cache first
     if (imageCache.has(url)) {
       setCachedUrl(imageCache.get(url));
@@ -40,6 +49,8 @@ export function useImageCache(url) {
     
     img.onerror = (e) => {
       const errorMsg = `Failed to load image: ${url}`;
+      // Mark as failed so we don't retry repeatedly
+      try { failedImageSet.add(url); } catch (err) { /* ignore */ }
       setError(new Error(errorMsg));
       setIsLoading(false);
     };
@@ -69,4 +80,13 @@ export function clearImageCache() {
  */
 export function removeFromCache(url) {
   imageCache.delete(url);
+}
+
+/**
+ * Mark a URL as failed (prevent future retries)
+ * @param {string} url
+ */
+export function markFailedUrl(url) {
+  if (!url) return;
+  failedImageSet.add(url);
 }

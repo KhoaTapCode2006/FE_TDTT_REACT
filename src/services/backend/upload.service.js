@@ -130,10 +130,20 @@ export const uploadService = {
 
     try {
       // STEP 1: Get presigned URL from backend
+      // Ensure filename is present (Blob may not have a name). Use sensible fallback.
+      const extMap = {
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp',
+        'image/gif': 'gif'
+      };
+      const inferredExt = extMap[file.type] || 'bin';
+      const filename = (file.name && file.name.length > 0) ? file.name : `upload_${Date.now()}.${inferredExt}`;
+
       const presignPayload = {
-        filename: file.name,
-        content_type: file.type,
-        file_size: file.size,
+        filename,
+        content_type: file.type || 'application/octet-stream',
+        file_size: file.size || 0,
         category: category
       };
 

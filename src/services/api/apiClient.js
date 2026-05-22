@@ -379,6 +379,21 @@ class APIClient {
   }
 
   /**
+   * Make PUT request
+   * @param {string} endpoint - API endpoint
+   * @param {any} data - Request body data
+   * @param {Object} config - Request configuration
+   * @returns {Promise<any>} Response data
+   */
+  async put(endpoint, data = null, config = {}) {
+    return this.request(endpoint, {
+      ...config,
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined
+    });
+  }
+
+  /**
    * Make PATCH request
    * @param {string} endpoint - API endpoint
    * @param {any} data - Request body data

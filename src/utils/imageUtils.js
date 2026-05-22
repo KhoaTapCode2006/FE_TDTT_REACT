@@ -19,7 +19,7 @@ export function optimizeGoogleImageUrl(url) {
   // Replace size parameters for better quality
   // s1024-w1024-h1024 -> s4096-w4096-h4096 for highest resolution
   const optimized = url
-    .replace(/s\d+-w\d+-h\d+/g, 's4096-w4096-h4096')
+    .replace(/s\d+-w\d+-h\d+/g, 's1024-w1024-h1024')
     .replace(/=s\d+/g, '=s4096');
   
   return optimized;
@@ -41,7 +41,6 @@ export function getImageWithFallback(imageObj) {
   if (imageObj.thumbnail) return optimizeGoogleImageUrl(imageObj.thumbnail);
   
   // Fallback to url
-  if (imageObj.url) return optimizeGoogleImageUrl(imageObj.url);
   
   return null;
 }

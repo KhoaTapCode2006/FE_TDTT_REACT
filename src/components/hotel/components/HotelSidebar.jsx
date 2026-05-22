@@ -7,66 +7,10 @@ import Icon from "@/components/ui/Icon";
 function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
   // Sử dụng filteredHotels cho client-side filtering
   const { filteredHotels, loading, setActiveHotel, hasActiveFilters, activeFilterCount, clusterHotels, activeHotel } = useApp();
-  const [viewMode, setViewMode] = useState('list'); // Internal view mode for grid toggle
-  const [gridColumns, setGridColumns] = useState(1); // 1, 2, or 3 columns
-  const [gridPageIndex, setGridPageIndex] = useState(0); // Pagination state for grid layout
-
-  useEffect(() => {
-    setGridPageIndex(0); // Reset grid page when hotels change
-  }, [filteredHotels]);
-
-  // Update view mode when layout mode changes
-  useEffect(() => {
-    if (layoutMode === 'grid') {
-      setViewMode('grid');
-    } else {
-      setViewMode('list');
-    }
-  }, [layoutMode]);
-
-  // Smart layout adjustment based on map width
-  useEffect(() => {
-    if (layoutMode === 'grid') {
-      setGridColumns(prevColumns => {
-        let newColumns;
-        if (mapWidth >= 60) {
-          newColumns = 1;
-        } else if (mapWidth >= 40) {
-          newColumns = 2;
-        } else {
-          newColumns = 3;
-        }
-        if (newColumns !== prevColumns) {
-          setGridPageIndex(0);
-          return newColumns;
-        }
-        return prevColumns;
-      });
-    }
-  }, [mapWidth, layoutMode]);
+  // Always use vertical list layout (grid removed per UX request)
 
   const total = filteredHotels.length;
   const hasCluster = clusterHotels && clusterHotels.length > 0;
-  const isGridMode = viewMode === 'grid';
-  const showMultiHotelButton = layoutMode === 'grid';
-  
-  // Calculate hotels to display based on grid layout and page
-  const hotelsPerPage = gridColumns;
-  const startIndex = gridPageIndex * hotelsPerPage;
-  const endIndex = startIndex + hotelsPerPage;
-  const paginatedHotels = filteredHotels.slice(startIndex, endIndex);
-  const totalPages = Math.ceil(filteredHotels.length / hotelsPerPage);
-  const isFirstPage = gridPageIndex === 0;
-  const isLastPage = gridPageIndex === totalPages - 1;
-  
-  const cycleGridLayout = () => {
-    setGridColumns(prev => prev === 3 ? 1 : prev + 1);
-    setGridPageIndex(0);
-  };
-  
-  const getGridLayoutLabel = () => {
-    return `1x${gridColumns}`;
-  };
 
   // HÀM HỖ TRỢ: Lấy link ảnh an toàn kể cả khi nó là Object hay Chuỗi
   const getHotelImageUrl = (hotel) => {
@@ -87,20 +31,8 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold uppercase tracking-widest text-secondary">
-              {loading ? "…" : total === 0 ? "0 Results" : 
-                isGridMode ? `Page ${gridPageIndex + 1} / ${totalPages}` : `${total} Results`
-              }
+              {loading ? "…" : total === 0 ? "0 Results" : `${total} Results`}
             </span>
-            {showMultiHotelButton && !hasCluster && total > 0 && (
-              <button
-                type="button"
-                onClick={() => setViewMode(isGridMode ? 'list' : 'grid')}
-                className="flex items-center gap-1.5 bg-primary text-white px-3 py-2 rounded-xl font-bold text-xs hover:brightness-95 transition-all active:scale-95"
-              >
-                <Icon name={isGridMode ? "view_agenda" : "grid_view"} size={18} />
-                {isGridMode ? "Single View" : "Multi-Hotel View"}
-              </button>
-            )}
             <button
               type="button"
               onClick={onFilterOpen}
@@ -109,7 +41,7 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
               <Icon name="tune" size={18} />
               Filters
               {hasActiveFilters && (
-                <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-primary text-white text-[10px] font-bold rounded-full border-2 border-white flex items-center justify-center">
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-[10px] font-bold rounded-full border-2 border-white flex items-center justify-center">
                   {activeFilterCount}
                 </div>
               )}
@@ -118,9 +50,9 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
         </div>
       </div>
 
-      <div className="flex-none px-6 pt-6 pb-6" style={{ height: 'calc(100vh) - 50px' }}>
+      <div className="flex-none px-6 pt-6 pb-6" style={{ height: 'calc(100vh - 50px)' }}>
         {loading ? (
-          <div className="h-full w-full rounded-[32px] bg-surface-container-highest animate-pulse" />
+          <div className="h-full w-full rounded-4xl bg-surface-container-highest animate-pulse" />
         ) : total === 0 && !hasActiveFilters ? (
           /* HIỂN THỊ NGAY KHI MỚI MỞ TRANG (CHƯA SEARCH, CHƯA FILTER) */
           <div className="h-full overflow-y-auto scrollbar-none">
@@ -156,7 +88,7 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
                         <img
                           src={imgUrl}
                           alt={hotel.name}
-                          className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                          className="w-16 h-16 rounded-xl object-cover shrink-0"
                         />
                       )}
                       <div className="flex-1 min-w-0">
@@ -176,57 +108,8 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
               })}
             </div>
           </div>
-        ) : isGridMode ? (
-          /* Grid layout - show multiple hotels */
-          <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-            <div className={`grid gap-4 ${
-              gridColumns === 1 ? 'grid-cols-1' : 
-              gridColumns === 2 ? 'grid-cols-2' : 
-              'grid-cols-3'
-            }`}>
-              {paginatedHotels.map((hotel) => (
-                <HotelCard 
-                  key={hotel.id} 
-                  hotel={hotel} 
-                  onClick={setActiveHotel} 
-                />
-              ))}
-            </div>
-            
-            {/* Navigation controls */}
-            <div className="sticky bottom-0 left-0 right-0 mt-4 pb-4 flex items-center justify-center gap-4">
-              <button
-                type="button"
-                onClick={() => setGridPageIndex(prev => Math.max(0, prev - 1))}
-                disabled={isFirstPage}
-                className="flex items-center gap-2 bg-white text-primary px-4 py-3 rounded-full font-bold text-sm shadow-lg hover:brightness-95 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <Icon name="chevron_left" size={20} />
-                Previous
-              </button>
-              
-              <button
-                type="button"
-                onClick={cycleGridLayout}
-                className="flex items-center gap-2 bg-primary text-white px-4 py-3 rounded-full font-bold text-sm shadow-lg hover:brightness-95 transition-all active:scale-95"
-              >
-                <Icon name="grid_view" size={20} />
-                Layout: {getGridLayoutLabel()}
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => setGridPageIndex(prev => Math.min(totalPages - 1, prev + 1))}
-                disabled={isLastPage}
-                className="flex items-center gap-2 bg-white text-primary px-4 py-3 rounded-full font-bold text-sm shadow-lg hover:brightness-95 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                Next
-                <Icon name="chevron_right" size={20} />
-              </button>
-            </div>
-          </div>
         ) : (
-          /* List layout - kết quả tìm kiếm */
+          /* List layout - vertical scroll */
           <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
             <div className="space-y-4">
               {filteredHotels.map((hotel) => (

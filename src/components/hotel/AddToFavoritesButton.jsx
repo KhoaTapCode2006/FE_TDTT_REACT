@@ -147,7 +147,7 @@ const AddToFavoritesButton = ({
       <button
         onClick={handleToggleFavorite}
         disabled={loading || checkingStatus}
-        className={`relative group/fav transition-all ${className}`}
+className={`flex items-center justify-center w-full h-full relative group/fav transition-all ${className}`}
         aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
         aria-pressed={isFavorited}
         title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}

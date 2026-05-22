@@ -1,14 +1,14 @@
-﻿import { fmtPrice, formatViewCount } from "@/utils/format";
+﻿import { fmtPrice, fmtPriceExact, formatViewCount } from "@/utils/format";
 import { AMENITY_META } from "@/constants/enums";
 import Icon from "@/components/ui/Icon";
 import { useApp } from "@/app/AppContext";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import SaveToListModal from "@/components/profile/SaveToListModal";
+import SaveToCollectionModal from "@/components/profile/SaveToCollectionModal";
 import AddToFavoritesButton from "@/components/hotel/AddToFavoritesButton";
 import { getImageWithFallback } from "@/utils/imageUtils";
-import { useImageCache } from "@/hooks/useImageCache";
+import { useImageCache, markFailedUrl } from "@/hooks/useImageCache";
 import viewTrackingService from "@/services/viewTracking.service";
 
 function HotelCard({ hotel, onClick }) {
@@ -23,12 +23,10 @@ function HotelCard({ hotel, onClick }) {
   const firstImage = hotel?.images?.[0];
   const imageUrl = getImageWithFallback(firstImage);
   const { cachedUrl, isLoading: imageLoading, error: imageError } = useImageCache(imageUrl);
-  
-  // Use Google's placeholder image instead of via.placeholder (which doesn't work)
-  const googlePlaceholder = "https://lh3.googleusercontent.com/p/AF1QipNKKx5nFjXqKvLBqJvLqKvLBqJvLqKvLBqJvLqK=s1600-w400";
-  const displayUrl = imageError 
-    ? googlePlaceholder
-    : cachedUrl || imageUrl || googlePlaceholder;
+
+  // Use Google's placeholder image as a stable fallback
+  const googlePlaceholder = "https://media1.tenor.com/m/NF6ixwAmrTMAAAAd/cristiano-ronaldo-drinking.gif";
+  const displayUrl = cachedUrl || imageUrl || googlePlaceholder;
   
   const amenityIcons = (hotel?.amenities || []).slice(0, 3).map((a) => {
     const meta = AMENITY_META[a];
@@ -78,8 +76,9 @@ function HotelCard({ hotel, onClick }) {
             alt={hotel?.name || "Hotel image"}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             onError={(e) => {
-              // Use Google's placeholder instead of via.placeholder
-              e.target.src = "https://lh3.googleusercontent.com/p/AF1QipNKKx5nFjXqKvLBqJvLqKvLBqJvLqKvLBqJvLqK=s1600-w400";
+              // Mark this URL as failed to avoid retry loops and switch to stable placeholder
+              try { markFailedUrl(imageUrl); } catch (err) { /* ignore */ }
+              e.target.src = googlePlaceholder;
             }}
           />
 
@@ -136,11 +135,13 @@ function HotelCard({ hotel, onClick }) {
 
           {/* Add to Favorites Button - Bottom Left */}
           <div className="absolute bottom-3 left-3 flex items-center">
-            <div className="glass p-2 rounded-full hover:bg-white/90 transition-all shadow-sm">
+            <div className="glass p-2 flex justify-center items-center rounded-full hover:bg-white/90 transition-all shadow-sm">
               <AddToFavoritesButton
                 hotelId={hotel?.id}
                 hotelData={hotel}
                 size={20}
+                initialFavorited={!!hotel?.isFavorited}
+                skipInitialCheck={true}
               />
             </div>
           </div>
@@ -161,7 +162,7 @@ function HotelCard({ hotel, onClick }) {
             </div>
 
             <div className="text-right flex-none">
-              <p className="text-base font-extrabold text-primary font-headline">{fmtPrice(hotel?.pricePerNight ?? 0)}</p>
+              <p className="text-base font-extrabold text-primary font-headline">{fmtPriceExact(hotel?.pricePerNight ?? 0)}</p>
               <p className="text-[10px] text-outline uppercase font-semibold">per night</p>
             </div>
           </div>
@@ -198,8 +199,8 @@ function HotelCard({ hotel, onClick }) {
         </div>
       </article>
 
-      {/* Save to List Modal */}
-      <SaveToListModal
+      {/* Save to Collection Modal (bigger, shows saved collections) */}
+      <SaveToCollectionModal
         isOpen={showSaveModal}
         onClose={() => setShowSaveModal(false)}
         hotel={hotel}

@@ -9,6 +9,7 @@ import Splitter from '@/components/ui/Splitter';
 import HotelListSection from '@/components/hotel/components/HotelListSection';
 import { useApp } from '@/app/AppContext';
 import { hotelSearchService } from '@/services/backend/hotelSearch.service';
+import { getFavoritePlaces } from '@/services/profile/favorites.service';
 
 
 const HomePage = () => {
@@ -154,7 +155,17 @@ const HomePage = () => {
       
       // Chỉ cập nhật state nếu request không bị hủy giữa chừng
       if (!requestTracker.cancelled) {
-        setHotels(results);
+        // Try to fetch user's favorites and annotate results so heart icons sync
+        try {
+          const favs = await getFavoritePlaces();
+          const favSet = new Set(favs.map(f => f.propertyToken || f.id || f.hotelId));
+          const annotated = results.map(h => ({ ...h, isFavorited: favSet.has(h.propertyToken || h.id) }));
+          setHotels(annotated);
+        } catch (err) {
+          // If user not authenticated or fetch fails, fallback to plain results
+          console.debug('Could not fetch favorites (user may be unauthenticated):', err?.message || err);
+          setHotels(results);
+        }
         
         // Set map GPS from searching_place if available
         if (searchingPlace && searchingPlace.gps && setSearchGps) {

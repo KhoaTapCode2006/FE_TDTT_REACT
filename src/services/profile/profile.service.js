@@ -255,13 +255,33 @@ class ProfileService {
       const avatarUrl = uploadData.secure_url;
       */
       
-      // Placeholder: Create a data URL for the image
-      const avatarUrl = await this.createImageDataUrl(file);
-      
-      // Update profile with new avatar URL
-      await this.updateProfile(uid, { avatarUrl: avatarUrl });
-      
-      return avatarUrl;
+      // Use centralized upload service to upload avatar to cloud storage
+      // Ensure we pass a File instance (some callers may send a Blob without a name)
+      let fileToUpload = file;
+      if (!(file instanceof File)) {
+        // Infer extension from MIME type
+        const extMap = {
+          'image/jpeg': 'jpg',
+          'image/png': 'png',
+          'image/webp': 'webp',
+          'image/gif': 'gif'
+        };
+        const inferredExt = extMap[file.type] || 'jpg';
+        try {
+          fileToUpload = new File([file], `avatar_${Date.now()}.${inferredExt}`, { type: file.type });
+        } catch (err) {
+          // In some older browsers, File constructor may not be available; fallback to original blob
+          fileToUpload = file;
+        }
+      }
+
+      const { uploadService } = await import('../backend/upload.service.js');
+      const publicUrl = await uploadService.uploadFile(fileToUpload, 'avatar');
+
+      // Update profile with new avatar object (transformer will extract avatarUrl)
+      await this.updateProfile(uid, { avatar: { url: publicUrl, provider: 'upload' } });
+
+      return publicUrl;
     } catch (error) {
       console.error('Error uploading avatar:', error);
       throw error;

@@ -3,9 +3,9 @@ import { usePopup } from "../hooks/usePopup";
 import { useApp } from "@/app/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { fmtPrice, fmtDate, formatViewCount } from "@/utils/format";
+import { fmtPrice, fmtDate, fmtPriceExact, formatViewCount } from "@/utils/format";
 import { getImageWithFallback } from "@/utils/imageUtils";
-import SaveToListModal from "@/components/profile/SaveToListModal";
+import SaveToCollectionModal from "@/components/profile/SaveToCollectionModal";
 import viewTrackingService from "@/services/viewTracking.service";
 import styles from "./HotelPopup.module.css";
 
@@ -188,7 +188,7 @@ const getAmenityLabel = (amenityKey) => {
   return labels[amenityKey] || amenityKey;
 };
 
-const formatPrice = (price) => fmtPrice(price);
+const formatPrice = (price) => fmtPriceExact(price);
 
 const TAB_ITEMS = [
   { id: "overview", label: "Mô tả & Giá" },
@@ -256,7 +256,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
       return;
     }
     
-    console.log('Opening SaveToListModal');
+    console.log('Opening SaveToCollectionModal');
     setShowSaveModal(true);
   };
 
@@ -513,54 +513,29 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                 </div>
               )}
 
-              {/* AI Summary Display */}
+              {/* AI Summary Display (styled) - simplified to avoid JSX nesting issues */}
               {hotel?.aiSummary && (
-                <div className="mt-4">
-                  <h4 className="font-bold text-primary mb-2">AI Summary</h4>
+                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                  <h4 className="font-bold text-blue-900 mb-2">AI Summary</h4>
                   {hotel.aiSummary.overview && (
-                    <p className="text-sm text-on-surface mb-3">{hotel.aiSummary.overview}</p>
+                    <p className="text-sm text-blue-800">{hotel.aiSummary.overview}</p>
                   )}
-                  
-                  {hotel.aiSummary.pros && hotel.aiSummary.pros.length > 0 && (
-                    <div className="mb-2">
-                      <p className="text-xs font-bold text-green-700 mb-1">Pros:</p>
-                      <ul className="list-disc list-inside text-sm text-on-surface">
-                        {hotel.aiSummary.pros.map((pro, idx) => (
-                          <li key={idx}>{pro}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
-                  {hotel.aiSummary.cons && hotel.aiSummary.cons.length > 0 && (
-                    <div className="mb-2">
-                      <p className="text-xs font-bold text-red-700 mb-1">Cons:</p>
-                      <ul className="list-disc list-inside text-sm text-on-surface">
-                        {hotel.aiSummary.cons.map((con, idx) => (
-                          <li key={idx}>{con}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  
                   {hotel.aiSummary.notes && (
-                    <p className="text-xs text-on-surface-variant italic mt-2">
-                      Note: {hotel.aiSummary.notes}
-                    </p>
+                    <p className="text-xs text-on-surface-variant italic mt-2">Note: {hotel.aiSummary.notes}</p>
                   )}
                 </div>
               )}
               
               <div className={styles.bookingBox}>
-                <p className={styles.bookingTitle}>Check Availability</p>
+                <p className={styles.bookingTitle}>Check In / Check Out</p>
                 <div className={styles.dateRow}>
                   <div className={styles.dateBox}>
-                    <span className={styles.dateLabel}>Check In</span>
-                    <span className={styles.dateValue}>{displayDates.checkIn ? fmtDate(displayDates.checkIn) : "Select date"}</span>
+                    <span className={styles.dateLabel}>Check In Time</span>
+                    <span className={styles.dateValue}>{hotel.checkInTime != null ? hotel.checkInTime : "12:30"}</span>
                   </div>
                   <div className={styles.dateBox}>
-                    <span className={styles.dateLabel}>Check Out</span>
-                    <span className={styles.dateValue}>{displayDates.checkOut ? fmtDate(displayDates.checkOut) : "Select date"}</span>
+                    <span className={styles.dateLabel}>Check Out Time</span>
+                    <span className={styles.dateValue}>{hotel.checkOutTime != null ? hotel.checkOutTime : "12:00"}</span>
                   </div>
                 </div>
               </div>
@@ -578,6 +553,9 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
               <div className={styles.reviewSummary}>
                 <span className={styles.ratingNum}>{hotel.rating}</span>
                 <span className={styles.reviewCount}>/ 5</span>
+                <span className={styles.reviewTotal} style={{ marginLeft: 8, color: '#6b7280', fontSize: 12 }}>
+                  {reviews.length ?? 0} đánh giá
+                </span>
               </div>
               {reviews.map((review, index) => (
                 <div key={`${review.author}-${index}`} className={styles.reviewBox}>
@@ -703,8 +681,8 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
         </div>
       )}
 
-      {/* Save to List Modal */}
-      <SaveToListModal
+      {/* Save to Collection Modal */}
+      <SaveToCollectionModal
         isOpen={showSaveModal}
         onClose={() => setShowSaveModal(false)}
         hotel={hotel}

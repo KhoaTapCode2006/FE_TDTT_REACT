@@ -77,8 +77,11 @@ const FavoritesSection = () => {
         
         // Filter out failed requests (Task 11.1 - Requirement 11.3)
         const validHotels = hotels.filter(hotel => hotel !== null);
-        
-        setFavorites(validHotels);
+
+        // Ensure favorites are annotated as favorited so heart icons render correctly
+        const annotatedFavorites = validHotels.map(h => ({ ...h, isFavorited: true }));
+
+        setFavorites(annotatedFavorites);
       } catch (err) {
         console.error('Error fetching favorites:', err);
         setError(err.message || 'Failed to load favorites. Please try again.');

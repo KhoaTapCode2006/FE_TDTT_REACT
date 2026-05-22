@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import HotelCard from './HotelCard';
 import { hotelSearchService } from '@/services/backend/hotelSearch.service';
 import Icon from '@/components/ui/Icon';
+import { useApp } from '@/app/AppContext';
 
 
-function HotelSliderGroup({ title, subtitle, hotels }) {
+function HotelSliderGroup({ title, subtitle, hotels, onHotelClick }) {
   const [currentPage, setCurrentPage] = useState(0);
   const itemsPerPage = 4;
 
@@ -58,6 +59,7 @@ function HotelSliderGroup({ title, subtitle, hotels }) {
               // Key cô lập theo tên nhóm và trang để React cập nhật DOM chính xác
               key={`${title}-${hotel.id}`}
               hotel={hotel}
+              onClick={onHotelClick}
               className="w-full transform transition-all duration-300 hover:-translate-y-1" 
             />
           ))}
@@ -145,6 +147,8 @@ function HotelListSection() {
     fetchTopAllTime();
   }, []);
 
+  const { setActiveHotel } = useApp();
+
   // Sắp xếp theo lượt xem tuần (hoặc lượt xem tổng) nếu cần
   const sortedHotelsWeekly = [...topDataWeekly].sort((a, b) => (b.weeklyViews || 0) - (a.weeklyViews || 0));
   const sortedHotelsAllTime = [...topDataAllTime].sort((a, b) => (b.totalViews || 0) - (a.totalViews || 0));
@@ -170,6 +174,7 @@ function HotelListSection() {
         title="Trending This Week"
         subtitle="Most viewed hotels by Lodgy4U members this week"
         hotels={sortedHotelsWeekly}
+        onHotelClick={(h) => setActiveHotel(h)}
       />
 
       {/* Nút điều hướng chuyển trang Trái / Phải (Chỉ hiện khi có nhiều hơn 1 trang) */}
@@ -178,6 +183,7 @@ function HotelListSection() {
         title="All-Time Favorites"
         subtitle="The most popular and highly viewed stays of all time"
         hotels={sortedHotelsAllTime}
+        onHotelClick={(h) => setActiveHotel(h)}
       />
 
     </div>
