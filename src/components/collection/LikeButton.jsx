@@ -75,9 +75,9 @@ const LikeButton = ({
         ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}
         ${className}
       `}
-      aria-label={liked ? 'Unlike collection' : 'Like collection'}
+      aria-label={liked ? 'Bỏ thích collection' : 'Thích collection'}
       aria-pressed={liked}
-      title={liked ? 'Unlike collection' : 'Like collection'}
+      title={liked ? 'Bỏ thích collection' : 'Thích collection'}
     >
       {isLoading ? (
         <Icon 

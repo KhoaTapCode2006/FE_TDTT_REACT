@@ -42,6 +42,8 @@ import { auth } from '@/config/firebase';
  * @property {Date} created_at - Creation timestamp
  * @property {Date} updated_at - Last update timestamp
  * @property {number} saved_count - Number of users who saved this collection
+ * @property {number} [place_count] - Total places in collection
+ * @property {number} [contributor_count] - Total contributors
  * @property {CollectionVisibility} visibility - Collection visibility setting
  * @property {string[]} tags - Array of tag strings
  * @property {CollectionPlace[]} places - Array of places in collection
@@ -606,6 +608,26 @@ export const collectionService = {
     return data.map(saver => ({
       ...saver,
       saved_at: saver.saved_at ? new Date(saver.saved_at) : null,
+    }));
+  },
+
+  /**
+   * Get full place data for a collection
+   * Endpoint: GET /collections/{collection_id}/places
+   *
+   * @param {string} collectionId - Collection ID
+   * @returns {Promise<Array>} Array of place objects with full hotel data
+   * @throws {Error} Network error
+   */
+  async getCollectionPlaces(collectionId) {
+    const response = await collectionClient.get(`/collections/${collectionId}/places`);
+    const data = response.data?.data;
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    return data.map(place => ({
+      ...place,
+      added_at: place.added_at ? new Date(place.added_at) : null,
     }));
   },
 

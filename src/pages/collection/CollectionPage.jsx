@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
+import ImageUpload from "@/components/ui/ImageUpload";
+import PlaceListItem from "@/components/collection/PlaceListItem";
+import PlaceDetailModal from "@/components/collection/PlaceDetailModal";
+import UserSuggestionAutocomplete from "@/components/autocomplete/UserSuggestionAutocomplete";
+import HotelSuggestionAutocomplete from "@/components/autocomplete/HotelSuggestionAutocomplete";
 import { collectionService } from "../../services/backend/collection.service";
 import { viewsService } from "../../services/backend/views.service";
 import { useAuth } from "../../contexts/AuthContext";
@@ -44,6 +49,12 @@ const TABS = [
     label: 'Người đóng góp',
     icon: 'group',
     ariaLabel: 'Người đóng góp trong collection'
+  },
+  {
+    id: 'savers',
+    label: 'Người đã lưu',
+    icon: 'favorite',
+    ariaLabel: 'Người đã lưu collection'
   }
 ];
 
@@ -130,10 +141,21 @@ function CollectionPage() {
   const [pageError, setPageError] = useState(null);
   const [placeInput, setPlaceInput] = useState("");
   const [tagInput, setTagInput] = useState("");
-  const [contributorInput, setContributorInput] = useState("");
   const [toast, setToast] = useState(null);
-  const [activeTab, setActiveTab] = useState('info'); // 'info', 'places', 'contributors'
+  const [activeTab, setActiveTab] = useState('info'); // 'info', 'places', 'contributors', 'savers'
   const [savers, setSavers] = useState([]); // List of users who saved this collection
+  const [saversPage, setSaversPage] = useState(1); // Current page for savers list
+  const [saversLoading, setSaversLoading] = useState(false); // Loading state for savers fetch
+  const SAVERS_PER_PAGE = 6; // Number of savers per page
+  const PLACES_PER_PAGE = 3; // Number of places per page
+
+  // Task 2: Places state management for collection-places-display feature
+  // Requirements: REQ-4 (Load Places Data on Tab Navigation)
+  const [allPlaces, setAllPlaces] = useState([]); // Full places list from API (paginate on client)
+  const [placesPage, setPlacesPage] = useState(1); // Current page for places list
+  const [placesLoading, setPlacesLoading] = useState(false); // Loading state for places fetch
+  const [placesError, setPlacesError] = useState(null); // Error message for places fetch
+  const [selectedPlace, setSelectedPlace] = useState(null);
 
   // Keyboard navigation handler for tab buttons
   const handleTabKeyDown = useCallback((event, tabId) => {
@@ -238,6 +260,39 @@ function CollectionPage() {
     setToast({ title, message, type });
     window.setTimeout(() => setToast(null), 3300);
   }, []);
+
+  // Task 2.5: Load places data callback function
+  // Requirements: REQ-1 (Fetch Collection Places with Full Hotel Data), REQ-4 (Load Places Data on Tab Navigation)
+  const loadAllPlaces = useCallback(async () => {
+    if (!collection || isCreateMode) {
+      return;
+    }
+
+    setPlacesLoading(true);
+    setPlacesError(null);
+
+    try {
+      const places = await collectionService.getCollectionPlaces(collection.id);
+      setAllPlaces(places || []);
+    } catch (error) {
+      console.error("Failed to load places data:", error);
+      setPlacesError("Không thể tải danh sách địa điểm. Vui lòng thử lại.");
+    } finally {
+      setPlacesLoading(false);
+    }
+  }, [collection, isCreateMode]);
+
+  const getTotalPlaces = useCallback(() => {
+    if (collection?.place_count != null) {
+      return collection.place_count;
+    }
+    return allPlaces.length;
+  }, [collection?.place_count, allPlaces.length]);
+
+  const visiblePlaces = useMemo(() => {
+    const start = (placesPage - 1) * PLACES_PER_PAGE;
+    return allPlaces.slice(start, start + PLACES_PER_PAGE);
+  }, [allPlaces, placesPage]);
 
   // Task 2.2: Save/Unsave handler with optimistic updates
   // Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 3.1, 3.2, 3.3, 3.4, 3.5, 8.4
@@ -414,6 +469,27 @@ function CollectionPage() {
       setPageBusy(false);
     }
   }, [collectionId, loadCollection, user]);
+
+  useEffect(() => {
+    setPlacesPage(1);
+    setAllPlaces([]);
+    setSelectedPlace(null);
+  }, [collectionId]);
+
+  useEffect(() => {
+    if (activeTab === 'places' && !isCreateMode && collection) {
+      loadAllPlaces();
+    }
+  }, [activeTab, collection?.id, isCreateMode, loadAllPlaces]);
+
+  useEffect(() => {
+    const totalPlaces = getTotalPlaces();
+    if (totalPlaces === 0) return;
+    const totalPages = Math.ceil(totalPlaces / PLACES_PER_PAGE);
+    if (placesPage > totalPages) {
+      setPlacesPage(totalPages);
+    }
+  }, [getTotalPlaces, placesPage]);
   const handleCancelEdit = () => {
     if (collection) {
       setEditValues({
@@ -508,11 +584,61 @@ function CollectionPage() {
       // Update local state with response from backend
       setCollection(updatedCollection);
       
+      const totalPlaces = updatedCollection.place_count ?? updatedCollection.places?.length ?? 0;
+      const lastPage = Math.max(1, Math.ceil(totalPlaces / PLACES_PER_PAGE));
+      await loadAllPlaces();
+      setPlacesPage(lastPage);
+
       setPlaceInput("");
       showToast("Thành công", "Đã thêm địa điểm vào collection.", "success");
     } catch (error) {
       console.error("Add place failed:", error);
       showToast("Lỗi", "Thêm địa điểm không thành công.", "error");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  /**
+   * Handle hotel selection from HotelSuggestionAutocomplete
+   */
+  const handleHotelSelect = async (hotel) => {
+    if (!collection) {
+      showToast("Lỗi", "Collection chưa được tải.", "error");
+      return;
+    }
+
+    // Use property_token as place_id
+    const placeId = hotel.property_token;
+    
+    if (!placeId) {
+      showToast("Lỗi", "Khách sạn không hợp lệ.", "error");
+      return;
+    }
+
+    // Check for duplicates
+    if (collection.places?.some((item) => item.place_id === placeId)) {
+      showToast("Thông báo", "Khách sạn này đã có trong collection.", "info");
+      return;
+    }
+
+    setActionBusy(true);
+    try {
+      // Backend expects array of place IDs
+      const updatedCollection = await collectionService.addPlacesToCollection(collection.id, [placeId]);
+      
+      // Update local state with response from backend
+      setCollection(updatedCollection);
+      
+      const totalPlaces = updatedCollection.place_count ?? updatedCollection.places?.length ?? 0;
+      const lastPage = Math.max(1, Math.ceil(totalPlaces / PLACES_PER_PAGE));
+      await loadAllPlaces();
+      setPlacesPage(lastPage);
+
+      showToast("Thành công", "Đã thêm khách sạn vào collection.", "success");
+    } catch (error) {
+      console.error("Add hotel failed:", error);
+      showToast("Lỗi", "Thêm khách sạn không thành công.", "error");
     } finally {
       setActionBusy(false);
     }
@@ -526,9 +652,19 @@ function CollectionPage() {
       // Backend expects array of place IDs
       const updatedCollection = await collectionService.removePlacesFromCollection(collection.id, [placeId]);
       
-      // Update local state with response from backend
       setCollection(updatedCollection);
-      
+
+      if (selectedPlace?.place_id === placeId) {
+        setSelectedPlace(null);
+      }
+
+      const totalPlaces = updatedCollection.place_count ?? updatedCollection.places?.length ?? 0;
+      const totalPages = Math.max(1, Math.ceil(totalPlaces / PLACES_PER_PAGE));
+      await loadAllPlaces();
+      if (placesPage > totalPages) {
+        setPlacesPage(totalPages);
+      }
+
       showToast("Thành công", "Đã xóa địa điểm.", "success");
     } catch (error) {
       console.error("Remove place failed:", error);
@@ -592,42 +728,67 @@ function CollectionPage() {
     }
   };
 
-  const handleAddContributor = async () => {
-    if (!collection || !contributorInput.trim()) {
-      showToast("Lỗi", "Vui lòng nhập UID người dùng.", "error");
+  /**
+   * Handle user selection from UserSuggestionAutocomplete
+   * Requirements: 15.1, 15.2, 15.3, 15.4, 15.5
+   */
+  const handleAddContributor = async (selectedUser) => {
+    if (!collection) {
+      showToast("Lỗi", "Collection chưa được tải.", "error");
       return;
     }
 
-    const contributorUid = contributorInput.trim();
+    if (!selectedUser || !selectedUser.uid) {
+      showToast("Lỗi", "Người dùng không hợp lệ.", "error");
+      return;
+    }
+
+    const contributorUid = selectedUser.uid;
 
     // Handle both owner_uid (string) and owner.uid (object) formats
     const ownerUid = collection.owner_uid || collection.owner?.uid;
     if (contributorUid === ownerUid) {
-      showToast("Lỗi", "Chủ sở hữu mặc định đã có quyền, không cần thêm vào danh sách.", "info");
+      showToast("Thông báo", "Chủ sở hữu mặc định đã có quyền, không cần thêm vào danh sách.", "info");
       return;
     }
 
+    // Check if user is already a contributor (Requirement 15.3)
     if (collection.contributors?.some((c) => c.uid === contributorUid)) {
-      showToast("Đã tồn tại", "Người này đã là người đóng góp.", "info");
+      showToast("Thông báo", "Người dùng đã là contributor.", "info");
       return;
     }
 
     setActionBusy(true);
     try {
+      // Call API to add contributor (Requirement 15.4)
       const updatedCollection = await collectionService.addContributorsToCollection(collection.id, [
         contributorUid,
       ]);
+      
+      // Refresh contributors list to get full user details
       const rows = await collectionService.getCollectionContributors(collection.id).catch(() => null);
       setCollection({
         ...updatedCollection,
         contributors: rows ?? updatedCollection.contributors ?? [],
       });
 
-      setContributorInput("");
       showToast("Thành công", "Đã thêm người đóng góp.", "success");
     } catch (error) {
+      // Handle API errors (Requirement 15.5)
       console.error("Add contributor failed:", error);
-      showToast("Lỗi", error.message || "Không thể thêm người đóng góp.", "error");
+      
+      // Display specific error messages based on error type
+      if (error.statusCode === 400) {
+        showToast("Lỗi", error.message || "Yêu cầu không hợp lệ.", "error");
+      } else if (error.statusCode === 403) {
+        showToast("Lỗi", error.message || "Bạn không có quyền thêm người đóng góp.", "error");
+      } else if (error.statusCode === 404) {
+        showToast("Lỗi", "Người dùng hoặc collection không tồn tại.", "error");
+      } else if (error.code === 'NETWORK_ERROR' || error.message?.includes('network')) {
+        showToast("Lỗi", "Không thể kết nối. Vui lòng thử lại.", "error");
+      } else {
+        showToast("Lỗi", error.message || "Không thể thêm người đóng góp.", "error");
+      }
     } finally {
       setActionBusy(false);
     }
@@ -661,16 +822,182 @@ function CollectionPage() {
     }
   };
 
+  /**
+   * Handle revoking a pending invitation
+   * @param {string} invitationId - The invitation ID to revoke
+   */
+  const handleRevokeInvitation = async (invitationId) => {
+    if (!collection || !invitationId) return;
+
+    if (!window.confirm("Bạn có chắc muốn thu hồi lời mời này?")) {
+      return;
+    }
+
+    setActionBusy(true);
+
+    try {
+      // Get auth token
+      const token = await user?.getIdToken();
+      if (!token) {
+        throw new Error("Không tìm thấy token xác thực");
+      }
+
+      // Call DELETE /invitations/{invitationId}
+      const response = await fetch(`https://api.haubaka.xyz/invitations/${invitationId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+
+      // Refresh contributors list to update UI
+      const rows = await collectionService.getCollectionContributors(collection.id).catch(() => null);
+      setCollection(prev => ({
+        ...prev,
+        contributors: rows ?? prev.contributors ?? [],
+      }));
+
+      showToast("Thành công", "Đã thu hồi lời mời!", "success");
+    } catch (error) {
+      console.error("Revoke invitation failed:", error);
+      showToast("Lỗi", error.message || "Thu hồi lời mời không thành công.", "error");
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   const renderCollectionMeta = () => {
     if (!collection) return null;
 
+    // Check if coming from global tab - hide visibility for global collections
+    const isFromGlobal = location.state?.returnTab === 'global';
+
     return (
-      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-        <PropertyChip label="ID" value={collection.id || 'N/A'} />
-        <PropertyChip label="Trạng thái" value={String(collection.visibility || 'public').toUpperCase()} />
-        <PropertyChip label="Số tag" value={collection.tags?.length ?? 0} />
-        <PropertyChip label="Người đóng góp" value={collection.contributors?.length ?? 0} />
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Views */}
+        <PropertyChip 
+          label="Lượt xem (tuần)" 
+          value={collection.views?.weekly_views ?? 0} 
+        />
+        <PropertyChip 
+          label="Lượt xem (tổng)" 
+          value={collection.views?.total_views ?? 0} 
+        />
+        
+        {/* Contributors */}
+        <PropertyChip 
+          label="Người đóng góp" 
+          value={collection.contributors?.length ?? 0} 
+        />
+        
+        {/* Saves */}
+        <PropertyChip 
+          label="Lượt lưu" 
+          value={collection.saved_count ?? 0} 
+        />
+        
+        {/* Places */}
+        <PropertyChip 
+          label="Số địa điểm" 
+          value={collection.place_count ?? collection.places?.length ?? 0} 
+        />
+        
+        {/* Visibility - Only show for My Collections, hide for Global Collections */}
+        {!isFromGlobal && (
+          <PropertyChip 
+            label="Trạng thái" 
+            value={String(collection.visibility || 'public').toUpperCase()} 
+          />
+        )}
       </div>
+    );
+  };
+
+  const renderPlacesPagination = () => {
+    const totalPlaces = getTotalPlaces();
+    const totalPages = Math.ceil(totalPlaces / PLACES_PER_PAGE);
+
+    if (totalPages <= 1) {
+      return null;
+    }
+
+    return (
+      <div className="mt-4 flex items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => setPlacesPage(prev => Math.max(1, prev - 1))}
+          disabled={placesPage === 1 || placesLoading}
+          className="inline-flex items-center gap-2 rounded-full border border-outline-variant/70 bg-surface-container px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Icon name="chevron_left" size={18} />
+          Trước
+        </button>
+
+        <span className="text-sm text-on-surface-variant">
+          Trang {placesPage} / {totalPages}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => setPlacesPage(prev => Math.min(totalPages, prev + 1))}
+          disabled={placesPage === totalPages || placesLoading}
+          className="inline-flex items-center gap-2 rounded-full border border-outline-variant/70 bg-surface-container px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Sau
+          <Icon name="chevron_right" size={18} />
+        </button>
+      </div>
+    );
+  };
+
+  const renderPlacesList = (isEditMode) => {
+    if (placesLoading) {
+      return (
+        <div className="flex items-center justify-center py-10">
+          <div className="flex items-center gap-3 text-on-surface-variant">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <span className="text-sm">Đang tải địa điểm...</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (placesError) {
+      return (
+        <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="font-semibold">Lỗi</p>
+          <p>{placesError}</p>
+        </div>
+      );
+    }
+
+    if (getTotalPlaces() === 0) {
+      return (
+        <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
+          Collection chưa có địa điểm nào
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {visiblePlaces.map((place) => (
+          <PlaceListItem
+            key={place.place_id}
+            place={place}
+            onViewDetails={setSelectedPlace}
+            isEditMode={isEditMode}
+            onRemove={isEditMode ? handleRemovePlace : undefined}
+          />
+        ))}
+        {renderPlacesPagination()}
+      </>
     );
   };
 
@@ -678,7 +1005,8 @@ function CollectionPage() {
   // Requirements: REQ-3 (Places Tab Content), REQ-6 (Edit Mode Behavior Across Tabs), REQ-8 (Backward Compatibility)
   const renderPlacesTab = () => {
     if (isEditing) {
-      // Edit Mode: Show places list with add place form and remove buttons
+      // Task 5: Edit Mode - Show places list with add place form and remove buttons using PlaceListItem
+      // Requirements: REQ-5 (Edit Mode Behavior), REQ-6 (Edit Mode Across Tabs)
       return (
         <div className="grid gap-6">
           <SectionCard
@@ -686,76 +1014,33 @@ function CollectionPage() {
             description="Thêm hoặc xóa địa điểm trong collection."
           >
             <div className="grid gap-4">
-              {/* Add Place Form */}
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                <input
-                  value={placeInput}
-                  onChange={(event) => setPlaceInput(event.target.value)}
-                  placeholder="Nhập place id"
-                  className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddPlace}
-                  disabled={actionBusy}
-                  className="inline-flex items-center justify-center rounded-3xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Icon name="add" size={18} /> Thêm
-                </button>
-              </div>
+              {/* Add Hotel Form */}
+              <HotelSuggestionAutocomplete
+                onSelect={handleHotelSelect}
+                placeholder="Tìm kiếm khách sạn..."
+                disabled={actionBusy}
+              />
 
-              {/* Places List with Remove Buttons */}
+              {/* Task 5.2: Places List with PlaceListItem components in edit mode */}
               <div className="space-y-3">
-                {collection.places?.length ? (
-                  collection.places.map((item) => (
-                    <div key={item.place_id} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-on-surface">{item.place_id}</p>
-                        <p className="text-xs text-on-surface-variant">Thêm bởi {item.added_by} · {formatDate(item.added_at)}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePlace(item.place_id)}
-                        disabled={actionBusy}
-                        className="inline-flex items-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <Icon name="delete" size={16} /> Xóa
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
-                    Collection chưa có địa điểm nào
-                  </div>
-                )}
+                {renderPlacesList(true)}
               </div>
             </div>
           </SectionCard>
         </div>
       );
     } else {
-      // View Mode: Show places list as read-only
+      // View Mode: Show places list using PlaceListItem components
+      // Task 4: Update renderPlacesTab for View Mode
+      // Requirements: REQ-2 (Display Compact Place List), REQ-3 (Expand Place Card on Click), REQ-4 (Load Places Data on Tab Navigation)
       return (
         <div className="grid gap-6">
           <SectionCard
             title="Địa điểm trong collection"
-            description="Danh sách địa điểm đã lưu trong collection."
+            description={`${getTotalPlaces()} địa điểm trong collection.`}
           >
             <div className="space-y-3">
-              {collection.places?.length ? (
-                collection.places.map((item) => (
-                  <div key={item.place_id} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-on-surface">{item.place_id}</p>
-                      <p className="text-xs text-on-surface-variant">Thêm bởi {item.added_by} · {formatDate(item.added_at)}</p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
-                  Collection chưa có địa điểm nào
-                </div>
-              )}
+              {renderPlacesList(false)}
             </div>
           </SectionCard>
         </div>
@@ -765,9 +1050,11 @@ function CollectionPage() {
 
   // Task 5: Render Contributors Tab Content
   // Requirements: REQ-4 (Contributors Tab Content), REQ-6 (Edit Mode Behavior Across Tabs), REQ-8 (Backward Compatibility)
+  // Task 10.1: Integrated UserSuggestionAutocomplete component
+  // Requirements: 15.1, 15.2, 15.3, 15.4, 15.5
   const renderContributorsTab = () => {
     if (isEditing && isOwner) {
-      // Edit Mode (Owner Only): Show add/remove controls
+      // Edit Mode (Owner Only): Show add/remove controls with UserSuggestionAutocomplete
       return (
         <div className="grid gap-6">
           <SectionCard
@@ -775,61 +1062,93 @@ function CollectionPage() {
             description="Chỉ chủ sở hữu collection mới có thể thêm hoặc xóa người đóng góp."
           >
             <div className="grid gap-4">
-              <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                <input
-                  value={contributorInput}
-                  onChange={(event) => setContributorInput(event.target.value)}
-                  placeholder="Nhập UID người dùng"
-                  className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddContributor}
-                  disabled={actionBusy}
-                  className="inline-flex items-center justify-center gap-2 rounded-3xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Icon name="person_add" size={18} />
-                  <span>Mời</span>
-                </button>
-              </div>
+              {/* UserSuggestionAutocomplete Component (Requirement 15.1) */}
+              <UserSuggestionAutocomplete
+                onSelect={handleAddContributor}
+                placeholder="Tìm kiếm người dùng để thêm vào collection..."
+                disabled={actionBusy}
+                ariaLabel="Tìm kiếm người dùng để thêm vào collection"
+              />
 
-              <div className="space-y-3">
+              {/* Current Contributors List (Requirement 15.5) */}
+              {/* 2-column grid layout: 1 column on mobile, 2 columns on md+ screens */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {collection.contributors?.length ? (
                   collection.contributors.map((contributor) => {
                     // Handle both owner_uid (string) and owner.uid (object) formats
                     const ownerUid = collection.owner_uid || collection.owner?.uid;
-                    const isOwnerRow = contributor.uid === ownerUid;
+                    const isOwnerRow = contributor.uid === ownerUid || contributor.role === 'owner';
+                    const isPending = contributor.status === 'pending';
                     const displayLabel =
                       contributor.display_name || contributor.username || contributor.uid;
 
                     return (
-                      <div key={contributor.uid} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-on-surface">{displayLabel}</p>
-                          <p className="text-xs text-on-surface-variant font-mono">{contributor.uid}</p>
-                          <p className="text-xs text-on-surface-variant">
-                            Đóng góp: {contributor.contributed_count || 0} · Tham gia: {formatDate(contributor.joined_at)}
-                          </p>
+                      <div key={contributor.uid || contributor.invitation_id} className="flex flex-col gap-2 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          {/* Avatar (Requirement 15.5) */}
+                          {contributor.avatar_url ? (
+                            <img 
+                              src={contributor.avatar_url} 
+                              alt={`${displayLabel} avatar`}
+                              className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-medium flex-shrink-0">
+                              {(contributor.username || contributor.uid || 'U').charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          
+                          {/* User Info */}
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <p className="text-sm font-semibold text-on-surface truncate">{displayLabel}</p>
+                            <p className="text-xs text-on-surface-variant font-mono truncate">@{contributor.username || contributor.uid || 'pending'}</p>
+                            {!isPending && (
+                              <p className="text-xs text-on-surface-variant truncate">
+                                Đóng góp: {contributor.contributed_count || 0} · Tham gia: {formatDate(contributor.joined_at)}
+                              </p>
+                            )}
+                          </div>
                         </div>
+                        
+                        {/* Status Badge or Action Button */}
                         {isOwnerRow ? (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">
-                            Owner
+                          <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">
+                            Chủ sở hữu
                           </span>
+                        ) : isPending ? (
+                          <div className="flex flex-col gap-2">
+                            <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-yellow-100 px-4 py-2 text-xs font-semibold text-yellow-700">
+                              Đang chờ
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeInvitation(contributor.invitation_id)}
+                              disabled={actionBusy}
+                              className="inline-flex items-center justify-center gap-2 rounded-full border border-red-400/80 bg-red-50 px-4 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Icon name="close" size={16} /> Thu hồi lời mời
+                            </button>
+                          </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveContributor(contributor.uid)}
-                            disabled={actionBusy}
-                            className="inline-flex items-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <Icon name="close" size={16} /> Xóa
-                          </button>
+                          <div className="flex flex-col gap-2">
+                            <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-surface-container-high px-4 py-2 text-xs font-semibold text-on-surface-variant">
+                              Thành viên
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveContributor(contributor.uid)}
+                              disabled={actionBusy}
+                              className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-400/80 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Icon name="close" size={16} /> Xóa
+                            </button>
+                          </div>
                         )}
                       </div>
                     );
                   })
                 ) : (
-                  <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
+                  <div className="col-span-full rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
                     Chưa có người đóng góp nào
                   </div>
                 )}
@@ -846,23 +1165,40 @@ function CollectionPage() {
             title="Người đóng góp"
             description="Danh sách người đóng góp hiện tại của collection."
           >
-            <div className="space-y-3">
+            {/* 2-column grid layout: 1 column on mobile, 2 columns on md+ screens */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {collection.contributors?.length ? (
                 collection.contributors.map((contributor) => {
                   const displayLabel =
                     contributor.display_name || contributor.username || contributor.uid;
                   return (
-                  <div key={contributor.uid} className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3 text-sm text-on-surface">
-                    <p className="font-semibold">{displayLabel}</p>
-                    <p className="text-xs text-on-surface-variant font-mono mt-0.5">{contributor.uid}</p>
-                    <p className="mt-1 text-xs text-on-surface-variant">
-                      Đóng góp: {contributor.contributed_count || 0} · Tham gia: {formatDate(contributor.joined_at)}
-                    </p>
+                  <div key={contributor.uid} className="flex items-center gap-3 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3">
+                    {/* Avatar */}
+                    {contributor.avatar_url ? (
+                      <img 
+                        src={contributor.avatar_url} 
+                        alt={`${displayLabel} avatar`}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-medium flex-shrink-0">
+                        {(contributor.username || contributor.uid).charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    
+                    {/* User Info */}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <p className="text-sm font-semibold text-on-surface truncate">{displayLabel}</p>
+                      <p className="text-xs text-on-surface-variant font-mono truncate">@{contributor.username || contributor.uid}</p>
+                      <p className="text-xs text-on-surface-variant truncate">
+                        Đóng góp: {contributor.contributed_count || 0} · Tham gia: {formatDate(contributor.joined_at)}
+                      </p>
+                    </div>
                   </div>
                   );
                 })
               ) : (
-                <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
+                <div className="col-span-full rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
                   Chưa có người đóng góp nào
                 </div>
               )}
@@ -883,10 +1219,107 @@ function CollectionPage() {
         return renderPlacesTab();
       case 'contributors':
         return renderContributorsTab();
+      case 'savers':
+        return renderSaversTab();
       default:
         // Default to Info tab if invalid tab value
         return renderInfoTab();
     }
+  };
+
+  // Render Savers Tab Content
+  const renderSaversTab = () => {
+    // Calculate pagination
+    const totalSavers = collection?.saved_count || 0;
+    const totalPages = Math.ceil(totalSavers / SAVERS_PER_PAGE);
+    const startIndex = (saversPage - 1) * SAVERS_PER_PAGE;
+    const endIndex = startIndex + SAVERS_PER_PAGE;
+    const currentSavers = savers.slice(startIndex, endIndex);
+
+    return (
+      <div className="grid gap-6">
+        <SectionCard
+          title="Người đã lưu"
+          description={`${totalSavers} người dùng đã lưu collection này.`}
+        >
+          <div className="space-y-3">
+            {saversLoading ? (
+              <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
+                <Icon name="hourglass_top" size={24} className="text-primary animate-spin mx-auto mb-2" />
+                Đang tải...
+              </div>
+            ) : currentSavers.length ? (
+              <>
+                {/* 2-column grid layout: 1 column on mobile, 2 columns on md+ screens */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {currentSavers.map((saver) => {
+                    const displayLabel = saver.display_name || saver.username || saver.uid;
+                    return (
+                      <div key={saver.uid} className="flex items-center gap-3 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3">
+                        {/* Avatar */}
+                        {saver.avatar_url ? (
+                          <img 
+                            src={saver.avatar_url} 
+                            alt={`${displayLabel} avatar`}
+                            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-medium flex-shrink-0">
+                            {(saver.username || saver.uid).charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        
+                        {/* User Info */}
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <p className="text-sm font-semibold text-on-surface truncate">{displayLabel}</p>
+                          <p className="text-xs text-on-surface-variant font-mono truncate">@{saver.username || saver.uid}</p>
+                          <p className="text-xs text-on-surface-variant truncate">
+                            Đã lưu: {formatDate(saver.saved_at)}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-4">
+                    <button
+                      type="button"
+                      onClick={() => setSaversPage(prev => Math.max(1, prev - 1))}
+                      disabled={saversPage === 1}
+                      className="inline-flex items-center gap-2 rounded-full border border-outline-variant/70 bg-surface-container px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Icon name="chevron_left" size={18} />
+                      Trước
+                    </button>
+                    
+                    <span className="text-sm text-on-surface-variant">
+                      Trang {saversPage} / {totalPages}
+                    </span>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setSaversPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={saversPage === totalPages}
+                      className="inline-flex items-center gap-2 rounded-full border border-outline-variant/70 bg-surface-container px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Sau
+                      <Icon name="chevron_right" size={18} />
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
+                Chưa có ai lưu collection này
+              </div>
+            )}
+          </div>
+        </SectionCard>
+      </div>
+    );
   };
 
   // Task 3: Render Info Tab Content
@@ -926,30 +1359,58 @@ function CollectionPage() {
                   />
                 </label>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
                   <label className="grid gap-2 text-sm font-medium text-on-surface">
-                    Thẻ ảnh đại diện
-                    <input
-                      value={editValues.thumbnail_url}
-                      onChange={(event) => setEditValues((prev) => ({ ...prev, thumbnail_url: event.target.value }))}
-                      disabled={!isEditing}
-                      className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80 disabled:cursor-not-allowed disabled:bg-surface-container-low"
-                      placeholder="URL ảnh thumbnail"
-                    />
+                    Ảnh đại diện
+                    {isEditing ? (
+                      <ImageUpload
+                        onUpload={(publicUrl) => {
+                          setEditValues((prev) => ({ ...prev, thumbnail_url: publicUrl }));
+                          showToast("Thành công", "Ảnh đã được tải lên", "success");
+                        }}
+                        onError={(errorMessage) => {
+                          showToast("Lỗi", errorMessage, "error");
+                        }}
+                        disabled={!isEditing}
+                        currentImageUrl={editValues.thumbnail_url}
+                        category="collection_cover"
+                      />
+                    ) : (
+                      editValues.thumbnail_url ? (
+                        <div className="rounded-2xl border border-outline-variant/40 bg-surface-container-low p-3">
+                          <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-surface-container">
+                            <img
+                              src={editValues.thumbnail_url}
+                              alt="Collection thumbnail"
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                e.target.src = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&h=300&fit=crop';
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex h-32 items-center justify-center rounded-2xl border border-outline-variant/40 bg-surface-container-low text-sm text-on-surface-variant">
+                          Chưa có ảnh đại diện
+                        </div>
+                      )
+                    )}
                   </label>
-                  <label className="grid gap-2 text-sm font-medium text-on-surface">
-                    Quyền truy cập
-                    <select
-                      value={editValues.visibility}
-                      onChange={(event) => setEditValues((prev) => ({ ...prev, visibility: event.target.value }))}
-                      disabled={!isEditing}
-                      className="w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/80 disabled:cursor-not-allowed disabled:bg-surface-container-low"
-                    >
-                      <option value="public">Công khai</option>
-                      <option value="unlisted">Không để danh sách</option>
-                      <option value="private">Riêng tư</option>
-                    </select>
-                  </label>
+                  <div className="flex flex-col gap-4">
+                    <label className="grid gap-2 text-sm font-medium text-on-surface">
+                      Quyền truy cập
+                      <select
+                        value={editValues.visibility}
+                        onChange={(event) => setEditValues((prev) => ({ ...prev, visibility: event.target.value }))}
+                        disabled={!isEditing}
+                        className="h-12 w-full rounded-3xl border border-outline-variant/70 bg-surface-container px-4 text-sm text-on-surface outline-none transition focus:border-primary/80 disabled:cursor-not-allowed disabled:bg-surface-container-low"
+                      >
+                        <option value="public">Công khai</option>
+                        <option value="unlisted">Không để danh sách</option>
+                        <option value="private">Riêng tư</option>
+                      </select>
+                    </label>
+                  </div>
                 </div>
               </div>
             </SectionCard>
@@ -1000,20 +1461,47 @@ function CollectionPage() {
               <div className="grid gap-3">
                 {!isCreateMode && (
                   <>
-                    <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                      <p className="font-semibold text-on-surface">Ngày tạo</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.created_at)}</p>
+                    {/* Owner Info */}
+                    <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4">
+                      <p className="font-semibold text-on-surface mb-3">Chủ sở hữu</p>
+                      <div className="flex items-center gap-3">
+                        {collection.owner?.avatar_url ? (
+                          <img 
+                            src={collection.owner.avatar_url} 
+                            alt={collection.owner.display_name || collection.owner.username}
+                            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-medium flex-shrink-0">
+                            {(collection.owner?.username || collection.owner_uid || '?').charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-on-surface truncate">
+                            {collection.owner?.display_name || collection.owner?.username || collection.owner_uid || 'N/A'}
+                          </p>
+                          {collection.owner?.username && (
+                            <p className="text-xs text-on-surface-variant truncate">
+                              @{collection.owner.username}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                      <p className="font-semibold text-on-surface">Cập nhật</p>
-                      <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.updated_at)}</p>
+                    
+                    {/* Created and Updated dates side by side */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
+                        <p className="font-semibold text-on-surface">Ngày tạo</p>
+                        <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.created_at)}</p>
+                      </div>
+                      <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
+                        <p className="font-semibold text-on-surface">Cập nhật lần cuối</p>
+                        <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.updated_at)}</p>
+                      </div>
                     </div>
                   </>
                 )}
-                <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                  <p className="font-semibold text-on-surface">Người dùng hiện tại</p>
-                  <p className="mt-1 text-sm text-on-surface-variant">{user?.uid || "Chưa đăng nhập"}</p>
-                </div>
                 {isCreateMode && (
                   <div className="rounded-3xl border border-primary/20 bg-primary/5 px-4 py-4 text-sm">
                     <p className="font-semibold text-primary">Chế độ tạo mới</p>
@@ -1053,43 +1541,6 @@ function CollectionPage() {
                 )}
               </div>
             </SectionCard>
-
-            {/* Savers List */}
-            <SectionCard
-              title="Người đã lưu"
-              description={`${savers.length} người dùng đã lưu collection này.`}
-            >
-              <div className="space-y-3">
-                {savers.length ? (
-                  savers.map((saver) => {
-                    const displayLabel = saver.display_name || saver.username || saver.uid;
-                    return (
-                      <div key={saver.uid} className="flex items-center gap-3 rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-3">
-                        {saver.avatar_url ? (
-                          <img 
-                            src={saver.avatar_url} 
-                            alt={displayLabel}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Icon name="person" size={20} className="text-primary" />
-                          </div>
-                        )}
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-on-surface">{displayLabel}</p>
-                          <p className="text-xs text-on-surface-variant">Đã lưu: {formatDate(saver.saved_at)}</p>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="rounded-3xl border border-dashed border-outline-variant/40 bg-surface-container py-10 text-center text-sm text-on-surface-variant">
-                    Chưa có ai lưu collection này
-                  </div>
-                )}
-              </div>
-            </SectionCard>
           </div>
 
           {/* Summary Card */}
@@ -1099,17 +1550,44 @@ function CollectionPage() {
               description="Thông tin nhanh của collection."
             >
               <div className="grid gap-3">
-                <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                  <p className="font-semibold text-on-surface">Ngày tạo</p>
-                  <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.created_at)}</p>
+                {/* Owner Info */}
+                <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4">
+                  <p className="font-semibold text-on-surface mb-3">Chủ sở hữu</p>
+                  <div className="flex items-center gap-3">
+                    {collection.owner?.avatar_url ? (
+                      <img 
+                        src={collection.owner.avatar_url} 
+                        alt={collection.owner.display_name || collection.owner.username}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary font-medium flex-shrink-0">
+                        {(collection.owner?.username || collection.owner_uid || '?').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-on-surface truncate">
+                        {collection.owner?.display_name || collection.owner?.username || collection.owner_uid || 'N/A'}
+                      </p>
+                      {collection.owner?.username && (
+                        <p className="text-xs text-on-surface-variant truncate">
+                          @{collection.owner.username}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                  <p className="font-semibold text-on-surface">Cập nhật</p>
-                  <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.updated_at)}</p>
-                </div>
-                <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
-                  <p className="font-semibold text-on-surface">Người dùng hiện tại</p>
-                  <p className="mt-1 text-sm text-on-surface-variant">{user?.uid || "Chưa đăng nhập"}</p>
+                
+                {/* Created and Updated dates side by side */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
+                    <p className="font-semibold text-on-surface">Ngày tạo</p>
+                    <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.created_at)}</p>
+                  </div>
+                  <div className="rounded-3xl border border-outline-variant/50 bg-surface-container px-4 py-4 text-sm text-on-surface">
+                    <p className="font-semibold text-on-surface">Cập nhật lần cuối</p>
+                    <p className="mt-1 text-sm text-on-surface-variant">{formatDate(collection.updated_at)}</p>
+                  </div>
                 </div>
               </div>
             </SectionCard>
@@ -1163,6 +1641,13 @@ function CollectionPage() {
   return (
     <div className="min-h-[calc(100vh-80px)] bg-background px-4 py-6 text-on-background sm:px-6 lg:px-10">
       <Toast toast={toast} />
+
+      {selectedPlace && (
+        <PlaceDetailModal
+          place={selectedPlace}
+          onClose={() => setSelectedPlace(null)}
+        />
+      )}
 
       {/* Login Warning Banner */}
       {/* Task 8.4: Enhanced login prompt for unauthenticated users */}
@@ -1219,23 +1704,28 @@ function CollectionPage() {
       <div className="mx-auto grid w-full max-w-7xl gap-6">
         <div className="flex flex-col gap-6 rounded-4xl border border-outline-variant/40 bg-surface-container-low p-6 shadow-lg">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
+            {/* Thumbnail Image */}
+            {collection.thumbnail_url && !isCreateMode && (
+              <div className="w-full lg:w-48 flex-shrink-0">
+                <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-surface-container">
+                  <img
+                    src={collection.thumbnail_url}
+                    alt={`${collection.name} thumbnail`}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      e.target.src = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&h=300&fit=crop';
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            
+            <div className="flex-1 space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                   <Icon name="collections" size={16} /> Collection
                 </span>
-                {!isCreateMode && (
-                  <>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
-                      <Icon name="favorite" size={14} />
-                      <span>{collection?.saved_count ?? 0} lượt thích</span>
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
-                      <Icon name="visibility" size={14} />
-                      <span>{collection?.views?.total_views ?? 0} lượt xem</span>
-                    </span>
-                  </>
-                )}
+                
                 {isCreateMode && (
                   <span className="rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
                     Mới
@@ -1249,22 +1739,7 @@ function CollectionPage() {
                 </h1>
 
                 {!isEditing && (
-                  <>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {collection?.tags?.length ? (
-                        collection.tags.map((tag) => (
-                          <span key={tag} className="rounded-full bg-surface-container px-3 py-1 text-xs font-medium text-on-surface">
-                            #{tag}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="rounded-full bg-surface-container px-3 py-1 text-xs font-medium text-on-surface-variant">
-                          Chưa có thẻ tag
-                        </span>
-                      )}
-                    </div>
-                    <p className="max-w-3xl text-sm leading-7 text-on-surface-variant mt-2">{collection?.description || "Collection chưa có mô tả."}</p>
-                  </>
+                  <p className="max-w-3xl text-sm leading-7 text-on-surface-variant">{collection?.description || "Collection chưa có mô tả."}</p>
                 )}
               </div>
 
@@ -1272,7 +1747,6 @@ function CollectionPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 justify-end">
-              {!isCreateMode && <span className="text-sm text-on-surface-variant">Owner: {collection.owner_uid || collection.owner?.uid || 'N/A'}</span>}
               
               {/* Save button - only show for non-owners when not editing (Requirements 1.1, 1.2, 6.1, 6.2, 6.3, 6.4, 9.1, 9.2, 9.3, 9.4, 9.5) */}
               {/* Task 8.1: Added hover animation and transitions */}

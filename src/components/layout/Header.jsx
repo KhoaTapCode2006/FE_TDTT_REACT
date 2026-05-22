@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
+import NotificationBell from "@/components/ui/NotificationBell";
 import { useAuth } from "../../contexts/AuthContext";
 
 const LANGS = [
@@ -123,6 +124,11 @@ function Header({ hideNavigation = false }) {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Notification Bell - Only show when authenticated */}
+          {isAuthenticated && !loading && (
+            <NotificationBell />
+          )}
+
           {/* Language Selector */}
           <div className="relative" ref={langRef}>
             <button
