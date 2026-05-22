@@ -185,7 +185,7 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, initial
                 className="flex-1 px-2 py-1.5 rounded-xl bg-yellow-500 hover:bg-yellow-600 active:scale-95 text-white text-xs font-bold transition-all"
                 title="Ghi trạng thái mất tín hiệu"
               >
-                Mất tín hiệu
+                Ngắt tín hiệu
               </button>
             )}
           </div>

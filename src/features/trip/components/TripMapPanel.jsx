@@ -4,6 +4,8 @@ import { db, auth } from "@/config/firebase";
 import { useTripMembers } from "../hooks/useTripMembers";
 import { useAccidentAlert } from "../hooks/useAccidentAlert";
 import { useLostSignalAlert } from "../hooks/useLostSignalAlert";
+import { useRouteChangeAlert } from "../hooks/useRouteChangeAlert";
+import { useMemberLeftAlert } from "../hooks/useMemberLeftAlert";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
 import FakeGpsControl from "./FakeGpsControl";
 import { trackingState } from "../../../services/trip/trackingState";
@@ -53,6 +55,12 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
 
   // Phát ping khi có member mất tín hiệu (lost_signal) — chỉ khi trip active
   useLostSignalAlert(isActive ? firestoreMembers : [], currentUid);
+
+  // Phát Mario coin khi có member đổi lộ trình (change_route) — chỉ khi trip active
+  useRouteChangeAlert(isActive ? firestoreMembers : [], currentUid);
+
+  // Thông báo khi có member rời chuyến đi — chỉ khi trip active
+  const { toasts, dismissToast } = useMemberLeftAlert(isActive ? firestoreMembers : [], currentUid);
 
   const memberTracking = Object.fromEntries(
     firestoreMembers
@@ -638,8 +646,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
 
         {/* Fake GPS control — chỉ hiện khi trip active */}
         {isActive && (
-          <FakeGpsControl
-            tripId={tripId}
+          <FakeGpsControl            tripId={tripId}
             initialLat={myRealPos?.lat ?? members.find((m) => m.isMe)?.lat}
             initialLng={myRealPos?.lng ?? members.find((m) => m.isMe)?.lng}
             initialLostSignal={gpsBlocked}
@@ -658,6 +665,28 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
               setDistToDestM(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
             }}
           />
+        )}
+
+        {/* Toast: member rời chuyến đi */}
+        {toasts.length > 0 && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50 pointer-events-none">
+            {toasts.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center gap-2 bg-gray-800/90 text-white text-xs font-medium px-4 py-2.5 rounded-xl shadow-lg backdrop-blur-sm pointer-events-auto animate-fade-in"
+              >
+                <span><span className="font-bold">{t.name}</span> đã rời chuyến đi</span>
+                <button
+                  onClick={() => dismissToast(t.id)}
+                  className="ml-1 text-white/60 hover:text-white transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

@@ -36,6 +36,15 @@ export default {
         editorial: "0px 12px 32px rgba(0,52,111,0.08)",
         card: "0px 4px 16px rgba(0,52,111,0.06)",
       },
+      keyframes: {
+        "fade-in": {
+          "0%":   { opacity: "0", transform: "translateY(-6px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+      },
+      animation: {
+        "fade-in": "fade-in 0.2s ease-out",
+      },
     },
   },
   plugins: [],
