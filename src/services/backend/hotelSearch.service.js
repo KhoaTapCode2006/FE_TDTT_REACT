@@ -253,7 +253,7 @@ class HotelSearchService {
             original: img.original_image || img.original || img.url || img.thumbnail || ''
           };
         }).filter(img => img.url) : [];
-        
+
         // Normalize amenities to match frontend constants
         const normalizedAmenities = Array.isArray(hotel.amenities) 
           ? hotel.amenities
@@ -516,6 +516,175 @@ class HotelSearchService {
       return [];
     }
   }
+
+  /**
+ * Lấy danh sách khách sạn có lượt xem cao nhất (Top Views) khi load trang
+ @param {number} limit - Số lượng khách sạn muốn lấy về
+ * @returns {Promise<Array>} Danh sách khách sạn chuẩn hóa tương thích 100% với searchHotels
+ */
+async getTopViewsHotelsWeekly(limit = 16) {
+  try {
+    // 1. Gọi API đúng endpoint của bạn
+    const response = await apiClient.get(`/views/top?target_type=hotels&limit=${limit}&top_type=weekly`);
+    
+    // 2. Vì backend trả về trực tiếp mảng (hoặc bọc trong response.data tùy cấu hình apiClient của bạn)
+    // Nếu apiClient tự bóc tách .data thì response chính là mảng, nếu không thì lấy response.data
+    const rawHotels = Array.isArray(response) ? response : (response.data || []);
+    
+    if (!Array.isArray(rawHotels)) return [];
+
+    // 3. Tiến hành map chuẩn hóa từng trường theo data mẫu
+    return rawHotels.map(hotel => {
+      // Xử lý tọa độ GPS an toàn
+      const gpsLat = hotel.gps_coordinates?.latitude || null;
+      const gpsLng = hotel.gps_coordinates?.longitude || null;
+
+      // Xử lý mảng ảnh (Backend trả về mảng các Object chứa ảnh)
+      const images = Array.isArray(hotel.images) ? hotel.images.map(img => {
+        if (typeof img === 'string') {
+          return { url: img, thumbnail: img, original: img };
+        }
+        // Giữ cấu trúc Object của ảnh nếu backend trả về object
+        return {
+          url: img.url || img.original_image || img.original || img.thumbnail || '',
+          thumbnail: img.thumbnail || img.url || '',
+          original: img.original || img.original_image || img.url || ''
+        };
+      }).filter(img => img.url) : [];
+
+      // Trả về Object chuẩn hóa đồng bộ với component hiển thị
+      return {
+        id: hotel.property_token || hotel.id,
+        propertyToken: hotel.property_token,
+        hotel_id: hotel.property_token,
+        name: hotel.name || 'Unknown Hotel',
+        description: hotel.description || null,
+        address: hotel.address || null,
+        location: hotel.address || null,
+        phone: hotel.phone || null,
+        link: hotel.link || null,
+        
+        latitude: gpsLat,
+        longitude: gpsLng,
+        coordinates: {
+          latitude: gpsLat || 0,
+          longitude: gpsLng || 0,
+          geohash: hotel.gps_coordinates?.geohash || ''
+        },
+        
+        price: hotel.price || 0,
+        pricePerNight: hotel.price || 0,
+        deal: hotel.deal || null,
+        currency: 'VND',
+        
+        // Map rating từ ai_sentiment.ai_score trong dữ liệu mẫu của bạn
+        rating: hotel.ai_sentiment?.ai_score || hotel.raw_rating || 0,
+        rawRating: hotel.raw_rating || 0,
+        ai_score: hotel.ai_sentiment?.ai_score || 0,
+        trustWeight: hotel.ai_sentiment?.trust_weight || 0,
+        
+        images: images,
+        // Lấy ảnh đầu tiên làm thumbnail phẳng nếu cần
+        thumbnail: images.length > 0 ? images[0].thumbnail : null,
+        
+        amenities: Array.isArray(hotel.amenities) ? hotel.amenities : [],
+        userReviews: Array.isArray(hotel.user_reviews) ? hotel.user_reviews : [],
+        
+        // ĐẶC BIỆT: Map chính xác từ views.weekly_views và views.total_views của backend
+        totalViews: hotel.views?.total_views || 0,
+        weeklyViews: hotel.views?.weekly_views || 0
+      };
+    });
+  } catch (error) {
+    console.error("Error in getTopViewsHotels:", error);
+    return []; // Trả về mảng rỗng để bảo vệ app không bị crash
+  }
+}
+
+  /**
+ * Lấy danh sách khách sạn có lượt xem cao nhất (Top Views) khi load trang
+ @param {number} limit - Số lượng khách sạn muốn lấy về
+ * @returns {Promise<Array>} Danh sách khách sạn chuẩn hóa tương thích 100% với searchHotels
+ */
+async getTopViewsHotelsAllTime(limit = 16) {
+  try {
+    // 1. Gọi API đúng endpoint của bạn
+    const response = await apiClient.get(`/views/top?target_type=hotels&limit=${limit}&top_type=all_time`);
+    
+    // 2. Vì backend trả về trực tiếp mảng (hoặc bọc trong response.data tùy cấu hình apiClient của bạn)
+    // Nếu apiClient tự bóc tách .data thì response chính là mảng, nếu không thì lấy response.data
+    const rawHotels = Array.isArray(response) ? response : (response.data || []);
+    
+    if (!Array.isArray(rawHotels)) return [];
+
+    // 3. Tiến hành map chuẩn hóa từng trường theo data mẫu
+    return rawHotels.map(hotel => {
+      // Xử lý tọa độ GPS an toàn
+      const gpsLat = hotel.gps_coordinates?.latitude || null;
+      const gpsLng = hotel.gps_coordinates?.longitude || null;
+
+      // Xử lý mảng ảnh (Backend trả về mảng các Object chứa ảnh)
+      const images = Array.isArray(hotel.images) ? hotel.images.map(img => {
+        if (typeof img === 'string') {
+          return { url: img, thumbnail: img, original: img };
+        }
+        // Giữ cấu trúc Object của ảnh nếu backend trả về object
+        return {
+          url: img.url || img.original_image || img.original || img.thumbnail || '',
+          thumbnail: img.thumbnail || img.url || '',
+          original: img.original || img.original_image || img.url || ''
+        };
+      }).filter(img => img.url) : [];
+
+      // Trả về Object chuẩn hóa đồng bộ với component hiển thị
+      return {
+        id: hotel.property_token || hotel.id,
+        propertyToken: hotel.property_token,
+        hotel_id: hotel.property_token,
+        name: hotel.name || 'Unknown Hotel',
+        description: hotel.description || null,
+        address: hotel.address || null,
+        location: hotel.address || null,
+        phone: hotel.phone || null,
+        link: hotel.link || null,
+        
+        latitude: gpsLat,
+        longitude: gpsLng,
+        coordinates: {
+          latitude: gpsLat || 0,
+          longitude: gpsLng || 0,
+          geohash: hotel.gps_coordinates?.geohash || ''
+        },
+        
+        price: hotel.price || 0,
+        pricePerNight: hotel.price || 0,
+        deal: hotel.deal || null,
+        currency: 'VND',
+        
+        // Map rating từ ai_sentiment.ai_score trong dữ liệu mẫu của bạn
+        rating: hotel.ai_sentiment?.ai_score || hotel.raw_rating || 0,
+        rawRating: hotel.raw_rating || 0,
+        ai_score: hotel.ai_sentiment?.ai_score || 0,
+        trustWeight: hotel.ai_sentiment?.trust_weight || 0,
+        
+        images: images,
+        // Lấy ảnh đầu tiên làm thumbnail phẳng nếu cần
+        thumbnail: images.length > 0 ? images[0].thumbnail : null,
+        
+        amenities: Array.isArray(hotel.amenities) ? hotel.amenities : [],
+        userReviews: Array.isArray(hotel.user_reviews) ? hotel.user_reviews : [],
+        
+        // ĐẶC BIỆT: Map chính xác từ views.weekly_views và views.total_views của backend
+        totalViews: hotel.views?.total_views || 0,
+        weeklyViews: hotel.views?.weekly_views || 0
+      };
+    });
+  } catch (error) {
+    console.error("Error in getTopViewsHotels:", error);
+    return []; // Trả về mảng rỗng để bảo vệ app không bị crash
+  }
+}
+
 }
 
 // Export singleton instance

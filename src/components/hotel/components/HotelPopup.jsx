@@ -550,24 +550,6 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                   )}
                 </div>
               )}
-
-              {/* Book Now Button */}
-              <button
-                className="w-full mt-4 px-6 py-3 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
-                onClick={() => {
-                  // TODO: Navigate to booking page or open booking modal
-                  console.log('Booking hotel:', hotel.id);
-                  alert('Tính năng đặt phòng đang được phát triển');
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
-                Đặt Phòng
-              </button>
               
               <div className={styles.bookingBox}>
                 <p className={styles.bookingTitle}>Check Availability</p>

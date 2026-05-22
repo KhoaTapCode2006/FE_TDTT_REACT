@@ -78,7 +78,7 @@ function Header({ hideNavigation = false }) {
           to="/"
           className="text-2xl font-headline font-extrabold tracking-tighter text-primary whitespace-nowrap"
         >
-          Booking4U
+          Lodgy4U
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
@@ -215,16 +215,6 @@ function Header({ hideNavigation = false }) {
                     </div>
 
                     {/* Menu Items */}
-                    <div className="p-2 space-y-1">
-                      <Link
-                        to="/settings"
-                        onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
-                      >
-                        <Icon name="settings" size={20} className="text-on-surface-variant" />
-                        Settings
-                      </Link>
-                    </div>
 
                     {/* Logout */}
                     <div className="p-2 border-t border-outline-variant/20">

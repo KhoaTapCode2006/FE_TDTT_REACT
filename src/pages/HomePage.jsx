@@ -6,6 +6,7 @@ import VietMapPanel from '@/components/map/VietMapPanel';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import Icon from '@/components/ui/Icon';
 import Splitter from '@/components/ui/Splitter';
+import HotelListSection from '@/components/hotel/components/HotelListSection';
 import { useApp } from '@/app/AppContext';
 import { hotelSearchService } from '@/services/backend/hotelSearch.service';
 
@@ -20,10 +21,10 @@ const HomePage = () => {
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [error, setError] = useState(null);
   
-  // Layout state for splitter
-  const [splitterPosition, setSplitterPosition] = useState(50);
-  const [mapWidth, setMapWidth] = useState(50);
-  const [hotelListWidth, setHotelListWidth] = useState(50);
+  // Layout state for splitter - Map 30%, Hotels 70%
+  const [splitterPosition, setSplitterPosition] = useState(20);
+  const [mapWidth, setMapWidth] = useState(40);
+  const [hotelListWidth, setHotelListWidth] = useState(60);
   const [layoutMode, setLayoutMode] = useState('list');
   
   // Debouncing and request cancellation
@@ -52,7 +53,6 @@ const HomePage = () => {
         // Silently fail - use default layout
       }
     };
-
     restoreLayoutState();
   }, []);
 
@@ -270,7 +270,7 @@ const HomePage = () => {
 
           {/* Sidebar bên phải */}
           <div 
-            className="flex-shrink-0 transition-all duration-200"
+            className="flex-shrink-0 h-full transition-all duration-200"
             style={{ width: `${hotelListWidth}%` }}
           >
             <HotelSidebar 
@@ -290,7 +290,12 @@ const HomePage = () => {
           onApply={handleFilterApply}
         />
       )}
+      <div>
+        <HotelListSection />
+      </div>
     </div>
+
+
   );
 };
 

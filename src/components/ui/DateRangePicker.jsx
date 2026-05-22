@@ -97,8 +97,6 @@ function DateRangePicker({ checkIn, checkOut, onChange, onClose }) {
       return "Select check-in date";
     } else if (checkIn && !checkOut) {
       return "Select check-out date";
-    } else {
-      return "Click any date to reset";
     }
   }
 
