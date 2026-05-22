@@ -2,15 +2,19 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { addFavorite, removeFavorite, getFavoriteByHotelId } from '@/services/profile/favorites.service';
+import { 
+  addFavoritePlace, 
+  removeFavoritePlace, 
+  getFavoriteByHotelId 
+} from '@/services/profile/favorites.service';
 import Icon from '@/components/ui/Icon';
 
 /**
  * AddToFavoritesButton Component
- * Requirements: 4.2, 4.3, 4.4
+ * Requirements: 15.1, 15.2, 15.3, 15.4, 15.7
  * 
  * A button component that allows users to add/remove hotels from their favorites.
- * Displays a heart icon (filled if favorited, outlined if not) and handles the
+ * Displays a heart icon (red if favorited, default color if not) and handles the
  * toggle functionality with loading states and toast notifications.
  * 
  * @param {Object} props
@@ -18,6 +22,8 @@ import Icon from '@/components/ui/Icon';
  * @param {Object} props.hotelData - The hotel data object containing name, location, rating, etc.
  * @param {string} [props.className] - Additional CSS classes
  * @param {number} [props.size] - Icon size (default: 20)
+ * @param {boolean} [props.initialFavorited] - Initial favorited state (to avoid API call)
+ * @param {boolean} [props.skipInitialCheck] - Skip initial favorite status check (default: true for performance)
  * @param {Function} [props.onToggle] - Optional callback when favorite status changes
  */
 const AddToFavoritesButton = ({ 
@@ -25,30 +31,31 @@ const AddToFavoritesButton = ({
   hotelData, 
   className = '', 
   size = 20,
+  initialFavorited = false,
+  skipInitialCheck = true, // Default to true for better performance
   onToggle 
 }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [favoriteId, setFavoriteId] = useState(null);
+  const [isFavorited, setIsFavorited] = useState(initialFavorited);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
-  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [checkingStatus, setCheckingStatus] = useState(false);
 
-  // Check if hotel is already favorited on mount
+  // Check if hotel is already favorited on mount (only if skipInitialCheck is false)
   useEffect(() => {
     const checkFavoriteStatus = async () => {
-      if (!isAuthenticated || !user?.uid || !hotelId) {
+      if (skipInitialCheck || !isAuthenticated || !hotelId) {
         setCheckingStatus(false);
         return;
       }
 
+      setCheckingStatus(true);
       try {
-        const favorite = await getFavoriteByHotelId(user.uid, hotelId);
+        const favorite = await getFavoriteByHotelId(hotelId);
         if (favorite) {
-          setIsFavorite(true);
-          setFavoriteId(favorite.id);
+          setIsFavorited(true);
         }
       } catch (error) {
         console.error('Error checking favorite status:', error);
@@ -58,7 +65,7 @@ const AddToFavoritesButton = ({
     };
 
     checkFavoriteStatus();
-  }, [isAuthenticated, user?.uid, hotelId]);
+  }, [isAuthenticated, hotelId, skipInitialCheck]);
 
   // Auto-dismiss notifications after 3 seconds
   useEffect(() => {
@@ -78,7 +85,15 @@ const AddToFavoritesButton = ({
 
     // Redirect to login if not authenticated
     if (!isAuthenticated) {
-      navigate('/auth/login');
+      setNotification({
+        type: 'error',
+        message: 'Bạn phải đăng nhập để lưu các địa điểm yêu thích'
+      });
+      
+      // Redirect after showing message
+      setTimeout(() => {
+        navigate('/auth/login');
+      }, 1500);
       return;
     }
 
@@ -90,33 +105,20 @@ const AddToFavoritesButton = ({
     setLoading(true);
 
     try {
-      if (isFavorite && favoriteId) {
+      if (isFavorited) {
         // Remove from favorites
-        await removeFavorite(user.uid, favoriteId);
-        setIsFavorite(false);
-        setFavoriteId(null);
+        await removeFavoritePlace(hotelId);
+        setIsFavorited(false);
         
         setNotification({
           type: 'success',
           message: 'Removed from favorites'
         });
       } else {
-        // Add to favorites
-        const newFavorite = await addFavorite(user.uid, {
-          id: hotelId,
-          name: hotelData.name,
-          address: hotelData.address || hotelData.location,
-          location: hotelData.address || hotelData.location,
-          rating: hotelData.rating,
-          pricePerNight: hotelData.pricePerNight,
-          currency: hotelData.currency || 'VND',
-          images: hotelData.images,
-          image: hotelData.images?.[0],
-          thumbnail: hotelData.images?.[0]
-        });
+        // Add to favorites - only send place_id (property_token)
+        await addFavoritePlace(hotelId);
         
-        setIsFavorite(true);
-        setFavoriteId(newFavorite.id);
+        setIsFavorited(true);
         
         setNotification({
           type: 'success',
@@ -126,7 +128,7 @@ const AddToFavoritesButton = ({
 
       // Call optional callback
       if (onToggle) {
-        onToggle(!isFavorite);
+        onToggle(!isFavorited);
       }
     } catch (error) {
       console.error('Error toggling favorite:', error);
@@ -146,9 +148,9 @@ const AddToFavoritesButton = ({
         onClick={handleToggleFavorite}
         disabled={loading || checkingStatus}
         className={`relative group/fav transition-all ${className}`}
-        aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-        aria-pressed={isFavorite}
-        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+        aria-pressed={isFavorited}
+        title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
       >
         {loading || checkingStatus ? (
           // Loading state - spinning icon
@@ -159,12 +161,12 @@ const AddToFavoritesButton = ({
             aria-hidden="true"
           />
         ) : (
-          // Heart icon - filled if favorited, outlined if not
+          // Heart icon - red if favorited, default color if not
           <Icon 
-            name={isFavorite ? 'favorite' : 'favorite_border'}
+            name={isFavorited ? 'favorite' : 'favorite_border'}
             size={size}
             className={`transition-all ${
-              isFavorite 
+              isFavorited 
                 ? 'text-red-500 group-hover/fav:scale-110' 
                 : 'text-primary group-hover/fav:text-red-500 group-hover/fav:scale-110'
             }`}

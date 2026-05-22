@@ -1,12 +1,11 @@
-import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { expect, afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
+import * as matchers from '@testing-library/jest-dom/matchers';
 
-// Mock Firebase auth
-vi.mock('@/config/firebase', () => ({
-  auth: {
-    currentUser: {
-      uid: 'test-user-123',
-      getIdToken: vi.fn().mockResolvedValue('mock-token'),
-    },
-  },
-}));
+// Extend Vitest's expect with jest-dom matchers
+expect.extend(matchers);
+
+// Cleanup after each test
+afterEach(() => {
+  cleanup();
+});

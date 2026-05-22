@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { fmtDate } from "@/utils/format";
 import Icon from "@/components/ui/Icon";
 
@@ -12,14 +12,12 @@ function DateRangePicker({ checkIn, checkOut, onChange, onClose }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const [viewDate, setViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
-  const selectingRef = useRef(checkIn ? "out" : "in");
-  const [selecting, setSelectingState] = useState(checkIn ? "out" : "in");
+  const [clickCount, setClickCount] = useState(() => {
+    if (checkIn && checkOut) return 2;
+    if (checkIn) return 1;
+    return 0;
+  });
   const [hovered, setHovered] = useState(null);
-
-  function setSelecting(v) {
-    selectingRef.current = v;
-    setSelectingState(v);
-  }
 
   function buildCalendar(year, month) {
     const first = new Date(year, month, 1).getDay();
@@ -32,37 +30,48 @@ function DateRangePicker({ checkIn, checkOut, onChange, onClose }) {
 
   function handleDay(d, e) {
     if (e) e.stopPropagation();
-    if (!d || d < today) return;
+    if (!d || d < today) return; // Prevent selecting past dates
 
-    if (!checkIn) {
+    console.log('📅 DateRangePicker handleDay:', { 
+      selectedDate: d, 
+      clickCount, 
+      currentCheckIn: checkIn, 
+      currentCheckOut: checkOut 
+    });
+
+    // Click 1: Set check-in date, clear check-out
+    if (clickCount === 0 || (!checkIn && !checkOut)) {
+      console.log('📅 Setting check-in:', d);
       onChange({ checkIn: d, checkOut: null });
+      setClickCount(1);
       return;
     }
 
-    if (checkIn && !checkOut) {
-      if (d < checkIn) {
-        onChange({ checkIn: d, checkOut: null });
-      } else if (d > checkIn) {
+    // Click 2: Set check-out date
+    if (clickCount === 1 && checkIn && !checkOut) {
+      if (d.getTime() === checkIn.getTime()) {
+        // Same date clicked, do nothing
+        console.log('📅 Same date clicked, ignoring');
+        return;
+      } else if (d < checkIn) {
+        // If selected date is before check-in, swap them automatically
+        console.log('📅 Swapping dates - selected before check-in');
+        onChange({ checkIn: d, checkOut: checkIn });
+      } else {
+        // Normal case: set as check-out
+        console.log('📅 Setting check-out:', d);
         onChange({ checkIn, checkOut: d });
       }
+      setClickCount(2);
       return;
     }
 
-    if (checkIn && checkOut) {
-      if (d < checkIn) {
-        onChange({ checkIn: d, checkOut });
-      } else if (d > checkOut) {
-        onChange({ checkIn, checkOut: d });
-      } else if (d > checkIn && d < checkOut) {
-        const diffToCheckIn = d.getTime() - checkIn.getTime();
-        const diffToCheckOut = checkOut.getTime() - d.getTime();
-
-        if (diffToCheckIn < diffToCheckOut) {
-          onChange({ checkIn: d, checkOut });
-        } else {
-          onChange({ checkIn, checkOut: d });
-        }
-      }
+    // Click 3+: Reset both dates, set clicked date as new check-in
+    if (clickCount >= 2 || (checkIn && checkOut)) {
+      console.log('📅 Resetting dates, new check-in:', d);
+      onChange({ checkIn: d, checkOut: null });
+      setClickCount(1);
+      return;
     }
   }
 
@@ -72,7 +81,7 @@ function DateRangePicker({ checkIn, checkOut, onChange, onClose }) {
     const isToday = d.getTime() === today.getTime();
     const isStart = checkIn && d.getTime() === checkIn.getTime();
     const isEnd = checkOut && d.getTime() === checkOut.getTime();
-    const rangeEnd = checkOut || (selecting === "out" ? hovered : null);
+    const rangeEnd = checkOut || (clickCount === 1 && checkIn ? hovered : null);
     const inRange = checkIn && rangeEnd && d > checkIn && d < rangeEnd;
     let cls = "cal-day";
     if (isDisabled) cls += " disabled";
@@ -81,6 +90,14 @@ function DateRangePicker({ checkIn, checkOut, onChange, onClose }) {
     if (isEnd) cls += " selected range-end";
     if (inRange) cls += " in-range";
     return cls;
+  }
+
+  function getSelectionStateLabel() {
+    if (!checkIn) {
+      return "Select check-in date";
+    } else if (checkIn && !checkOut) {
+      return "Select check-out date";
+    }
   }
 
   const cells = buildCalendar(viewDate.getFullYear(), viewDate.getMonth());
@@ -132,14 +149,21 @@ function DateRangePicker({ checkIn, checkOut, onChange, onClose }) {
           <Icon name="chevron_left" />
         </button>
 
-        <div className="flex gap-6 text-sm font-semibold text-on-surface-variant">
-          <span className={selecting === "in" ? "text-blue-600 font-bold" : ""}>
-            Check-in: {checkIn ? fmtDate(checkIn) : "Select date"}
-          </span>
-          <span>→</span>
-          <span className={selecting === "out" ? "text-blue-600 font-bold" : ""}>
-            Check-out: {checkOut ? fmtDate(checkOut) : "Select date"}
-          </span>
+        <div className="flex flex-col items-center gap-1">
+          <div className="flex gap-6 text-sm font-semibold text-on-surface-variant">
+            <span className={!checkIn ? "text-blue-600 font-bold" : ""}>
+              Check-in: {checkIn ? fmtDate(checkIn) : "Select date"}
+            </span>
+            <span>→</span>
+            <span className={checkIn && !checkOut ? "text-blue-600 font-bold" : ""}>
+              Check-out: {checkOut ? fmtDate(checkOut) : "Select date"}
+            </span>
+          </div>
+          
+          {/* Selection state indicator */}
+          <p className="text-xs text-blue-600 italic font-medium">
+            {getSelectionStateLabel()}
+          </p>
         </div>
 
         <button
@@ -160,7 +184,10 @@ function DateRangePicker({ checkIn, checkOut, onChange, onClose }) {
       <div className="flex justify-end mt-4 gap-2">
         <button
           onMouseDown={(e) => e.stopPropagation()}
-          onClick={() => { onChange({ checkIn: null, checkOut: null }); setSelecting("in"); }}
+          onClick={() => { 
+            onChange({ checkIn: null, checkOut: null }); 
+            setClickCount(0); // Reset click count
+          }}
           className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-blue-600 transition-colors"
         >
           Clear

@@ -5,8 +5,8 @@
     import LoginPage from '../pages/auth/LoginPage';
     import SignupPage from '../pages/auth/SignupPage';
     import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
-    import ProfilePage from '../pages/profile/ProfilePage';
-    import MyStaysPage from '../pages/profile/MyStaysPage';
+    import InformationPage from '../pages/profile/InformationPage';
+    import LikedPlacesPage from '../pages/profile/LikedPlacesPage';
     import LikedCollectionsPage from '../pages/profile/LikedCollectionsPage';
     import CollectionPage from '../pages/collection/CollectionPage';
     import CollectionsDashboard from '../pages/collection/CollectionsDashboard';
@@ -26,20 +26,25 @@
         { path: '/test/collection', element: <CollectionTest /> },
         // Protected profile routes
         {
-          path: '/account/profile',
+          path: '/account/information',
           element: (
             <RequireAuth>
-              <ProfilePage />
+              <InformationPage />
             </RequireAuth>
           )
         },
         {
+          path: '/account/liked-places',
+          element: <Navigate to="/account/information" replace />
+        },
+        // Redirect old routes
+        {
+          path: '/account/profile',
+          element: <Navigate to="/account/information" replace />
+        },
+        {
           path: '/account/mystay',
-          element: (
-            <RequireAuth>
-              <MyStaysPage />
-            </RequireAuth>
-          )
+          element: <Navigate to="/account/information" replace />
         },
         {
           path: '/account/liked-collections',

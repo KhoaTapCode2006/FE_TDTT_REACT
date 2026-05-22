@@ -209,6 +209,9 @@ export function getRadiusHandleCoordinates(center, radius) {
   return getCirclePoint(center, radius, 45);
 }
 
+// Image error cache to track logged errors (Task 8.2 - Requirement 8.1, 8.2, 8.5)
+const imageErrorCache = new Set();
+
 /**
  * Create hotel marker element with proper styling and interactions
  * @param {Object} hotel - Hotel object with properties
@@ -219,6 +222,9 @@ export function getRadiusHandleCoordinates(center, radius) {
  */
 export function createHotelMarkerElement(hotel, insideCircle, onSelect, isHovered = false) {
   const size = insideCircle ? 52 : 42;
+  
+  // Debug logging
+ 
   
   // Create wrapper div (no styles - map handles positioning)
   const wrapper = document.createElement("div");
@@ -249,13 +255,34 @@ export function createHotelMarkerElement(hotel, insideCircle, onSelect, isHovere
     inner.style.transform = "scale(1)";
   }
 
+  const thumbnailUrl = getHotelThumbnailUrl(hotel);
+  
   const image = document.createElement("img");
-  image.src = hotel.thumbnail || hotel.images?.[0] || "";
+  // Set placeholder initially (Task 8.2 - Requirement 8.1, 8.2)
+  image.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="60" height="60"%3E%3Crect fill="%23e0e0e0" width="60" height="60"/%3E%3C/svg%3E';
   image.alt = hotel.name || "Hotel";
   image.style.width = "100%";
   image.style.height = "100%";
   image.style.objectFit = "cover";
   image.style.display = "block";
+  
+  // Preload actual image with error handling (Task 8.2 - Requirement 8.1, 8.2, 8.5)
+  if (thumbnailUrl) {
+    const tempImg = new Image();
+    tempImg.onload = () => {
+      image.src = thumbnailUrl;
+    };
+    tempImg.onerror = () => {
+      // Only log error once per URL (Task 8.2 - Requirement 8.1, 8.5)
+      if (!imageErrorCache.has(thumbnailUrl)) {
+        console.warn(`Failed to load hotel image: ${hotel.name}`);
+        imageErrorCache.add(thumbnailUrl);
+      }
+      // Keep placeholder
+    };
+    tempImg.src = thumbnailUrl;
+  }
+  
   inner.appendChild(image);
 
   inner.addEventListener("click", (event) => {
@@ -305,31 +332,75 @@ export function clampRadius(radius) {
 
 /**
  * Validate hotel coordinates to filter out invalid entries
+ * Handles both new format (coordinates.latitude/longitude) and old format (lat/lng)
  * @param {Array} hotels - Array of hotel objects
  * @returns {Array} Array of hotels with valid coordinates
  */
 export function validateHotelCoordinates(hotels) {
   if (!Array.isArray(hotels)) {
-    console.warn('validateHotelCoordinates: hotels is not an array');
+    console.warn('validateHotelCoordinates: Expected array, received:', typeof hotels);
     return [];
   }
 
-  return hotels.filter(hotel => {
-    if (!hotel) return false;
+  return hotels.filter((hotel, index) => {
+    if (!hotel || typeof hotel !== 'object') {
+      console.warn(`Hotel ${index}: Not an object`);
+      return false;
+    }
     
-    const { lat, lng } = hotel;
+    let lat, lng;
+    
+    // Check for new format: coordinates.latitude/longitude
+    if (hotel.coordinates && typeof hotel.coordinates === 'object') {
+      lat = hotel.coordinates.latitude;
+      lng = hotel.coordinates.longitude;
+      
+      // Validate numeric values (not 0, not NaN, not null)
+      if (typeof lat === 'number' && typeof lng === 'number' && 
+          lat !== 0 && lng !== 0 && 
+          !isNaN(lat) && !isNaN(lng) &&
+          isFinite(lat) && isFinite(lng)) {
+        // Ensure flat lat/lng exist for marker creation
+        hotel.lat = lat;
+        hotel.lng = lng;
+        return true;
+      }
+    }
+    
+    // Fall back to flat format: lat/lng
+    lat = hotel.lat;
+    lng = hotel.lng;
     
     // Check if coordinates exist
-    if (lat == null || lng == null) return false;
+    if (lat == null || lng == null) {
+      if (index < 3) console.warn(`Hotel ${index} (${hotel.name}): lat or lng is null/undefined`, { lat, lng });
+      return false;
+    }
     
     // Check if coordinates are numbers
-    if (typeof lat !== 'number' || typeof lng !== 'number') return false;
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      if (index < 3) console.warn(`Hotel ${index} (${hotel.name}): lat or lng is not a number`, { lat: typeof lat, lng: typeof lng });
+      return false;
+    }
     
     // Check if coordinates are not NaN
-    if (isNaN(lat) || isNaN(lng)) return false;
+    if (isNaN(lat) || isNaN(lng)) {
+      if (index < 3) console.warn(`Hotel ${index} (${hotel.name}): lat or lng is NaN`);
+      return false;
+    }
     
     // Check if coordinates are finite
-    if (!isFinite(lat) || !isFinite(lng)) return false;
+    if (!isFinite(lat) || !isFinite(lng)) {
+      if (index < 3) console.warn(`Hotel ${index} (${hotel.name}): lat or lng is not finite`);
+      return false;
+    }
+    
+    // REMOVED: Check if coordinates are not zero - this was too strict!
+    // Many hotels might have 0,0 as placeholder, but we should still show them
+    // if (lat === 0 && lng === 0) {
+    //   console.warn(`Invalid coordinates for hotel: ${hotel.name || hotel.id}`);
+    //   return false;
+    // }
     
     return true;
   });
@@ -364,18 +435,26 @@ export function convertHotelsToSuperclusterPoints(hotels) {
  * @returns {string} Thumbnail URL or placeholder
  */
 export function getHotelThumbnailUrl(hotel) {
-  if (!hotel) return '/placeholder-hotel.jpg';
+  if (!hotel) {
+    console.warn('getHotelThumbnailUrl: No hotel provided');
+    return 'https://via.placeholder.com/60x60?text=Hotel';
+  }
   
   // Try thumbnail first
-  if (hotel.thumbnail) return hotel.thumbnail;
+  if (hotel.thumbnail) {
+    return hotel.thumbnail;
+  }
   
   // Try first image
   if (hotel.images && Array.isArray(hotel.images) && hotel.images.length > 0) {
     return hotel.images[0];
   }
   
+  // Log warning for hotels without images
+  console.warn(`Hotel ${hotel.name || hotel.id} has no thumbnail or images`);
+  
   // Fallback to placeholder
-  return '/placeholder-hotel.jpg';
+  return 'https://via.placeholder.com/60x60?text=Hotel';
 }
 
 /**
@@ -400,6 +479,8 @@ export function getClusterBadgeText(count) {
  * @returns {HTMLElement} Cluster marker element
  */
 export function createClusterMarkerElement(cluster, firstHotel, hotelCount, onClick, clusterHotelIds = [], hoveredHotelId = null) {
+  // Debug logging
+  
   // ── Wrapper ──────────────────────────────────────────────────────────────
   // Fixed 60×60 size + position:relative so the badge's absolute positioning
   // anchors to this box, not to some distant ancestor.
@@ -440,7 +521,8 @@ export function createClusterMarkerElement(cluster, firstHotel, hotelCount, onCl
   });
 
   // Hotel photo
-  const thumbnailUrl = getHotelThumbnailUrl(firstHotel);
+  const thumbnailUrl = getHotelThumbnailUrl(firstHotel);;
+  
   const img = document.createElement('img');
   img.src = thumbnailUrl;
   img.alt = firstHotel?.name || 'Hotel';
@@ -448,6 +530,12 @@ export function createClusterMarkerElement(cluster, firstHotel, hotelCount, onCl
   img.style.height = '100%';
   img.style.objectFit = 'cover';
   img.style.display = 'block';
+  
+  // Add error handler for image loading
+  img.onerror = () => {
+    img.src = 'https://via.placeholder.com/60x60?text=Hotels';
+  };
+  
   inner.appendChild(img);
 
   // ── Badge (quantity circle) ───────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { auth } from '../../config/firebase.js';
+import { requestDeduplicator } from '../../utils/requestDeduplicator.js';
 
 /**
  * API Client for making authenticated requests to the backend API
@@ -157,7 +158,7 @@ class APIClient {
   }
 
   /**
-   * Make HTTP request with timeout, retry logic, and error handling
+   * Make HTTP request with timeout, retry logic, error handling, and deduplication
    * @param {string} endpoint - API endpoint
    * @param {Object} options - Fetch options
    * @param {number} retryAttempt - Current retry attempt (internal use)
@@ -167,67 +168,75 @@ class APIClient {
     const url = `${this.baseURL}${endpoint}`;
     const config = this.addAuthHeader(options);
     
-    // Log request in development mode
-    this.logDebug('request', {
-      method: config.method || 'GET',
-      url: url,
-      headers: config.headers,
-      body: config.body
-    });
+    // Generate deduplication key
+    const method = config.method || 'GET';
+    const body = config.body ? JSON.parse(config.body) : null;
+    const dedupKey = requestDeduplicator.generateKey(method, endpoint, body);
     
-    // Create abort controller for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-    
-    try {
-      const response = await fetch(url, {
-        ...config,
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      const result = await this.handleResponse(response, endpoint, options);
-      
-      // Log successful response in development mode
-      this.logDebug('response', {
-        status: response.status,
+    // Execute request with deduplication
+    return requestDeduplicator.deduplicate(dedupKey, async () => {
+      // Log request in development mode
+      this.logDebug('request', {
+        method: method,
         url: url,
-        data: result
+        headers: config.headers,
+        body: config.body
       });
       
-      return result;
-    } catch (error) {
-      clearTimeout(timeoutId);
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
       
-      // Check if error is retryable and we haven't exceeded max retries
-      if (this.isRetryableError(error) && retryAttempt < this.maxRetries) {
-        const delay = this.calculateBackoffDelay(retryAttempt);
-        
-        // Log retry attempt in development mode
-        this.logDebug('retry', {
-          attempt: retryAttempt + 1,
-          url: url,
-          delay: delay
+      try {
+        const response = await fetch(url, {
+          ...config,
+          signal: controller.signal
         });
         
-        // Wait before retrying
-        await this.sleep(delay);
+        clearTimeout(timeoutId);
         
-        // Retry the request
-        return await this.request(endpoint, options, retryAttempt + 1);
+        const result = await this.handleResponse(response, endpoint, options);
+        
+        // Log successful response in development mode
+        this.logDebug('response', {
+          status: response.status,
+          url: url,
+          data: result
+        });
+        
+        return result;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        
+        // Check if error is retryable and we haven't exceeded max retries
+        if (this.isRetryableError(error) && retryAttempt < this.maxRetries) {
+          const delay = this.calculateBackoffDelay(retryAttempt);
+          
+          // Log retry attempt in development mode
+          this.logDebug('retry', {
+            attempt: retryAttempt + 1,
+            url: url,
+            delay: delay
+          });
+          
+          // Wait before retrying
+          await this.sleep(delay);
+          
+          // Retry the request
+          return await this.request(endpoint, options, retryAttempt + 1);
+        }
+        
+        // Log error in development mode
+        this.logDebug('error', {
+          status: error.status,
+          url: url,
+          message: error.message,
+          error: error
+        });
+        
+        return await this.handleError(error, endpoint, options);
       }
-      
-      // Log error in development mode
-      this.logDebug('error', {
-        status: error.status,
-        url: url,
-        message: error.message,
-        error: error
-      });
-      
-      return await this.handleError(error, endpoint, options);
-    }
+    });
   }
 
   /**

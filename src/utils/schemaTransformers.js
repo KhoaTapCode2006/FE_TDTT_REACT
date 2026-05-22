@@ -1441,6 +1441,196 @@ export function transformDiscoverRequest(frontendRequest) {
 }
 
 /**
+ * Transform backend hotel detail response to frontend format
+ * Handles new nested structures: gps_coordinates, ai_sentiment, ai_summary, views, user_reviews
+ * Maintains backward compatibility with old API format
+ * 
+ * @param {Object} backendHotel - Backend hotel data (snake_case)
+ * @param {number} index - Index for fallback ID generation (optional)
+ * @returns {Object} Frontend hotel (camelCase)
+ * @throws {ValidationError} If required fields are missing
+ * @throws {SchemaTransformError} If transformation fails
+ * 
+ * @example
+ * const backendHotel = {
+ *   property_token: 'hotel123',
+ *   name: 'Grand Hotel',
+ *   gps_coordinates: { latitude: 10.7719, longitude: 106.6983, geohash: 'w3gvk1' },
+ *   ai_sentiment: { ai_score: 8.5, trust_weight: 0.85, analyzed_reviews: 150 },
+ *   views: { total_views: 1250, weekly_views: 85 }
+ * };
+ * const frontendHotel = transformHotelDetailResponse(backendHotel);
+ */
+export function transformHotelDetailResponse(backendHotel, index = 0) {
+  try {
+    // Validate input
+    if (!backendHotel || typeof backendHotel !== 'object') {
+      throw new ValidationError(
+        'Hotel data must be an object',
+        'backendHotel',
+        backendHotel
+      );
+    }
+
+    // Transform snake_case to camelCase recursively
+    const transformed = snakeToCamel(backendHotel);
+
+    // Handle GPS coordinates transformation
+    if (transformed.gpsCoordinates) {
+      transformed.coordinates = {
+        latitude: transformed.gpsCoordinates.latitude || 0,
+        longitude: transformed.gpsCoordinates.longitude || 0
+      };
+      // Add flat lat/lng for VietMap compatibility
+      transformed.lat = transformed.gpsCoordinates.latitude || 0;
+      transformed.lng = transformed.gpsCoordinates.longitude || 0;
+    } else if (transformed.lat !== undefined && transformed.lng !== undefined) {
+      // Backward compatibility: if old format (flat lat/lng) exists, create coordinates object
+      transformed.coordinates = {
+        latitude: transformed.lat || 0,
+        longitude: transformed.lng || 0
+      };
+    } else {
+      // No coordinates available, set defaults
+      transformed.coordinates = { latitude: 0, longitude: 0 };
+      transformed.lat = 0;
+      transformed.lng = 0;
+      console.warn(`No GPS coordinates found for hotel: ${transformed.name || 'Unknown'}`);
+    }
+
+    // Handle AI sentiment transformation (already camelCase from snakeToCamel)
+    // Fields: aiScore, aiScoreExpirationDate, trustWeight, analyzedReviews
+    if (transformed.aiSentiment) {
+      // Parse expiration date
+      if (transformed.aiSentiment.aiScoreExpirationDate) {
+        transformed.aiSentiment.aiScoreExpirationDate = parseISODate(
+          transformed.aiSentiment.aiScoreExpirationDate
+        );
+      }
+      // Add top-level ai_score for backward compatibility
+      transformed.ai_score = transformed.aiSentiment.aiScore || 0;
+    } else if (transformed.aiScore !== undefined || transformed.trustWeight !== undefined) {
+      // Backward compatibility: old flat format with ai_score and trust_weight at top level
+      transformed.aiSentiment = {
+        aiScore: transformed.aiScore || 0,
+        trustWeight: transformed.trustWeight || 0,
+        analyzedReviews: transformed.analyzedReviews?.length || 0,
+        aiScoreExpirationDate: transformed.aiScoreExpirationDate ? parseISODate(transformed.aiScoreExpirationDate) : null
+      };
+      transformed.ai_score = transformed.aiScore || 0;
+    } else {
+      // Backward compatibility: check if old format has rating field
+      if (transformed.rating !== undefined) {
+        transformed.ai_score = transformed.rating;
+      } else if (transformed.rawRating !== undefined) {
+        transformed.ai_score = transformed.rawRating;
+      }
+    }
+
+    // Handle AI summary transformation (already camelCase from snakeToCamel)
+    // Fields: aiSummaryExpirationDate, overview, pros, cons, notes
+    if (transformed.aiSummary) {
+      if (transformed.aiSummary.aiSummaryExpirationDate) {
+        transformed.aiSummary.aiSummaryExpirationDate = parseISODate(
+          transformed.aiSummary.aiSummaryExpirationDate
+        );
+      }
+    } else if (transformed.aiSummaryExpirationDate) {
+      // Backward compatibility: old flat format with ai_summary_expiration_date at top level
+      // Create aiSummary object if it doesn't exist
+      transformed.aiSummary = {
+        aiSummaryExpirationDate: parseISODate(transformed.aiSummaryExpirationDate),
+        overview: null,
+        pros: [],
+        cons: [],
+        notes: null
+      };
+    }
+
+    // Handle views transformation (already camelCase from snakeToCamel)
+    // Fields: totalViews, weeklyViews
+    // Map to top-level for easier access
+    if (transformed.views) {
+      transformed.totalViews = transformed.views.totalViews || 0;
+      transformed.weeklyViews = transformed.views.weeklyViews || 0;
+    }
+
+    // Handle user reviews transformation (already camelCase from snakeToCamel)
+    // Array of review objects with fields: author, rating, text, date
+    if (Array.isArray(transformed.userReviews)) {
+      transformed.userReviews = transformed.userReviews.map(review => ({
+        ...review,
+        date: review.date ? parseISODate(review.date) : review.date
+      }));
+    }
+
+    // Fallback ID generation if property_token is missing
+    if (!transformed.id && !transformed.propertyToken) {
+      transformed.id = `hotel-fallback-${Date.now()}-${index}`;
+      console.warn(`Generated fallback ID for hotel: ${transformed.name || 'Unknown'} -> ${transformed.id}`);
+    } else if (transformed.propertyToken && !transformed.id) {
+      transformed.id = transformed.propertyToken;
+    } else if (transformed.id && !transformed.propertyToken) {
+      transformed.propertyToken = transformed.id;
+    }
+
+    // Map rating fields for backward compatibility
+    if (!transformed.rating && transformed.rawRating !== undefined) {
+      transformed.rating = transformed.rawRating;
+    } else if (!transformed.rating && transformed.aiSentiment?.aiScore !== undefined) {
+      transformed.rating = transformed.aiSentiment.aiScore;
+    }
+
+    // Ensure pricePerNight exists (some components may use this field)
+    if (transformed.price !== undefined && !transformed.pricePerNight) {
+      transformed.pricePerNight = transformed.price;
+    }
+
+    // Convert datetime fields to Date objects
+    if (transformed.lastUpdated) {
+      transformed.lastUpdated = parseISODate(transformed.lastUpdated);
+    }
+
+    // Ensure images is an array
+    if (!Array.isArray(transformed.images)) {
+      transformed.images = [];
+    }
+
+    // Ensure amenities is an array
+    if (!Array.isArray(transformed.amenities)) {
+      transformed.amenities = [];
+    }
+
+    return transformed;
+  } catch (error) {
+    // Log the error with context
+    logSchemaError(error, {
+      operation: 'transformHotelDetailResponse',
+      endpoint: '/discover/hotel',
+      hotelName: backendHotel?.name
+    });
+
+    // Return minimal valid object to prevent UI crashes
+    console.error('Hotel transformation failed, returning minimal object');
+    return {
+      id: backendHotel?.property_token || `fallback-${Date.now()}`,
+      propertyToken: backendHotel?.property_token || `fallback-${Date.now()}`,
+      name: backendHotel?.name || 'Unknown Hotel',
+      address: backendHotel?.address || '',
+      price: backendHotel?.price || 0,
+      pricePerNight: backendHotel?.price || 0,
+      rating: backendHotel?.raw_rating || 0,
+      rawRating: backendHotel?.raw_rating || 0,
+      images: [],
+      amenities: [],
+      lat: 0,
+      lng: 0,
+      coordinates: { latitude: 0, longitude: 0 }
+    };
+  }
+}
+
+/**
  * Default export object containing all core transformation functions and error handling
  */
 export default {
@@ -1457,6 +1647,7 @@ export default {
   transformCollectionUpdate,
   transformDiscoverHotel,
   transformDiscoverRequest,
+  transformHotelDetailResponse,
   SchemaTransformError,
   ValidationError,
   logSchemaError

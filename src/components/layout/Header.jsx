@@ -79,7 +79,7 @@ function Header({ hideNavigation = false }) {
           to="/"
           className="text-2xl font-headline font-extrabold tracking-tighter text-primary whitespace-nowrap"
         >
-          Booking4U
+          Lodgy4U
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
@@ -105,6 +105,20 @@ function Header({ hideNavigation = false }) {
               >
                 Collections
               </Link>
+              {isAuthenticated && (
+                <>
+                  <Link 
+                    to="/account/information" 
+                    className={`text-sm font-semibold transition-colors pb-0.5 ${
+                      location.pathname === '/account/information'
+                        ? 'text-primary border-b-2 border-secondary' 
+                        : 'text-on-surface-variant hover:text-primary'
+                    }`}
+                  >
+                    My Account
+                  </Link>
+                </>
+              )}
             </>
           )}
         </div>
@@ -207,40 +221,6 @@ function Header({ hideNavigation = false }) {
                     </div>
 
                     {/* Menu Items */}
-                    <div className="p-2 space-y-1">
-                      <Link
-                        to="/account/mystay"
-                        onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
-                      >
-                        <Icon name="luggage" size={20} className="text-on-surface-variant" />
-                        My Stays
-                      </Link>
-                      <Link
-                        to="/account/savedlist"
-                        onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
-                      >
-                        <Icon name="favorite" size={20} className="text-on-surface-variant" />
-                        Saved Lists
-                      </Link>
-                      <Link
-                        to="/profile"
-                        onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
-                      >
-                        <Icon name="person" size={20} className="text-on-surface-variant" />
-                        My Profile
-                      </Link>
-                      <Link
-                        to="/settings"
-                        onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
-                      >
-                        <Icon name="settings" size={20} className="text-on-surface-variant" />
-                        Settings
-                      </Link>
-                    </div>
 
                     {/* Logout */}
                     <div className="p-2 border-t border-outline-variant/20">

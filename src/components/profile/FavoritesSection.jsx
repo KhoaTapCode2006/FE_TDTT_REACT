@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { favoritesService } from '@/services/profile/favorites.service';
-import FavoriteHotelCard from './FavoriteHotelCard';
+import { hotelSearchService } from '@/services/backend/hotelSearch.service';
+import HotelCard from '@/components/hotel/components/HotelCard';
 import EmptyState from './EmptyState';
 import Icon from '@/components/ui/Icon';
 import HotelPopup from '@/components/hotel/components/HotelPopup';
@@ -10,10 +11,7 @@ import HotelPopup from '@/components/hotel/components/HotelPopup';
 /**
  * FavoritesSection Component
  * Display and manage user's favorite hotels
- * Requirements: 5.1, 5.2, 5.3, 5.4, 5.5
- * 
- * @param {Object} props
- * @param {string} props.userId - User ID (optional, will use AuthContext if not provided)
+ * Requirements: 15.5, 15.6, 15.7, 15.8
  * 
  * @example
  * ```jsx
@@ -28,10 +26,9 @@ import HotelPopup from '@/components/hotel/components/HotelPopup';
  * }
  * ```
  */
-const FavoritesSection = ({ userId: propUserId }) => {
-  const { user } = useAuth();
+const FavoritesSection = () => {
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const userId = propUserId || user?.uid;
 
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,12 +36,13 @@ const FavoritesSection = ({ userId: propUserId }) => {
   const [selectedHotel, setSelectedHotel] = useState(null);
 
   /**
-   * Fetch favorites from Firestore
-   * Requirements: 5.1, 5.5
+   * Fetch favorites from backend API and get complete hotel data
+   * Requirements: 15.5, 15.6, 15.8, Task 11.1 - Requirement 11.1, 11.2, 11.3, 11.6
    */
   useEffect(() => {
     const fetchFavorites = async () => {
-      if (!userId) {
+      if (!isAuthenticated) {
+        setError('Bạn phải đăng nhập để lưu các địa điểm yêu thích');
         setLoading(false);
         return;
       }
@@ -52,8 +50,35 @@ const FavoritesSection = ({ userId: propUserId }) => {
       try {
         setLoading(true);
         setError(null);
-        const data = await favoritesService.getFavorites(userId);
-        setFavorites(data);
+        
+        // Get favorite place IDs (Task 11.1 - Requirement 11.1)
+        const favoritePlaces = await favoritesService.getFavorites();
+        
+        // Extract property tokens (hotel IDs) (Task 11.1 - Requirement 11.2)
+        const hotelIds = favoritePlaces
+          .filter(place => place.propertyToken || place.hotelId)
+          .map(place => place.propertyToken || place.hotelId);
+        
+        if (hotelIds.length === 0) {
+          setFavorites([]);
+          setLoading(false);
+          return;
+        }
+        
+        // Fetch complete hotel data for each favorite (Task 11.1 - Requirement 11.3)
+        const hotelPromises = hotelIds.map(id => 
+          hotelSearchService.getHotelDetails(id).catch(err => {
+            console.error(`Failed to fetch hotel ${id}:`, err);
+            return null; // Return null for failed requests
+          })
+        );
+        
+        const hotels = await Promise.all(hotelPromises);
+        
+        // Filter out failed requests (Task 11.1 - Requirement 11.3)
+        const validHotels = hotels.filter(hotel => hotel !== null);
+        
+        setFavorites(validHotels);
       } catch (err) {
         console.error('Error fetching favorites:', err);
         setError(err.message || 'Failed to load favorites. Please try again.');
@@ -63,21 +88,21 @@ const FavoritesSection = ({ userId: propUserId }) => {
     };
 
     fetchFavorites();
-  }, [userId]);
+  }, [isAuthenticated]);
 
   /**
    * Handle remove favorite with optimistic UI update
-   * Requirements: 5.4
+   * Requirements: 15.3, 15.4
    */
   const handleRemove = async (favoriteId) => {
-    if (!userId) return;
+    if (!isAuthenticated) return;
 
     // Optimistic UI update - remove from local state immediately
     const previousFavorites = [...favorites];
-    setFavorites(prev => prev.filter(f => f.id !== favoriteId));
+    setFavorites(prev => prev.filter(f => f.id !== favoriteId && f.hotelId !== favoriteId));
 
     try {
-      await favoritesService.removeFavorite(userId, favoriteId);
+      await favoritesService.removeFavorite(favoriteId);
     } catch (err) {
       console.error('Error removing favorite:', err);
       // Revert optimistic update on error
@@ -88,29 +113,20 @@ const FavoritesSection = ({ userId: propUserId }) => {
   };
 
   /**
-   * Handle view hotel details - Show popup with favorite hotel data
-   * Requirements: 5.3
+   * Handle view hotel details - Show popup with complete hotel data
+   * Requirements: 15.8, Task 11.2 - Requirement 11.4, 11.5
    */
-  const handleViewDetails = (hotelId) => {
-    // Find the hotel from favorites list
-    const hotel = favorites.find(f => f.hotelId === hotelId);
-    if (hotel) {
-      // Transform favorite data to hotel format for popup
-      const hotelData = {
-        id: hotel.hotelId,
-        name: hotel.name,
-        address: hotel.location,
-        location: hotel.location,
-        rating: hotel.rating,
-        pricePerNight: hotel.pricePerNight,
-        currency: hotel.currency || 'VND',
-        images: hotel.images || [hotel.imageUrl],
-        // Add default values for popup
-        amenities: hotel.amenities || [],
-        landmarks: hotel.landmarks || [],
-        reviews: hotel.reviews || []
-      };
-      setSelectedHotel(hotelData);
+  const handleViewDetails = (hotel) => {
+    // Handle both hotel object and hotelId
+    if (typeof hotel === 'string') {
+      // If hotel is a string (hotelId), find it in favorites
+      const foundHotel = favorites.find(f => f.id === hotel || f.propertyToken === hotel);
+      if (foundHotel) {
+        setSelectedHotel(foundHotel);
+      }
+    } else if (hotel && typeof hotel === 'object') {
+      // If hotel is an object, use it directly
+      setSelectedHotel(hotel);
     }
   };
 
@@ -126,10 +142,10 @@ const FavoritesSection = ({ userId: propUserId }) => {
    */
   const handleRetry = () => {
     setError(null);
-    // Trigger re-fetch by updating a dependency
-    if (userId) {
+    // Trigger re-fetch
+    if (isAuthenticated) {
       setLoading(true);
-      favoritesService.getFavorites(userId)
+      favoritesService.getFavorites()
         .then(data => {
           setFavorites(data);
           setError(null);
@@ -144,19 +160,34 @@ const FavoritesSection = ({ userId: propUserId }) => {
     }
   };
 
-  // Loading state
-  // Requirements: 5.1
+  // Loading state with skeleton (Task 11.1 - Requirement 11.6)
+  // Requirements: 15.6
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-16">
-        <Icon name="progress_activity" size={48} className="text-primary animate-spin mb-4" />
-        <p className="text-on-surface-variant">Loading favorites...</p>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-headline font-bold text-2xl text-on-surface">
+              Favorite Hotels
+            </h2>
+            <p className="text-sm text-on-surface-variant mt-1">
+              Loading...
+            </p>
+          </div>
+        </div>
+        
+        {/* Loading skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-64 bg-surface-container animate-pulse rounded-2xl" />
+          ))}
+        </div>
       </div>
     );
   }
 
   // Error state
-  // Requirements: 5.1
+  // Requirements: 15.7
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
@@ -164,24 +195,36 @@ const FavoritesSection = ({ userId: propUserId }) => {
           <Icon name="error" size={40} className="text-red-600" />
         </div>
         <h3 className="font-headline font-bold text-xl text-on-surface mb-2">
-          Failed to Load Favorites
+          {error === 'Bạn phải đăng nhập để lưu các địa điểm yêu thích' 
+            ? 'Authentication Required' 
+            : 'Failed to Load Favorites'}
         </h3>
         <p className="text-base text-on-surface-variant max-w-md mb-6">
           {error}
         </p>
-        <button
-          onClick={handleRetry}
-          className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors"
-        >
-          <Icon name="refresh" size={20} />
-          Try Again
-        </button>
+        {error === 'Bạn phải đăng nhập để lưu các địa điểm yêu thích' ? (
+          <button
+            onClick={() => navigate('/auth/login')}
+            className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors"
+          >
+            <Icon name="login" size={20} />
+            Login
+          </button>
+        ) : (
+          <button
+            onClick={handleRetry}
+            className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors"
+          >
+            <Icon name="refresh" size={20} />
+            Try Again
+          </button>
+        )}
       </div>
     );
   }
 
   // Empty state
-  // Requirements: 5.2
+  // Requirements: 15.8
   if (favorites.length === 0) {
     return (
       <EmptyState
@@ -194,8 +237,8 @@ const FavoritesSection = ({ userId: propUserId }) => {
     );
   }
 
-  // Display favorites grid
-  // Requirements: 5.3, 5.4, 5.5
+  // Display favorites grid with updated HotelCard component
+  // Requirements: 15.8, Task 11.2 - Requirement 11.4, 11.5
   return (
     <>
       <div className="space-y-6">
@@ -211,14 +254,13 @@ const FavoritesSection = ({ userId: propUserId }) => {
           </div>
         </div>
 
-        {/* Favorites Grid */}
+        {/* Favorites Grid - Using updated HotelCard component (Task 11.2) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {favorites.map(hotel => (
-            <FavoriteHotelCard
-              key={hotel.id}
+            <HotelCard
+              key={hotel.id || hotel.propertyToken}
               hotel={hotel}
-              onRemove={handleRemove}
-              onViewDetails={handleViewDetails}
+              onClick={handleViewDetails}
             />
           ))}
         </div>

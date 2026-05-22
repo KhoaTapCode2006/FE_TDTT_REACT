@@ -6,56 +6,30 @@ import VietMapPanel from '@/components/map/VietMapPanel';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import Icon from '@/components/ui/Icon';
 import Splitter from '@/components/ui/Splitter';
+import HotelListSection from '@/components/hotel/components/HotelListSection';
 import { useApp } from '@/app/AppContext';
-import { searchHotels } from '@/services/backend/hotel.service';
-import { loadMockHotels } from '@/services/backend/hotelData.service';
+import { hotelSearchService } from '@/services/backend/hotelSearch.service';
 
 
 const HomePage = () => {
   const { 
     activeHotel, setActiveHotel, 
     filters, setFilters,
-    location, dates, guests, radiusM,
-    setHotels, setLoading
+    location, dates, guests, userLoc,
+    setHotels, setLoading, setSearchGps
   } = useApp();
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [error, setError] = useState(null);
-  const [mockDataLoading, setMockDataLoading] = useState(true);
   
-  // Layout state for splitter
-  const [splitterPosition, setSplitterPosition] = useState(50);
-  const [mapWidth, setMapWidth] = useState(50);
-  const [hotelListWidth, setHotelListWidth] = useState(50);
+  // Layout state for splitter - Map 30%, Hotels 70%
+  const [splitterPosition, setSplitterPosition] = useState(20);
+  const [mapWidth, setMapWidth] = useState(40);
+  const [hotelListWidth, setHotelListWidth] = useState(60);
   const [layoutMode, setLayoutMode] = useState('list');
   
   // Debouncing and request cancellation
   const debounceTimeoutRef = useRef(null);
   const currentRequestRef = useRef(null);
-
-  // Load mock hotels on component mount
-  useEffect(() => {
-    const loadHotels = async () => {
-      try {
-        setMockDataLoading(true);
-        setError(null);
-        
-        const hotels = await loadMockHotels();
-        
-        if (hotels.length === 0) {
-          setError('Không thể tải dữ liệu khách sạn. Vui lòng thử lại sau.');
-        } else {
-          setHotels(hotels);
-        }
-      } catch (err) {
-        console.error('Error loading mock hotels:', err);
-        setError('Có lỗi xảy ra khi tải dữ liệu khách sạn. Vui lòng làm mới trang.');
-      } finally {
-        setMockDataLoading(false);
-      }
-    };
-
-    loadHotels();
-  }, []); // Empty dependency array - load only on mount
 
   // Restore layout state from session storage on mount
   useEffect(() => {
@@ -79,7 +53,6 @@ const HomePage = () => {
         // Silently fail - use default layout
       }
     };
-
     restoreLayoutState();
   }, []);
 
@@ -114,37 +87,84 @@ const HomePage = () => {
   const performHotelSearch = useCallback(async (searchFilters) => {
     try {
       setLoading(true);
-      setError(null); // Clear previous errors
+      setError(null); // Xóa lỗi cũ
       
-      // Cancel previous request if it exists
+      // Hủy request trước đó nếu có
       if (currentRequestRef.current) {
         currentRequestRef.current.cancelled = true;
       }
       
-      // Create new request tracker
       const requestTracker = { cancelled: false };
       currentRequestRef.current = requestTracker;
       
-      // Convert price filter to priceRange format
-      const priceRange = {};
-      if (searchFilters.priceMin !== null) priceRange.minPrice = searchFilters.priceMin;
-      if (searchFilters.priceMax !== null) priceRange.maxPrice = searchFilters.priceMax;
+      // 1. Chuẩn hóa chuỗi Address từ global state `location`
+      const addressStr = location?.address || location?.display || '';
       
-      const results = await searchHotels({
-        location,
-        checkIn: dates.checkIn,
-        checkOut: dates.checkOut,
-        guests,
-        priceRange,
-        radius: radiusM,
-        filters: searchFilters
+      // 2. Use user's current location for GPS if location.gps is not set
+      const gpsData = location?.gps?.latitude && location?.gps?.longitude 
+        ? location.gps 
+        : { latitude: userLoc.lat, longitude: userLoc.lng, geohash: '' };
+
+      // 3. Trích xuất ref_id
+      const refId = location?.ref_id || '';
+
+      // Chốt chặn bảo vệ: Nếu chưa chọn địa điểm hoặc thiếu ngày, không gọi API để tránh lỗi crash validation
+      if (!addressStr || !dates?.checkIn || !dates?.checkOut) {
+        console.warn('⚠️ Chưa đủ tham số bắt buộc để tìm kiếm:', { addressStr, gpsData, dates });
+        setHotels([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Format dates as ISO strings (YYYY-MM-DD)
+      const checkInStr = dates.checkIn.toISOString().split('T')[0];
+      const checkOutStr = dates.checkOut.toISOString().split('T')[0];
+      
+      // Format children as array of ages
+      const childrenArray = Array.isArray(guests?.children) 
+        ? guests.children 
+        : (guests?.children > 0 ? Array(guests.children).fill(0) : []);
+      
+      // Calculate total party size
+      const partySize = (guests?.adults || 2) + childrenArray.length;
+      
+      // 4. Gọi hàm searchHotels từ đúng hotelSearchService mới
+      const response = await hotelSearchService.searchHotels({
+        address: addressStr,
+        gps: gpsData,
+        ref_id: refId,
+        check_in: checkInStr,
+        check_out: checkOutStr,
+        adults: guests?.adults || 2,
+        children: childrenArray,
+        personality: searchFilters?.personality || '',
+        trip_style: 'kham_pha', // Default trip style
+        trip_criteria: {
+          budget_min: 0,
+          budget_max: 0,
+          trip_style: 'kham_pha',
+          party_size: partySize
+        },
+        max_ranked_hotels: 50
       });
       
-      // Only update state if request wasn't cancelled
+      // Extract hotels and searching_place from response
+      const results = response.hotels || response || [];
+      const searchingPlace = response.searchingPlace || null;
+      
+      // Chỉ cập nhật state nếu request không bị hủy giữa chừng
       if (!requestTracker.cancelled) {
         setHotels(results);
         
-        // Reset active hotel when results change
+        // Set map GPS from searching_place if available
+        if (searchingPlace && searchingPlace.gps && setSearchGps) {
+          console.log('✅ Setting map GPS from searching_place:', searchingPlace.gps);
+          setSearchGps({
+            latitude: searchingPlace.gps.latitude,
+            longitude: searchingPlace.gps.longitude
+          });
+        }
+        
         if (activeHotel) {
           setActiveHotel(null);
         }
@@ -153,9 +173,7 @@ const HomePage = () => {
       if (!currentRequestRef.current?.cancelled) {
         console.error('Error applying filters:', error);
         
-        // Set user-friendly error message
         let errorMessage = 'Có lỗi xảy ra khi tìm kiếm khách sạn. Vui lòng thử lại.';
-        
         if (error.code === 'NETWORK_ERROR' || !navigator.onLine) {
           errorMessage = 'Không thể kết nối mạng. Vui lòng kiểm tra kết nối internet.';
         } else if (error.response?.status === 429) {
@@ -171,7 +189,7 @@ const HomePage = () => {
         setLoading(false);
       }
     }
-  }, [location, dates, guests, radiusM, setHotels, setLoading, activeHotel, setActiveHotel]);
+  }, [location, dates, guests, userLoc, setHotels, setLoading, activeHotel, setActiveHotel]);
 
   const debouncedHotelSearch = useCallback((searchFilters) => {
     // Clear existing timeout
@@ -185,38 +203,18 @@ const HomePage = () => {
     }, 300); // 300ms debounce delay
   }, [performHotelSearch]);
 
+  // Task 2.1: Remove filter-triggered API calls
+  // Filters now only update AppContext state, client-side filtering happens automatically
   const handleFilterApply = async (newFilters) => {
     setFilters(newFilters);
     setFilterModalOpen(false);
-    
-    // Use debounced search to prevent excessive API calls
-    debouncedHotelSearch(newFilters);
+    // NO API call - filtering is done client-side in AppContext
   };
 
   const handleRetry = async () => {
     setError(null);
-    
-    // If mock data failed to load, retry loading it
-    if (mockDataLoading === false) {
-      try {
-        setMockDataLoading(true);
-        const hotels = await loadMockHotels();
-        
-        if (hotels.length === 0) {
-          setError('Không thể tải dữ liệu khách sạn. Vui lòng thử lại sau.');
-        } else {
-          setHotels(hotels);
-        }
-      } catch (err) {
-        console.error('Error loading mock hotels:', err);
-        setError('Có lỗi xảy ra khi tải dữ liệu khách sạn. Vui lòng làm mới trang.');
-      } finally {
-        setMockDataLoading(false);
-      }
-    } else {
-      // Otherwise, retry the filter search
-      debouncedHotelSearch(filters);
-    }
+    // Retry the hotel search (not filter search)
+    debouncedHotelSearch(filters);
   };
 
   return (
@@ -224,18 +222,8 @@ const HomePage = () => {
       {/* 1. Thanh tìm kiếm nằm trên cùng */}
       <SearchBar />
 
-      {/* Loading State for Mock Data */}
-      {mockDataLoading && (
-        <div className="flex items-center justify-center flex-1">
-          <div className="flex flex-col items-center gap-3">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            <p className="text-sm text-text-secondary">Đang tải dữ liệu khách sạn...</p>
-          </div>
-        </div>
-      )}
-
       {/* Error Banner */}
-      {error && !mockDataLoading && (
+      {error && (
         <div className="bg-error/10 border-l-4 border-error px-4 py-3 mx-4 mt-2 rounded-r-lg flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Icon name="error" size={20} className="text-error" />
@@ -261,8 +249,7 @@ const HomePage = () => {
       )}
 
       {/* 2. Vùng nội dung chính: Chia đôi Bản đồ và Sidebar */}
-      {!mockDataLoading && (
-        <main className="flex-1 flex overflow-hidden relative min-h-0">
+      <main className="flex-1 flex overflow-hidden relative min-h-0">
           {/* Bản đồ bên trái */}
           <div 
             className="min-w-0 transition-all duration-200"
@@ -283,7 +270,7 @@ const HomePage = () => {
 
           {/* Sidebar bên phải */}
           <div 
-            className="flex-shrink-0 transition-all duration-200"
+            className="flex-shrink-0 h-full transition-all duration-200"
             style={{ width: `${hotelListWidth}%` }}
           >
             <HotelSidebar 
@@ -293,7 +280,6 @@ const HomePage = () => {
             />
           </div>
         </main>
-      )}
 
       {/* 3. Filter Modal */}
       {filterModalOpen && (
@@ -304,7 +290,12 @@ const HomePage = () => {
           onApply={handleFilterApply}
         />
       )}
+      <div>
+        <HotelListSection />
+      </div>
     </div>
+
+
   );
 };
 

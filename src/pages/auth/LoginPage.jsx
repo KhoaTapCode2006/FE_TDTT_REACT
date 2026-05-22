@@ -26,7 +26,7 @@ const LoginPage = () => {
                 Travel.
               </h1>
               <p className="text-white/90 text-lg leading-relaxed mb-8">
-                Welcome to Booking4U. Whether you're returning for another escape or joining our inner circle, luxury awaits.
+                Welcome to Lodgy4U. Whether you're returning for another escape or joining our inner circle, luxury awaits.
               </p>
               
               <div className="flex items-center gap-4 bg-white/10 backdrop-blur-sm rounded-2xl px-6 py-4 border border-white/20">
@@ -49,7 +49,7 @@ const LoginPage = () => {
             <div className="lg:hidden text-center mb-8">
               <Link to="/" className="inline-block">
                 <h1 className="font-headline font-extrabold text-2xl text-primary">
-                  Booking4LU
+                  Lodgy4U
                 </h1>
               </Link>
             </div>

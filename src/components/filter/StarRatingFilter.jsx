@@ -2,23 +2,29 @@ import React, { memo } from 'react';
 import Icon from '@/components/ui/Icon';
 
 const StarRatingFilter = memo(({ value, onChange }) => {
+  // Support both array (multiple selections) and single value for backward compatibility
+  const selectedRatings = Array.isArray(value) ? value : (value ? [value] : []);
+  
   const handleStarClick = (rating) => {
-    // Toggle off if clicking the same rating
-    if (value === rating) {
-      onChange(null);
+    // Toggle behavior for multiple selections
+    if (selectedRatings.includes(rating)) {
+      // Remove rating from selection
+      const newRatings = selectedRatings.filter(r => r !== rating);
+      onChange(newRatings.length > 0 ? newRatings : null);
     } else {
-      onChange(rating);
+      // Add rating to selection
+      onChange([...selectedRatings, rating]);
     }
   };
 
   return (
     <div>
       <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">
-        Xếp hạng đánh giá
+        Xếp hạng đánh giá {selectedRatings.length > 0 && `(${selectedRatings.length} selected)`}
       </p>
       <div className="flex gap-2">
         {[1, 2, 3, 4, 5].map((rating) => {
-          const isSelected = value === rating;
+          const isSelected = selectedRatings.includes(rating);
           return (
             <button
               key={rating}
