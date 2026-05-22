@@ -82,7 +82,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
 
   const stoppedSharingRef = useRef(false); // giữ lại để block pushTracking khi logout
   const gpsBlockedRef = useRef(gpsBlocked);
-  const pinggedUidsRef = useRef(new Set()); // uid đã phát ping lost_signal, tránh ping lặp
+  const pinggedUidsRef = useRef(new Map()); // uid -> updatedAt đã phát ping, tránh ping lặp
 
   // Persist gpsBlocked vào localStorage để giữ sau F5
   const setGpsBlockedPersist = useCallback((val) => {
@@ -540,7 +540,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
 
         const t = m.tracking;
 
-        // Nếu member đã active trở lại → reset ping để lần sau có thể ping lại
+        // Nếu member đã active trở lại → reset để lần sau có thể ping lại
         if (t?.status === "active") {
           pinggedUidsRef.current.delete(m.uid);
         }
@@ -555,9 +555,10 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
         if (diffSec > 90) {
           console.log(`[TripMapPanel] lost_signal detected for ${m.uid}, diff=${Math.round(diffSec)}s`);
 
-          // Phát ping một lần duy nhất khi vừa vượt ngưỡng
-          if (!pinggedUidsRef.current.has(m.uid)) {
-            pinggedUidsRef.current.add(m.uid);
+          // Chỉ ping nếu uid chưa có trong map HOẶC updated_at đã thay đổi
+          const lastPingedAt = pinggedUidsRef.current.get(m.uid);
+          if (lastPingedAt === undefined || lastPingedAt !== updatedAt) {
+            pinggedUidsRef.current.set(m.uid, updatedAt);
             playLostSignalPing();
           }
 
