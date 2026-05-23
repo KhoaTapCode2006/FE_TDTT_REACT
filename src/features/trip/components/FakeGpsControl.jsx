@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
 
 // step mặc định 5 mét
@@ -76,22 +76,9 @@ export default function FakeGpsControl({ tripId, initialLat, initialLng, initial
   };
 
   const handleLostSignal = useCallback(async () => {
-    const uid = auth.currentUser?.uid;
-    if (!uid || !tripId) return;
     setLostSignal(true);
     onLostSignal?.(); // block GPS push trong TripMapPanel
-    try {
-      await updateDoc(
-        doc(db, "trips", tripId, "members", uid),
-        {
-          "tracking.status":     "lost_signal",
-          "tracking.updated_at": serverTimestamp(),
-        }
-      );
-    } catch (err) {
-      console.warn("[FakeGpsControl] lost_signal failed:", err);
-    }
-  }, [tripId, onLostSignal]);
+  }, [onLostSignal]);
 
   const handleStop = useCallback(async () => {
     setActive(false);

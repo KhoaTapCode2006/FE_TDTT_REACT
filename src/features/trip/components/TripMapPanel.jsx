@@ -35,6 +35,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
   const [loadingRoutes, setLoadingRoutes]   = useState(false);
   const [distToDestM, setDistToDestM]       = useState(null);
   const [fakeActive, setFakeActive]         = useState(false);
+  const [localLostSet, setLocalLostSet]     = useState(new Set()); // uid bị mất kết nối theo client
   const [gpsBlocked, setGpsBlocked]         = useState(() => {
     // Khôi phục trạng thái lost_signal sau F5
     if (!trip?.id || !auth.currentUser?.uid) return false;
@@ -83,6 +84,8 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
   const stoppedSharingRef = useRef(false); // giữ lại để block pushTracking khi logout
   const gpsBlockedRef = useRef(gpsBlocked);
   const pinggedUidsRef = useRef(new Map()); // uid -> updatedAt đã phát ping, tránh ping lặp
+  const lastPushTimeRef = useRef(0); // timestamp (ms) của lần push tracking gần nhất
+  const myRealPosRef = useRef(null); // ref mirror của myRealPos để dùng trong interval
 
   // Persist gpsBlocked vào localStorage để giữ sau F5
   const setGpsBlockedPersist = useCallback((val) => {
@@ -161,35 +164,60 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setMyRealPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        updateDistToDestM(pos.coords.latitude, pos.coords.longitude);
-        pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude);
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setMyRealPos({ lat, lng });
+        myRealPosRef.current = { lat, lng };
+        updateDistToDestM(lat, lng);
+        lastPushTimeRef.current = Date.now();
+        pushTrackingRef.current?.(lat, lng);
       },
       () => {}, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        setMyRealPos({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        updateDistToDestM(pos.coords.latitude, pos.coords.longitude);
-        pushTrackingRef.current?.(pos.coords.latitude, pos.coords.longitude);
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setMyRealPos({ lat, lng });
+        myRealPosRef.current = { lat, lng };
+        updateDistToDestM(lat, lng);
+        // watchPosition chỉ cập nhật vị trí local; interval bên dưới lo việc push Firestore
       },
       () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
+
+    // Push tracking lên Firestore mỗi 10 giây, dù vị trí có thay đổi hay không
+    const pushIntervalId = setInterval(() => {
+      const pos = myRealPosRef.current;
+      if (!pos) return;
+      lastPushTimeRef.current = Date.now();
+      pushTrackingRef.current?.(pos.lat, pos.lng);
+    }, 10_000);
     return () => {
+      clearInterval(pushIntervalId);
       if (watchIdRef.current != null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
       }
-      // Chỉ set no_share khi rời trang thật — không ghi đè khi đang lost_signal hoặc fake GPS
-      if (!fakeActive && !gpsBlockedRef.current) {
-        updateDoc(ref, {
-          "tracking.status":     "no_share",
-          "tracking.updated_at": serverTimestamp(),
-        }).catch(() => {});
-      }
+      // Không ghi no_share ở đây — để effect riêng bên dưới xử lý khi unmount thật
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUid, tripId, fakeActive, gpsBlocked]);
+
+  // Ghi no_share khi unmount thật — dùng ref để đọc giá trị mới nhất tại thời điểm unmount
+  const noShareInfoRef = useRef({ currentUid, tripId });
+  useEffect(() => { noShareInfoRef.current = { currentUid, tripId }; }, [currentUid, tripId]);
+
+  useEffect(() => {
+    return () => {
+      const { currentUid: uid, tripId: tid } = noShareInfoRef.current;
+      if (!uid || !tid) return;
+      if (gpsBlockedRef.current || trackingState.isLoggedOut()) return;
+      updateDoc(doc(db, "trips", tid, "members", uid), {
+        "tracking.status":     "no_share",
+        "tracking.updated_at": serverTimestamp(),
+      }).catch(() => {});
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // [] = chỉ chạy cleanup khi unmount thật
 
   // ── Build members ─────────────────────────────────────────────────────────
   // Khi trip chưa active: chỉ hiển thị bản thân
@@ -223,12 +251,17 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
       // Ưu tiên 1: tai nạn lên đầu
       if (a.accident && !b.accident) return -1;
       if (!a.accident && b.accident) return 1;
-      // Ưu tiên 2: mất tín hiệu lên thứ hai
+      // Ưu tiên 2: mất kết nối (client-side) lên thứ hai
+      const aLostLocal = localLostSet.has(a.id);
+      const bLostLocal = localLostSet.has(b.id);
+      if (aLostLocal && !bLostLocal) return -1;
+      if (!aLostLocal && bLostLocal) return 1;
+      // Ưu tiên 3: mất tín hiệu (Firestore) lên thứ ba
       const aLost = a.status === "lost_signal";
       const bLost = b.status === "lost_signal";
       if (aLost && !bLost) return -1;
       if (!aLost && bLost) return 1;
-      // Ưu tiên 3: đổi lộ trình lên thứ ba
+      // Ưu tiên 4: đổi lộ trình lên thứ tư
       const aChange = a.status === "change_route";
       const bChange = b.status === "change_route";
       if (aChange && !bChange) return -1;
@@ -576,7 +609,49 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, tripId, fakeActive, firestoreMembers, currentUid]);
 
-  // ── Accident / Arrive ─────────────────────────────────────────────────────
+  // ── Client-side "mất kết nối" detection (15s, không push Firestore) ─────────
+  // Kiểm tra mỗi 5 giây. Nếu now - updated_at > 15s thì hiển thị mất kết nối + phát âm thanh.
+  // Reset ngay khi member cập nhật lại (updated_at mới hơn).
+  const localLostPingedRef = useRef(new Map()); // uid -> updatedAt đã phát ping
+  const firestoreMembersRef = useRef(firestoreMembers);
+  useEffect(() => { firestoreMembersRef.current = firestoreMembers; }, [firestoreMembers]);
+
+  useEffect(() => {
+    if (!isActive) {
+      setLocalLostSet(new Set());
+      return;
+    }
+    const checkLocalLost = () => {
+      if (fakeActive) return;
+      const now = Date.now();
+      const nextLost = new Set();
+      firestoreMembersRef.current.forEach((m) => {
+        if (m.uid === currentUid) return; // bỏ qua bản thân
+        const t = m.tracking;
+        if (!t) return;
+        const updatedAt = t.updated_at?.toMillis?.() ?? (t.updated_at?.seconds != null ? t.updated_at.seconds * 1000 : null);
+        if (updatedAt === null) return;
+        const diffSec = (now - updatedAt) / 1000;
+        if (diffSec > 15) {
+          nextLost.add(m.uid);
+          // Phát âm thanh chỉ 1 lần cho mỗi lần mất kết nối (theo updatedAt)
+          const lastPinged = localLostPingedRef.current.get(m.uid);
+          if (lastPinged !== updatedAt) {
+            localLostPingedRef.current.set(m.uid, updatedAt);
+            playLostSignalPing();
+          }
+        } else {
+          // Đã kết nối lại → reset ping để lần sau có thể phát lại
+          localLostPingedRef.current.delete(m.uid);
+        }
+      });
+      setLocalLostSet(nextLost);
+    };
+    const id = setInterval(checkLocalLost, 5_000);
+    checkLocalLost(); // chạy ngay lần đầu
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, fakeActive, currentUid]); // không có firestoreMembers — dùng ref để tránh restart interval
   const meAccident = allMembers.find((m) => m.isMe)?.accident === true;
   const meArrived  = allMembers.find((m) => m.isMe)?.status === "arrived";
   const canArrive  = distToDestM !== null && distToDestM < 500;
@@ -652,24 +727,28 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
             </div>
           )}
           {allMembers.map((m) => {
-            const sl   = statusLabel[m.status] || statusLabel.no_share;
+            const isLocalLost = localLostSet.has(m.id);
+            const sl   = isLocalLost
+              ? { text: "Mất kết nối", color: "text-yellow-600" }
+              : (statusLabel[m.status] || statusLabel.no_share);
             const info = routeInfoMap[m.id];
             return (
               <button
                 key={m.id}
                 onClick={() => handleMemberClick(m)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${selectedMember?.id === m.id ? "bg-primary/10" : "hover:bg-gray-50"} ${m.accident ? "bg-red-50" : ""}`}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${selectedMember?.id === m.id ? "bg-primary/10" : "hover:bg-gray-50"} ${m.accident ? "bg-red-50" : isLocalLost ? "bg-yellow-50" : ""}`}
               >
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 relative"
-                  style={{ background: m.accident ? "#dc2626" : m.color }}
+                  style={{ background: m.accident ? "#dc2626" : isLocalLost ? "#d97706" : m.color }}
                 >
-                  {m.accident ? "🚨" : m.avatar}
-                  {m.hasRealGps && !m.accident && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full" />}
+                  {m.avatar}
+                  {m.hasRealGps && !m.accident && !isLocalLost && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full" />}
                   {m.accident && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-600 border-2 border-white rounded-full animate-pulse" />}
+                  {isLocalLost && !m.accident && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-yellow-400 border-2 border-white rounded-full animate-pulse" />}
                 </div>
                 <div className="flex flex-col min-w-0 flex-1">
-                  <span className={`text-sm truncate ${selectedMember?.id === m.id ? "font-semibold text-primary" : m.accident ? "font-semibold text-red-600" : "text-gray-700"}`}>
+                  <span className={`text-sm truncate ${selectedMember?.id === m.id ? "font-semibold text-primary" : m.accident ? "font-semibold text-red-600" : isLocalLost ? "font-semibold text-yellow-700" : "text-gray-700"}`}>
                     {m.isMe ? "Bạn" : m.name}
                   </span>
                   <span className={`text-[10px] ${m.accident ? "text-red-500" : sl.color}`}>

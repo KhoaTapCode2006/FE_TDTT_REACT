@@ -70,8 +70,8 @@ export function useGpsTracking(tripIds) {
     // Push ngay lần đầu khi mount
     fetchAndPush();
 
-    // Sau đó cứ 30 giây push một lần
-    watchIdRef.current = setInterval(fetchAndPush, 30_000);
+    // Sau đó cứ 5 giây push một lần
+    watchIdRef.current = setInterval(fetchAndPush, 5_000);
 
     return () => {
       if (watchIdRef.current != null) {
