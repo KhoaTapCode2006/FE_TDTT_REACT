@@ -9,6 +9,7 @@ import HotelSuggestionAutocomplete from "@/components/autocomplete/HotelSuggesti
 import { collectionService } from "../../services/backend/collection.service";
 import { viewsService } from "../../services/backend/views.service";
 import { useAuth } from "../../contexts/AuthContext";
+import { useApp } from "@/app/AppContext";
 
 const STATUS_TYPES = {
   success: "bg-emerald-600 text-white",
@@ -122,6 +123,7 @@ function CollectionPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { activeHotel, setActiveHotel } = useApp(); // Global hotel popup state
   
   // Debug: Log auth state
   console.log("=== CollectionPage Render ===");
@@ -1886,6 +1888,9 @@ function CollectionPage() {
           </div>
         </div>
       </div>
+
+      {/* Global Hotel Popup - Renders at page root level */}
+
     </div>
   );
 }
