@@ -64,7 +64,15 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
         {/* Thumbnail */}
         <div className="relative">
           {thumbnail ? (
-            <img src={thumbnail} alt={name} className="w-full h-40 object-cover" />
+            <img
+              src={thumbnail}
+              alt={name}
+              className="w-full h-40 object-cover"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = `https://placehold.co/400x160/e2e8f0/94a3b8?text=Kh%C3%B4ng+th%E1%BB%83+t%E1%BA%A3i+%E1%BA%A3nh`;
+              }}
+            />
           ) : (
             <div className="w-full h-40 bg-green-50 flex items-center justify-center">
               {loading ? (
