@@ -23,7 +23,7 @@ const statusLabel = {
   no_share:        { text: "Không chia sẻ",   color: "text-gray-400" },
   offline:         { text: "Offline",          color: "text-gray-400" },};
 
-export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
+export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onLostSignal: onLostSignalProp, onResumeSignal: onResumeSignalProp }) {
   const mapRef     = useRef(null);
   const mapObjRef  = useRef(null);
   const markersRef = useRef({});
@@ -252,8 +252,8 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
       if (a.accident && !b.accident) return -1;
       if (!a.accident && b.accident) return 1;
       // Ưu tiên 2: mất kết nối (client-side) lên thứ hai
-      const aLostLocal = localLostSet.has(a.id);
-      const bLostLocal = localLostSet.has(b.id);
+      const aLostLocal = localLostSet.has(a.id) || (a.isMe && gpsBlocked);
+      const bLostLocal = localLostSet.has(b.id) || (b.isMe && gpsBlocked);
       if (aLostLocal && !bLostLocal) return -1;
       if (!aLostLocal && bLostLocal) return 1;
       // Ưu tiên 3: mất tín hiệu (Firestore) lên thứ ba
@@ -736,7 +736,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
             </div>
           )}
           {allMembers.map((m) => {
-            const isLocalLost = localLostSet.has(m.id);
+            const isLocalLost = localLostSet.has(m.id) || (m.isMe && gpsBlocked);
             const sl   = isLocalLost
               ? { text: "Mất kết nối", color: "text-yellow-600" }
               : (statusLabel[m.status] || statusLabel.no_share);
@@ -803,8 +803,8 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
               onFakeStart?.();
             }}
             onStop={() => { setFakeActive(false); setGpsBlockedPersist(false); onFakeStop?.(); }}
-            onLostSignal={() => setGpsBlockedPersist(true)}
-            onResumeSignal={() => setGpsBlockedPersist(false)}
+            onLostSignal={() => { setGpsBlockedPersist(true); onLostSignalProp?.(); }}
+            onResumeSignal={() => { setGpsBlockedPersist(false); onResumeSignalProp?.(); }}
             onPositionChange={(lat, lng) => {
               const R = 6371000;
               const dLat = (DEST.lat - lat) * Math.PI / 180;

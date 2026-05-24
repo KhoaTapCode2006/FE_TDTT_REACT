@@ -19,9 +19,15 @@ export function useGpsTracking(tripIds) {
   const intervalRef = useRef(null);
   const watchIdRef  = useRef(null);   // watchPosition ID — dùng để cache vị trí mới nhất
   const tripIdsRef  = useRef(tripIds);
-  const pausedRef   = useRef(false);  // true khi fake GPS đang bật
+  const pausedRef   = useRef(false);  // true khi fake GPS đang bật hoặc ngắt tín hiệu
   const uidRef      = useRef(null);
   const lastPosRef  = useRef(null);   // { lat, lng } — vị trí mới nhất từ watchPosition
+
+  // Kiểm tra xem có trip nào đang bị gpsBlocked trong localStorage không
+  const isAnyTripBlocked = useCallback((uid, ids) => {
+    if (!uid || !ids?.length) return false;
+    return ids.some((id) => localStorage.getItem(`gpsBlocked:${id}:${uid}`) === "1");
+  }, []);
 
   // Luôn giữ tripIdsRef cập nhật
   useEffect(() => {
@@ -30,6 +36,8 @@ export function useGpsTracking(tripIds) {
 
   const pushToAllTrips = useCallback(async (lat, lng) => {
     if (pausedRef.current || trackingState.isLoggedOut()) return;
+    // Kiểm tra lại localStorage tại thời điểm push (phòng trường hợp pause chưa kịp set)
+    if (isAnyTripBlocked(uidRef.current, tripIdsRef.current)) return;
 
     const uid = uidRef.current;
     if (!uid || !tripIdsRef.current?.length) return;
@@ -55,6 +63,11 @@ export function useGpsTracking(tripIds) {
     if (intervalRef.current) return; // đã chạy rồi
 
     uidRef.current = uid;
+
+    // Nếu đang bị gpsBlocked từ localStorage → start ở trạng thái paused
+    if (isAnyTripBlocked(uid, tripIdsRef.current)) {
+      pausedRef.current = true;
+    }
 
     // watchPosition để cache vị trí mới nhất liên tục
     watchIdRef.current = navigator.geolocation.watchPosition(
@@ -133,9 +146,9 @@ export function useGpsTracking(tripIds) {
       unsubscribe();
       stopTracking();
 
-      // Set no_share khi rời trang
+      // Set no_share khi rời trang — chỉ khi không đang paused (ngắt tín hiệu)
       const uid = uidRef.current;
-      if (uid && tripIdsRef.current?.length && !trackingState.isLoggedOut()) {
+      if (uid && tripIdsRef.current?.length && !trackingState.isLoggedOut() && !pausedRef.current) {
         Promise.allSettled(
           tripIdsRef.current.map((tripId) =>
             updateDoc(doc(db, "trips", tripId, "members", uid), {

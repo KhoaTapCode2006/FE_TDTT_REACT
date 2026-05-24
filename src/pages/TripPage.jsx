@@ -153,7 +153,7 @@ export default function TripPage() {
                   />
                 </div>
                 <div className="flex-1 min-h-0 px-4 pb-0">
-                  <TripMapPanel trip={selectedTrip} onFakeStart={pauseGps} onFakeStop={resumeGps} />
+                  <TripMapPanel trip={selectedTrip} onFakeStart={pauseGps} onFakeStop={resumeGps} onLostSignal={pauseGps} onResumeSignal={resumeGps} />
                 </div>
               </>
             )}
