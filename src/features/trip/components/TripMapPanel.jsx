@@ -3,7 +3,7 @@ import { doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "@/config/firebase";
 import { useTripMembers } from "../hooks/useTripMembers";
 import { useAccidentAlert } from "../hooks/useAccidentAlert";
-import { useLostSignalAlert, playLostSignalPing } from "../hooks/useLostSignalAlert";
+import { playLostSignalPing } from "../hooks/useLostSignalAlert";
 import { useRouteChangeAlert } from "../hooks/useRouteChangeAlert";
 import { useMemberLeftAlert } from "../hooks/useMemberLeftAlert";
 import { MEMBER_COLORS } from "./modals/TripMapModal";
@@ -36,6 +36,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onLostSign
   const [distToDestM, setDistToDestM]       = useState(null);
   const [fakeActive, setFakeActive]         = useState(false);
   const [localLostSet, setLocalLostSet]     = useState(new Set()); // uid bị mất kết nối theo client
+  const [lostSignalToasts, setLostSignalToasts] = useState([]); // toast "X đã bị mất tín hiệu"
   const [gpsBlocked, setGpsBlocked]         = useState(() => {
     // Khôi phục trạng thái lost_signal sau F5
     if (!trip?.id || !auth.currentUser?.uid) return false;
@@ -54,8 +55,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onLostSign
   // Chỉ alert accident khi trip đang active
   useAccidentAlert(isActive ? firestoreMembers : [], currentUid);
 
-  // Phát ping khi có member mất tín hiệu (lost_signal) — chỉ khi trip active
-  useLostSignalAlert(isActive ? firestoreMembers : [], currentUid);
+  // Phát ping khi có member mất tín hiệu — toast được trigger từ checkLocalLost (client-side 15s)
 
   // Phát Mario coin khi có member đổi lộ trình (change_route) — chỉ khi trip active
   useRouteChangeAlert(isActive ? firestoreMembers : [], currentUid);
@@ -87,7 +87,9 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onLostSign
   const lastPushTimeRef = useRef(0); // timestamp (ms) của lần push tracking gần nhất
   const myRealPosRef = useRef(null); // ref mirror của myRealPos để dùng trong interval
 
-  // Persist gpsBlocked vào localStorage để giữ sau F5
+  const dismissLostSignalToast = useCallback((id) => {
+    setLostSignalToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
   const setGpsBlockedPersist = useCallback((val) => {
     gpsBlockedRef.current = val; // update ref ngay lập tức trước re-render
     setGpsBlocked(val);
@@ -162,17 +164,25 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onLostSign
       setDistToDestM(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
     };
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
-        setMyRealPos({ lat, lng });
-        myRealPosRef.current = { lat, lng };
-        updateDistToDestM(lat, lng);
-        lastPushTimeRef.current = Date.now();
-        pushTrackingRef.current?.(lat, lng);
-      },
-      () => {}, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-    );
+    // Nếu đã có vị trí cached (ví dụ sau khi resume từ ngắt tín hiệu) → push ngay, bỏ qua getCurrentPosition
+    if (myRealPosRef.current) {
+      const { lat, lng } = myRealPosRef.current;
+      updateDistToDestM(lat, lng);
+      lastPushTimeRef.current = Date.now();
+      pushTrackingRef.current?.(lat, lng);
+    } else {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude: lat, longitude: lng } = pos.coords;
+          setMyRealPos({ lat, lng });
+          myRealPosRef.current = { lat, lng };
+          updateDistToDestM(lat, lng);
+          lastPushTimeRef.current = Date.now();
+          pushTrackingRef.current?.(lat, lng);
+        },
+        () => {}, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
+    }
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
@@ -643,11 +653,21 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onLostSign
         const diffSec = (now - updatedAt) / 1000;
         if (diffSec > 15) {
           nextLost.add(m.uid);
-          // Phát âm thanh chỉ 1 lần cho mỗi lần mất kết nối (theo updatedAt)
+          // Phát âm thanh + hiển thị toast chỉ 1 lần cho mỗi lần mất kết nối (theo updatedAt)
           const lastPinged = localLostPingedRef.current.get(m.uid);
           if (lastPinged !== updatedAt) {
             localLostPingedRef.current.set(m.uid, updatedAt);
             playLostSignalPing();
+            // Thêm toast
+            const toastId = `${m.uid}-${updatedAt}`;
+            const name = m.display_name ?? m.username ?? m.uid;
+            setLostSignalToasts((prev) => {
+              if (prev.some((t) => t.id === toastId)) return prev;
+              return [...prev, { id: toastId, name }];
+            });
+            setTimeout(() => {
+              setLostSignalToasts((prev) => prev.filter((t) => t.id !== toastId));
+            }, 5_000);
           }
         } else {
           // Đã kết nối lại → reset ping để lần sau có thể phát lại
@@ -815,8 +835,8 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onLostSign
           />
         )}
 
-        {/* Toast: member rời chuyến đi */}
-        {toasts.length > 0 && (
+        {/* Toast: member rời chuyến đi + mất kết nối */}
+        {(toasts.length > 0 || lostSignalToasts.length > 0) && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50 pointer-events-none">
             {toasts.map((t) => (
               <div
@@ -826,6 +846,25 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onLostSign
                 <span><span className="font-bold">{t.name}</span> đã rời chuyến đi</span>
                 <button
                   onClick={() => dismissToast(t.id)}
+                  className="ml-1 text-white/60 hover:text-white transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+            {lostSignalToasts.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center gap-2 bg-yellow-600/90 text-white text-xs font-medium px-4 py-2.5 rounded-xl shadow-lg backdrop-blur-sm pointer-events-auto animate-fade-in"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <span><span className="font-bold">{t.name}</span> đã bị mất kết nối</span>
+                <button
+                  onClick={() => dismissLostSignalToast(t.id)}
                   className="ml-1 text-white/60 hover:text-white transition-colors"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
