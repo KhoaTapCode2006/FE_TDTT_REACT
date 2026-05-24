@@ -616,13 +616,22 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
   const firestoreMembersRef = useRef(firestoreMembers);
   useEffect(() => { firestoreMembersRef.current = firestoreMembers; }, [firestoreMembers]);
 
+  // Dùng ref để interval luôn đọc fakeActive mới nhất mà không cần restart
+  const fakeActiveRef = useRef(fakeActive);
+  useEffect(() => { fakeActiveRef.current = fakeActive; }, [fakeActive]);
+
   useEffect(() => {
     if (!isActive) {
       setLocalLostSet(new Set());
       return;
     }
     const checkLocalLost = () => {
-      if (fakeActive) return;
+      // Đọc từ ref để luôn có giá trị mới nhất
+      if (fakeActiveRef.current) {
+        // Khi fake GPS bật: xóa toàn bộ localLostSet để không hiển thị "mất kết nối" sai
+        setLocalLostSet(new Set());
+        return;
+      }
       const now = Date.now();
       const nextLost = new Set();
       firestoreMembersRef.current.forEach((m) => {
@@ -651,7 +660,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop }) {
     checkLocalLost(); // chạy ngay lần đầu
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, fakeActive, currentUid]); // không có firestoreMembers — dùng ref để tránh restart interval
+  }, [isActive, currentUid]); // fakeActive đọc qua ref — không cần trong deps
   const meAccident = allMembers.find((m) => m.isMe)?.accident === true;
   const meArrived  = allMembers.find((m) => m.isMe)?.status === "arrived";
   const canArrive  = distToDestM !== null && distToDestM < 500;
