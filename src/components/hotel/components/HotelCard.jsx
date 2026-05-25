@@ -25,7 +25,7 @@ function HotelCard({ hotel, onClick }) {
   const { cachedUrl, isLoading: imageLoading, error: imageError } = useImageCache(imageUrl);
 
   // Use Google's placeholder image as a stable fallback
-  const googlePlaceholder = "https://media1.tenor.com/m/NF6ixwAmrTMAAAAd/cristiano-ronaldo-drinking.gif";
+  const googlePlaceholder = "https://storage.googleapis.com/support-forums-api/attachment/thread-62654029-5647160710799411463.png";
   const displayUrl = cachedUrl || imageUrl || googlePlaceholder;
   
   const amenityIcons = (hotel?.amenities || []).slice(0, 3).map((a) => {
