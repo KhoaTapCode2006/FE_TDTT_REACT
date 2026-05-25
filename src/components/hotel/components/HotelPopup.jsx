@@ -311,14 +311,25 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
   const renderStars = (rating) =>
     [1, 2, 3, 4, 5].map((s) => <StarIcon key={s} filled={s <= Math.round(rating)} />);
 
+  const normalizeReviewText = (review) => {
+    if (!review) return '';
+    if (typeof review === 'string') return review;
+    if (typeof review.content === 'string') return review.content;
+    if (typeof review.text === 'string') return review.text;
+    if (typeof review.body === 'string') return review.body;
+    if (review.content && typeof review.content === 'object') return JSON.stringify(review.content);
+    if (review.text && typeof review.text === 'object') return JSON.stringify(review.text);
+    return '';
+  };
+
   // Prepare reviews data
   const reviews = hotel.reviews?.length
     ? hotel.reviews
     : hotel.latestReview
     ? [
         {
-          author: hotel.latestReview.author,
-          content: hotel.latestReview.text,
+          author: hotel.latestReview.author || 'Guest',
+          content: normalizeReviewText(hotel.latestReview),
           raw_star: Math.round(hotel.rating),
         },
       ]
@@ -566,7 +577,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                       <div className={styles.reviewRawStar}>
                         {renderStars(review.raw_star || hotel.rating)}
                       </div>
-                      <p className={styles.reviewContent}>{review.content || review.text}</p>
+                      <p className={styles.reviewContent}>{normalizeReviewText(review)}</p>
                     </div>
                   </div>
                 </div>

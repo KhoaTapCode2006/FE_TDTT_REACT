@@ -9,6 +9,135 @@
 import { geolocationService } from '../geolocation.service.js';
 import { apiClient } from '../api/apiClient.js';
 import { favoritesService } from '../profile/favorites.service.js';
+import { auth } from '../../config/firebase.js';
+
+function normalizeAmenity(amenity) {
+  if (!amenity || typeof amenity !== 'string') return null;
+  const normalized = amenity.toLowerCase().trim();
+
+  if (normalized === 'free wi-fi' || normalized === 'wi-fi' || normalized === 'wifi') return 'wifi';
+  if (normalized === 'pool' || normalized === 'hồ bơi' || normalized === 'bể bơi' || normalized === 'swimming pool') return 'pool';
+  if (normalized === 'gym' || normalized === 'fitness center' || normalized === 'fitness_center' || normalized === 'phòng gym') return 'fitness_center';
+  if (normalized === 'spa') return 'spa';
+  if (normalized === 'restaurant' || normalized === 'nhà hàng') return 'restaurant';
+  if (normalized === 'bar' || normalized === 'quầy bar') return 'bar';
+  if (normalized === 'free breakfast' || normalized === 'ăn sáng' || normalized === 'breakfast') return 'breakfast';
+  if (normalized === 'free parking' || normalized === 'đỗ xe' || normalized === 'bãi đỗ xe' || normalized === 'parking' || normalized === 'đỗ xe miễn phí') return 'parking';
+  if (normalized === 'air conditioning' || normalized === 'điều hòa' || normalized === 'máy lạnh' || normalized === 'ac') return 'ac';
+  if (normalized === 'pet friendly' || normalized === 'pet_friendly' || normalized === 'thú cưng') return 'pet_friendly';
+  if (normalized === 'full-service laundry' || normalized === 'giặt ủi' || normalized === 'laundry') return 'laundry';
+  if (normalized === 'airport shuttle' || normalized === 'shuttle' || normalized === 'đưa đón') return 'shuttle';
+  if (normalized === 'kitchen' || normalized === 'bếp') return 'kitchen';
+
+  if (normalized.includes('wi-fi') || normalized.includes('wifi')) return 'wifi';
+  if (normalized.includes('pool') || normalized.includes('hồ bơi') || normalized.includes('bể bơi')) return 'pool';
+  if (normalized.includes('gym') || normalized.includes('fitness')) return 'fitness_center';
+  if (normalized.includes('spa')) return 'spa';
+  if (normalized.includes('restaurant') || normalized.includes('nhà hàng')) return 'restaurant';
+  if (normalized.includes('bar') || normalized.includes('quầy bar')) return 'bar';
+  if (normalized.includes('breakfast') || normalized.includes('ăn sáng')) return 'breakfast';
+  if (normalized.includes('parking') || normalized.includes('đỗ xe') || normalized.includes('bãi đỗ')) return 'parking';
+  if (normalized.includes('air conditioning') || normalized.includes('điều hòa') || normalized.includes('ac')) return 'ac';
+  if (normalized.includes('pet') || normalized.includes('thú cưng')) return 'pet_friendly';
+  if (normalized.includes('laundry') || normalized.includes('giặt')) return 'laundry';
+  if (normalized.includes('shuttle') || normalized.includes('đưa đón')) return 'shuttle';
+  if (normalized.includes('kitchen') || normalized.includes('bếp')) return 'kitchen';
+
+  return null;
+}
+
+function normalizeImages(images) {
+  if (!Array.isArray(images)) return [];
+  return images
+    .map(img => {
+      if (typeof img === 'string') {
+        return { url: img, thumbnail: img, original: img };
+      }
+      return {
+        url: img.original_image || img.original || img.url || img.thumbnail || '',
+        thumbnail: img.thumbnail || img.url || '',
+        original: img.original_image || img.original || img.url || img.thumbnail || ''
+      };
+    })
+    .filter(img => img.url);
+}
+
+function normalizeReviewItem(review) {
+  if (typeof review === 'string') {
+    return { author: 'Guest', content: review, raw_star: 0 };
+  }
+
+  if (!review || typeof review !== 'object') {
+    return null;
+  }
+
+  const content =
+    typeof review.content === 'string'
+      ? review.content
+      : typeof review.text === 'string'
+      ? review.text
+      : typeof review.body === 'string'
+      ? review.body
+      : typeof review.review === 'string'
+      ? review.review
+      : typeof review.comment === 'string'
+      ? review.comment
+      : review.content?.text ??
+        review.content?.review ??
+        review.text?.content ??
+        review.text?.review ??
+        review.body?.text ??
+        review.review?.text ??
+        '';
+
+  return {
+    author: review.author || review.name || 'Guest',
+    content: content || '',
+    raw_star:
+      review.raw_star ??
+      review.rating ??
+      review.stars ??
+      review.review_score ??
+      review.score ??
+      0,
+    date: review.date || review.created_at || null,
+    source: review.source || null
+  };
+}
+
+function normalizeAiSentiment(rawSentiment) {
+  if (!rawSentiment || typeof rawSentiment !== 'object') return null;
+
+  const rawAnalyzedReviews =
+    rawSentiment.analyzed_reviews ??
+    rawSentiment.analyzedReviews ??
+    rawSentiment.review_count;
+
+  const analyzedReviews =
+    Array.isArray(rawAnalyzedReviews)
+      ? rawAnalyzedReviews.length
+      : typeof rawAnalyzedReviews === 'number'
+      ? rawAnalyzedReviews
+      : parseInt(rawAnalyzedReviews, 10) || 0;
+
+  return {
+    aiScore:
+      rawSentiment.ai_score ??
+      rawSentiment.aiScore ??
+      rawSentiment.rating ??
+      rawSentiment.raw_rating ??
+      0,
+    trustWeight:
+      rawSentiment.trust_weight ??
+      rawSentiment.trustWeight ??
+      0,
+    analyzedReviews
+  };
+}
+
+function canFetchFavorites() {
+  return !!auth?.currentUser;
+}
 
 /**
  * Hotel Search Service Class
@@ -556,88 +685,69 @@ async getTopViewsHotelsWeekly(limit = 16) {
     if (!Array.isArray(rawHotels)) return [];
 
     // 3. Tiến hành map chuẩn hóa từng trường theo data mẫu
-    return rawHotels.map(hotel => {
-      // Xử lý tọa độ GPS an toàn
-      const gpsLat = hotel.gps_coordinates?.latitude || null;
-      const gpsLng = hotel.gps_coordinates?.longitude || null;
-
-      // Xử lý mảng ảnh (Backend trả về mảng các Object chứa ảnh)
-      const images = Array.isArray(hotel.images) ? hotel.images.map(img => {
-        if (typeof img === 'string') {
-          return { url: img, thumbnail: img, original: img };
-        }
-        // Giữ cấu trúc Object của ảnh nếu backend trả về object
-        return {
-          url: img.url || img.original_image || img.original || img.thumbnail || '',
-          thumbnail: img.thumbnail || img.url || '',
-          original: img.original || img.original_image || img.url || ''
-        };
-      }).filter(img => img.url) : [];
-
-      // Trả về Object chuẩn hóa đồng bộ với component hiển thị
-      return {
-        id: hotel.property_token || hotel.id,
-        propertyToken: hotel.property_token,
-        hotel_id: hotel.property_token,
-        name: hotel.name || 'Unknown Hotel',
-        description: hotel.description || null,
-        address: hotel.address || null,
-        location: hotel.address || null,
-        phone: hotel.phone || null,
-        link: hotel.link || null,
-        
-        latitude: gpsLat,
-        longitude: gpsLng,
-        coordinates: {
-          latitude: gpsLat || 0,
-          longitude: gpsLng || 0,
-          geohash: hotel.gps_coordinates?.geohash || ''
-        },
-        
-        price: hotel.price || 0,
-        pricePerNight: hotel.price || 0,
-        deal: hotel.deal || null,
-        currency: 'VND',
-        
-        // Map rating từ ai_sentiment.ai_score trong dữ liệu mẫu của bạn
-        rating: hotel.ai_sentiment?.ai_score || hotel.raw_rating || 0,
-        rawRating: hotel.raw_rating || 0,
-        ai_score: hotel.ai_sentiment?.ai_score || 0,
-        trustWeight: hotel.ai_sentiment?.trust_weight || 0,
-        
-        images: images,
-        // Lấy ảnh đầu tiên làm thumbnail phẳng nếu cần
-        thumbnail: images.length > 0 ? images[0].thumbnail : null,
-        
-        amenities: Array.isArray(hotel.amenities) ? hotel.amenities : [],
-        userReviews: Array.isArray(hotel.user_reviews) ? hotel.user_reviews : [],
-        
-        // ĐẶC BIỆT: Map chính xác từ views.weekly_views và views.total_views của backend
-        totalViews: hotel.views?.total_views || 0,
-        weeklyViews: hotel.views?.weekly_views || 0
-      };
-    });
-
-    // Synchronize with user's favorites
     const mappedHotels = rawHotels.map(hotel => {
       // Xử lý tọa độ GPS an toàn
       const gpsLat = hotel.gps_coordinates?.latitude || null;
       const gpsLng = hotel.gps_coordinates?.longitude || null;
 
-      // Xử lý mảng ảnh (Backend trả về mảy các Object chứa ảnh)
-      const images = Array.isArray(hotel.images) ? hotel.images.map(img => {
-        if (typeof img === 'string') {
-          return { url: img, thumbnail: img, original: img };
-        }
-        // Giữ cấu trúc Object của ảnh nếu backend trả về object
-        return {
-          url: img.url || img.original_image || img.original || img.thumbnail || '',
-          thumbnail: img.thumbnail || img.url || '',
-          original: img.original || img.original_image || img.url || ''
-        };
-      }).filter(img => img.url) : [];
+      // Xử lý mảng ảnh (Backend trả về mảng các Object chứa ảnh)
+      const images = Array.isArray(hotel.images)
+        ? hotel.images.map(img => {
+            if (typeof img === 'string') {
+              return { url: img, thumbnail: img, original: img };
+            }
+            return {
+              url: img.url || img.original_image || img.original || img.thumbnail || '',
+              thumbnail: img.thumbnail || img.url || '',
+              original: img.original || img.original_image || img.url || ''
+            };
+          }).filter(img => img.url)
+        : [];
 
-      // Trả về Object chuẩn hóa đồng bộ với component hiển thị
+      const rawUserReviews = Array.isArray(hotel.user_reviews)
+        ? hotel.user_reviews
+        : Array.isArray(hotel.userReviews)
+        ? hotel.userReviews
+        : Array.isArray(hotel.reviews)
+        ? hotel.reviews
+        : [];
+      const normalizedUserReviews = Array.isArray(rawUserReviews)
+        ? rawUserReviews.map(normalizeReviewItem).filter(Boolean)
+        : [];
+      const aiSentiment = normalizeAiSentiment(hotel.ai_sentiment || hotel.aiSentiment);
+      const normalizedAmenities = Array.isArray(hotel.amenities)
+        ? hotel.amenities
+            .map(normalizeAmenity)
+            .filter(Boolean)
+            .filter((value, index, self) => self.indexOf(value) === index)
+        : [];
+      const views = {
+        totalViews:
+          hotel.views?.total_views ||
+          hotel.views?.totalViews ||
+          hotel.total_views ||
+          hotel.totalViews ||
+          0,
+        weeklyViews:
+          hotel.views?.weekly_views ||
+          hotel.views?.weeklyViews ||
+          hotel.weekly_views ||
+          hotel.weeklyViews ||
+          0,
+        total_views:
+          hotel.views?.total_views ||
+          hotel.views?.totalViews ||
+          hotel.total_views ||
+          hotel.totalViews ||
+          0,
+        weekly_views:
+          hotel.views?.weekly_views ||
+          hotel.views?.weeklyViews ||
+          hotel.weekly_views ||
+          hotel.weeklyViews ||
+          0
+      };
+
       return {
         id: hotel.property_token || hotel.id,
         propertyToken: hotel.property_token,
@@ -648,7 +758,6 @@ async getTopViewsHotelsWeekly(limit = 16) {
         location: hotel.address || null,
         phone: hotel.phone || null,
         link: hotel.link || null,
-        
         latitude: gpsLat,
         longitude: gpsLng,
         coordinates: {
@@ -656,32 +765,33 @@ async getTopViewsHotelsWeekly(limit = 16) {
           longitude: gpsLng || 0,
           geohash: hotel.gps_coordinates?.geohash || ''
         },
-        
         price: hotel.price || 0,
         pricePerNight: hotel.price || 0,
         deal: hotel.deal || null,
         currency: 'VND',
-        
-        // Map rating từ ai_sentiment.ai_score trong dữ liệu mẫu của bạn
         rating: hotel.ai_sentiment?.ai_score || hotel.raw_rating || 0,
         rawRating: hotel.raw_rating || 0,
         ai_score: hotel.ai_sentiment?.ai_score || 0,
         trustWeight: hotel.ai_sentiment?.trust_weight || 0,
-        
+        aiSentiment,
+        views,
         images: images,
-        // Lấy ảnh đầu tiên làm thumbnail phẳng nếu cần
         thumbnail: images.length > 0 ? images[0].thumbnail : null,
-        
-        amenities: Array.isArray(hotel.amenities) ? hotel.amenities : [],
-        userReviews: Array.isArray(hotel.user_reviews) ? hotel.user_reviews : [],
-        
-        // ĐẶC BIỆT: Map chính xác từ views.weekly_views và views.total_views của backend
-        totalViews: hotel.views?.total_views || 0,
-        weeklyViews: hotel.views?.weekly_views || 0
+        amenities: normalizedAmenities,
+        originalAmenities: hotel.amenities,
+        reviews: normalizedUserReviews,
+        userReviews: normalizedUserReviews,
+        latestReview: hotel.latest_review || hotel.latestReview || null,
+        totalViews: views.totalViews,
+        weeklyViews: views.weeklyViews
       };
     });
 
-    // Annotate with favorite status
+    // Synchronize with user's favorites
+    if (!canFetchFavorites()) {
+      return mappedHotels.map(hotel => ({ ...hotel, isFavorited: false }));
+    }
+
     try {
       const favorites = await favoritesService.getFavorites();
       const favoriteSet = new Set(favorites.map(fav => fav.propertyToken || fav.id || fav.hotel_id));
@@ -695,6 +805,7 @@ async getTopViewsHotelsWeekly(limit = 16) {
       console.debug('Could not fetch favorites for topView weekly hotels:', error.message);
       return mappedHotels.map(hotel => ({ ...hotel, isFavorited: false }));
     }
+
   } catch (error) {
     console.error("Error in getTopViewsHotels:", error);
     return []; // Trả về mảng rỗng để bảo vệ app không bị crash
@@ -718,25 +829,67 @@ async getTopViewsHotelsAllTime(limit = 16) {
     if (!Array.isArray(rawHotels)) return [];
 
     // 3. Tiến hành map chuẩn hóa từng trường theo data mẫu
-    return rawHotels.map(hotel => {
-      // Xử lý tọa độ GPS an toàn
+    const mappedHotels = rawHotels.map(hotel => {
       const gpsLat = hotel.gps_coordinates?.latitude || null;
       const gpsLng = hotel.gps_coordinates?.longitude || null;
 
-      // Xử lý mảng ảnh (Backend trả về mảng các Object chứa ảnh)
-      const images = Array.isArray(hotel.images) ? hotel.images.map(img => {
-        if (typeof img === 'string') {
-          return { url: img, thumbnail: img, original: img };
-        }
-        // Giữ cấu trúc Object của ảnh nếu backend trả về object
-        return {
-          url: img.url || img.original_image || img.original || img.thumbnail || '',
-          thumbnail: img.thumbnail || img.url || '',
-          original: img.original || img.original_image || img.url || ''
-        };
-      }).filter(img => img.url) : [];
+      const images = Array.isArray(hotel.images)
+        ? hotel.images.map(img => {
+            if (typeof img === 'string') {
+              return { url: img, thumbnail: img, original: img };
+            }
+            return {
+              url: img.url || img.original_image || img.original || img.thumbnail || '',
+              thumbnail: img.thumbnail || img.url || '',
+              original: img.original || img.original_image || img.url || ''
+            };
+          }).filter(img => img.url)
+        : [];
 
-      // Trả về Object chuẩn hóa đồng bộ với component hiển thị
+      const rawUserReviews = Array.isArray(hotel.user_reviews)
+        ? hotel.user_reviews
+        : Array.isArray(hotel.userReviews)
+        ? hotel.userReviews
+        : Array.isArray(hotel.reviews)
+        ? hotel.reviews
+        : [];
+      const normalizedUserReviews = Array.isArray(rawUserReviews)
+        ? rawUserReviews.map(normalizeReviewItem).filter(Boolean)
+        : [];
+      const aiSentiment = normalizeAiSentiment(hotel.ai_sentiment || hotel.aiSentiment);
+      const normalizedAmenities = Array.isArray(hotel.amenities)
+        ? hotel.amenities
+            .map(normalizeAmenity)
+            .filter(Boolean)
+            .filter((value, index, self) => self.indexOf(value) === index)
+        : [];
+      const views = {
+        totalViews:
+          hotel.views?.total_views ||
+          hotel.views?.totalViews ||
+          hotel.total_views ||
+          hotel.totalViews ||
+          0,
+        weeklyViews:
+          hotel.views?.weekly_views ||
+          hotel.views?.weeklyViews ||
+          hotel.weekly_views ||
+          hotel.weeklyViews ||
+          0,
+        total_views:
+          hotel.views?.total_views ||
+          hotel.views?.totalViews ||
+          hotel.total_views ||
+          hotel.totalViews ||
+          0,
+        weekly_views:
+          hotel.views?.weekly_views ||
+          hotel.views?.weeklyViews ||
+          hotel.weekly_views ||
+          hotel.weeklyViews ||
+          0
+      };
+
       return {
         id: hotel.property_token || hotel.id,
         propertyToken: hotel.property_token,
@@ -747,7 +900,6 @@ async getTopViewsHotelsAllTime(limit = 16) {
         location: hotel.address || null,
         phone: hotel.phone || null,
         link: hotel.link || null,
-        
         latitude: gpsLat,
         longitude: gpsLng,
         coordinates: {
@@ -755,32 +907,33 @@ async getTopViewsHotelsAllTime(limit = 16) {
           longitude: gpsLng || 0,
           geohash: hotel.gps_coordinates?.geohash || ''
         },
-        
         price: hotel.price || 0,
         pricePerNight: hotel.price || 0,
         deal: hotel.deal || null,
         currency: 'VND',
-        
-        // Map rating từ ai_sentiment.ai_score trong dữ liệu mẫu của bạn
         rating: hotel.ai_sentiment?.ai_score || hotel.raw_rating || 0,
         rawRating: hotel.raw_rating || 0,
         ai_score: hotel.ai_sentiment?.ai_score || 0,
         trustWeight: hotel.ai_sentiment?.trust_weight || 0,
-        
+        aiSentiment,
+        views,
         images: images,
-        // Lấy ảnh đầu tiên làm thumbnail phẳng nếu cần
         thumbnail: images.length > 0 ? images[0].thumbnail : null,
-        
-        amenities: Array.isArray(hotel.amenities) ? hotel.amenities : [],
-        userReviews: Array.isArray(hotel.user_reviews) ? hotel.user_reviews : [],
-        
-        // ĐẶC BIỆT: Map chính xác từ views.weekly_views và views.total_views của backend
-        totalViews: hotel.views?.total_views || 0,
-        weeklyViews: hotel.views?.weekly_views || 0
+        amenities: normalizedAmenities,
+        originalAmenities: hotel.amenities,
+        reviews: normalizedUserReviews,
+        userReviews: normalizedUserReviews,
+        latestReview: hotel.latest_review || hotel.latestReview || null,
+        totalViews: views.totalViews,
+        weeklyViews: views.weeklyViews
       };
     });
 
     // Synchronize with user's favorites
+    if (!canFetchFavorites()) {
+      return mappedHotels.map(hotel => ({ ...hotel, isFavorited: false }));
+    }
+
     try {
       const favorites = await favoritesService.getFavorites();
       const favoriteSet = new Set(favorites.map(fav => fav.propertyToken || fav.id || fav.hotel_id));
