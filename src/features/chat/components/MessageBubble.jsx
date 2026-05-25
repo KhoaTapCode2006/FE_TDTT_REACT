@@ -70,7 +70,7 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
               className="w-full h-40 object-cover"
               onError={(e) => {
                 e.currentTarget.onerror = null;
-                e.currentTarget.src = `https://placehold.co/400x160/e2e8f0/94a3b8?text=Kh%C3%B4ng+th%E1%BB%83+t%E1%BA%A3i+%E1%BA%A3nh`;
+                e.currentTarget.src = `https://storage.googleapis.com/support-forums-api/attachment/thread-62654029-5647160710799411463.png`;
               }}
             />
           ) : (
