@@ -196,7 +196,7 @@ const InformationPage = () => {
                   <button
                     type="button"
                     onClick={handleOpenSurvey}
-                    className="w-full lg:w-56 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border border-blue-300 px-6 py-5 rounded-3xl transition-all shadow-sm hover:shadow-md text-center"
+                    className="w-full lg:w-56 flex flex-col items-center justify-center gap-3 bg-linear-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border border-blue-300 px-6 py-5 rounded-3xl transition-all shadow-sm hover:shadow-md text-center"
                   >
                     <Icon name="flight_takeoff" size={28} className="text-blue-600" />
                     <div>
