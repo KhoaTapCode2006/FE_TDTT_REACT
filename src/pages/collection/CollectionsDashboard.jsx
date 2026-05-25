@@ -102,8 +102,13 @@ function CollectionsDashboard() {
         setContributingCollections(contributing || []);
       } else if (mySubTab === 'saved') {
         const saved = await collectionService.getSavedCollections();
-        setSavedCollections(saved || []);
-        setSavedCollectionIds(new Set((saved || []).map((c) => c.id)));
+        // Filter out own collections from saved list - only show collections from other users
+        const filteredSaved = (saved || []).filter(c => {
+          const ownerUid = c.owner?.uid ?? c.owner_uid;
+          return ownerUid !== user?.uid;
+        });
+        setSavedCollections(filteredSaved);
+        setSavedCollectionIds(new Set(filteredSaved.map((c) => c.id)));
       }
     } catch (err) {
       console.error('Failed to load my collections section:', err);
@@ -227,8 +232,13 @@ function CollectionsDashboard() {
     if (!user) return;
     try {
       const saved = await collectionService.getSavedCollections();
-      setSavedCollections(saved || []);
-      setSavedCollectionIds(new Set((saved || []).map((c) => c.id)));
+      // Filter out own collections from saved list - only show collections from other users
+      const filteredSaved = (saved || []).filter(c => {
+        const ownerUid = c.owner?.uid ?? c.owner_uid;
+        return ownerUid !== user?.uid;
+      });
+      setSavedCollections(filteredSaved);
+      setSavedCollectionIds(new Set(filteredSaved.map((c) => c.id)));
     } catch (e) {
       console.error('Failed to refresh saved collections:', e);
     }
@@ -584,6 +594,7 @@ function CollectionsDashboard() {
                   returnMyTab={returnMyTab}
                   currentUserId={user?.uid}
                   showWeeklyViews={mainTab === 'global' && topType === 'weekly'}
+                  showVisibilityBadge={mainTab === 'my'}
                 />
               );
             })}
