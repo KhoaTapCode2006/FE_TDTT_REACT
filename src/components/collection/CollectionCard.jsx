@@ -18,6 +18,7 @@ import LikeButton from '@/components/collection/LikeButton';
  * @param {string} [props.returnMyTab] - When returnTab is 'my', sub-tab: 'owned' | 'contributing' | 'saved'
  * @param {string} props.currentUserId - Current user's UID for displaying "You" in contributors list
  * @param {boolean} props.showWeeklyViews - Whether to show weekly views instead of total views (for weekly trends tab)
+ * @param {boolean} props.showVisibilityBadge - Whether to show visibility badge (Public/Private) in top-left corner
  */
 function CollectionCard({ 
   collection, 
@@ -29,7 +30,8 @@ function CollectionCard({
   returnTab = 'my',
   returnMyTab = null,
   currentUserId = null,
-  showWeeklyViews = false
+  showWeeklyViews = false,
+  showVisibilityBadge = false
 }) {
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -139,6 +141,25 @@ function CollectionCard({
             e.target.src = placeholderImage;
           }}
         />
+
+        {/* Visibility Badge (top-left) */}
+        {showVisibilityBadge && (
+          <div className="absolute top-3 left-3">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold shadow-lg backdrop-blur-sm ${
+                collection.visibility === 'public'
+                  ? 'bg-primary/90 text-white'
+                  : 'bg-surface-container-high/90 text-on-surface'
+              }`}
+            >
+              <Icon 
+                name={collection.visibility === 'public' ? 'public' : 'lock'} 
+                size={14} 
+              />
+              {collection.visibility === 'public' ? 'Công khai' : 'Riêng tư'}
+            </span>
+          </div>
+        )}
 
         {/* Save Button (for non-owners) */}
         {/* Task 8.1: Added hover animation, scale transition, and loading spinner */}
