@@ -106,7 +106,7 @@ function DateRangePicker({ checkIn, checkOut, onChange, onClose }) {
 
   function CalMonth({ year, month, cells }) {
     return (
-      <div className="flex-1 min-w-[260px]">
+      <div className="flex-1 min-w-65">
         <p className="text-center font-headline font-bold text-primary mb-3">
           {MONTHS[month]} {year}
         </p>
@@ -136,8 +136,8 @@ function DateRangePicker({ checkIn, checkOut, onChange, onClose }) {
 
   return (
     <div
-      className="modal-anim absolute top-full left-0 mt-2 z-[500] bg-white rounded-2xl shadow-2xl p-5 border border-outline-variant/20"
-      style={{ minWidth: 560 }}
+      className="modal-anim absolute top-full left-0 mt-2 z-50 bg-white rounded-2xl shadow-2xl p-6 border border-outline-variant/20"
+      style={{ minWidth: 640, zIndex: 700 }}
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between mb-4">

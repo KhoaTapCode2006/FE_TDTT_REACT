@@ -1,5 +1,6 @@
     import { createBrowserRouter, Navigate } from 'react-router-dom';
     import HomePage from '../pages/HomePage';
+    import IntroPage from '../pages/IntroPage';
     import MainLayout from '../layouts/MainLayout';
     import AuthLayout from '../layouts/AuthLayout';
     import LoginPage from '../pages/auth/LoginPage';
@@ -17,10 +18,12 @@
         path: '/',
         element: <MainLayout />,
         children: [
+        { path: '/intro', element: <IntroPage /> },
         { path: '/', element: <HomePage /> },
         // Collections routes
         { path: '/collections', element: <CollectionsDashboard /> },
         { path: '/collections/:collectionId', element: <CollectionPage /> },
+
         // Protected profile routes
         {
           path: '/account/information',

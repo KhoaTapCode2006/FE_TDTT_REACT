@@ -1,10 +1,12 @@
 ﻿import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useApp } from "@/app/AppContext";
 import { hotelSearchService } from "@/services/backend/hotelSearch.service";
 import Icon from "@/components/ui/Icon";
 import DateRangePicker from "@/components/ui/DateRangePicker";
 import GuestsSelector from "@/components/ui/GuestsSelector";
 function SearchBar() {
+  const navigate = useNavigate();
   const {
     location,
     setLocation,
@@ -227,6 +229,7 @@ function SearchBar() {
       }
       
       setHotels(results);
+      navigate('/');
     } catch (error) {
       console.error("SearchBar searchHotels failed:", error);
       // Set empty array on error to prevent infinite loading
@@ -262,7 +265,10 @@ function SearchBar() {
 
           {/* Address Suggestions Dropdown */}
           {showSuggestions && addressSuggestions.length > 0 && (
-            <div className="absolute top-full left-0 mt-1 w-full bg-white rounded-xl shadow-editorial border border-outline-variant/20 overflow-hidden z-[400] max-h-64 overflow-y-auto">
+            <div
+              className="absolute top-full left-0 mt-1 w-full bg-white rounded-xl shadow-editorial border border-outline-variant/20 overflow-hidden max-h-64 overflow-y-auto"
+              style={{ zIndex: 400 }}
+            >
               {addressSuggestions.map((suggestion, index) => (
                 <div
                   key={index}
@@ -303,22 +309,22 @@ function SearchBar() {
         <div
           ref={calRef}
           className={`relative flex-1 flex items-center gap-2 px-3 py-1 cursor-pointer border-r border-outline-variant/30 transition-all duration-200 ${
-            showCal ? 'bg-blue-50 border-blue-200' : 'hover:bg-surface-container-low'
+            showCal ? 'bg-emerald-50 border-emerald-200' : 'hover:bg-surface-container-low'
           }`}
           onClick={() => {
             setShowCal((v) => !v);
             setShowGuests(false);
           }}
         >
-          <Icon name="calendar_month" className={`flex-none transition-colors ${showCal ? 'text-blue-600' : 'text-on-surface-variant'}`} />
+          <Icon name="calendar_month" className={`flex-none transition-colors ${showCal ? 'text-emerald-600' : 'text-on-surface-variant'}`} />
           <div className="flex flex-col min-w-0">
             <span className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${
-              showCal ? 'text-blue-600' : 'text-on-surface-variant'
+              showCal ? 'text-emerald-600' : 'text-on-surface-variant'
             }`}>
               Check-in / Check-out
             </span>
             <span className={`text-sm font-medium whitespace-nowrap truncate transition-colors ${
-              showCal ? 'text-blue-700' : 'text-on-surface'
+              showCal ? 'text-emerald-700' : 'text-on-surface'
             }`}>
               {dateLabel}
             </span>
@@ -337,22 +343,22 @@ function SearchBar() {
         <div
           ref={guestsRef}
           className={`relative flex-1 flex items-center gap-2 px-3 py-1 cursor-pointer border-r border-outline-variant/30 transition-all duration-200 ${
-            showGuests ? 'bg-blue-50 border-blue-200' : 'hover:bg-surface-container-low'
+            showGuests ? 'bg-emerald-50 border-emerald-200' : 'hover:bg-surface-container-low'
           }`}
           onClick={() => {
             setShowGuests((v) => !v);
             setShowCal(false);
           }}
         >
-          <Icon name="group" className={`flex-none transition-colors ${showGuests ? 'text-blue-600' : 'text-on-surface-variant'}`} />
+          <Icon name="group" className={`flex-none transition-colors ${showGuests ? 'text-emerald-600' : 'text-on-surface-variant'}`} />
           <div className="flex flex-col min-w-0">
             <span className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${
-              showGuests ? 'text-blue-600' : 'text-on-surface-variant'
+              showGuests ? 'text-emerald-600' : 'text-on-surface-variant'
             }`}>
               Số người
             </span>
             <span className={`text-sm font-medium whitespace-nowrap truncate transition-colors ${
-              showGuests ? 'text-blue-700' : 'text-on-surface'
+              showGuests ? 'text-emerald-700' : 'text-on-surface'
             }`}>
               {guestsLabel}
             </span>
@@ -361,7 +367,7 @@ function SearchBar() {
             name={showGuests ? "expand_less" : "expand_more"} 
             size={18} 
             className={`ml-auto flex-none transition-all duration-200 ${
-              showGuests ? 'text-blue-600 rotate-0' : 'text-on-surface-variant'
+              showGuests ? 'text-emerald-600 rotate-0' : 'text-on-surface-variant'
             }`} 
           />
           {showGuests && (

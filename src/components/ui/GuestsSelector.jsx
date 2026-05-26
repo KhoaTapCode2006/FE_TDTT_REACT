@@ -68,8 +68,8 @@ function GuestsSelector({ guests, onChange, onClose }) {
       ref={ref}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
-      className="modal-anim absolute top-full right-0 mt-2 z-[500] bg-white rounded-2xl shadow-2xl p-5 border border-outline-variant/20"
-      style={{ minWidth: 300 }}
+      className="modal-anim absolute top-full right-0 mt-2 z-50 bg-white rounded-2xl shadow-2xl p-5 border border-outline-variant/20"
+      style={{ minWidth: 380, zIndex: 700 }}
     >
       <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Số khách</p>
 
