@@ -99,7 +99,7 @@ function HotelSliderGroup({ title, subtitle, hotels, onHotelClick, itemsPerPage 
                 <button
                   type="button"
                   onClick={handlePrev}
-                  className="absolute -left-10 top-1/2 -translate-y-1/2 -translate-x-5 bg-surface hover:bg-surface-container-high text-primary p-3 rounded-full shadow-xl  hover:scale-105 active:scale-95 transition-all z-10 border-2 border-outline-variant/30 pointer-events-auto md:group-hover/carousel:opacity-100 flex items-center justify-center"
+                  className="absolute -left-15 top-1/2 -translate-y-1/2 bg-surface hover:bg-surface-container-high text-primary p-3 rounded-full shadow-xl hover:scale-105 active:scale-95 transition-all z-20 border-2 border-outline-variant/30 flex items-center justify-center"
                   aria-label="Previous page"
                 >
                   <Icon name="chevron_left" size={24} />
@@ -108,7 +108,7 @@ function HotelSliderGroup({ title, subtitle, hotels, onHotelClick, itemsPerPage 
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="absolute -right-10 top-1/2 -translate-y-1/2 translate-x-5 bg-surface hover:bg-surface-container-high text-primary p-3 rounded-full shadow-xl hover:scale-105 active:scale-95 transition-all z-10 border border-outline-variant/30 pointer-events-auto md:group-hover/carousel:opacity-100 flex items-center justify-center"
+                  className="absolute -right-15 top-1/2 -translate-y-1/2 bg-surface hover:bg-surface-container-high text-primary p-3 rounded-full shadow-xl hover:scale-105 active:scale-95 transition-all z-20 border border-outline-variant/30 flex items-center justify-center"
                   aria-label="Next page"
                 >
                   <Icon name="chevron_right" size={24} />
@@ -204,7 +204,7 @@ function HotelListSection({
   if (sortedHotelsWeekly.length === 0 && (!showAllTime || sortedHotelsAllTime.length === 0)) return null;
 
   return (
-    <div className="relative w-full group px-4 py-4">
+    <div className="relative w-full max-w-425 mx-auto group px-4 py-4">
       <HotelSliderGroup 
         title={weeklyTitle}
         subtitle={weeklySubtitle}
@@ -228,8 +228,7 @@ function HotelListSection({
           vertical={vertical}
         />
       )}
-    </div>
-
+    </div> 
     
   );
 }

@@ -77,7 +77,7 @@ function IntroHotelCard({ hotel, onClick, compact = false, accent }) {
         </div>
       </div>
 
-      <div className={`${compact ? 'p-3' : 'p-4'}`}>
+      <div className="p-3 bg-[#030a08]">
         <div className="flex flex-col gap-2">
           <div>
             <h3 className={`font-headline font-bold ${compact ? 'text-sm' : 'text-lg'} ${accent === 'green' ? 'text-emerald-300' : 'text-primary'} leading-tight truncate`}>{hotel?.name}</h3>
