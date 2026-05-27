@@ -586,7 +586,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
             <>
               <p className={styles.sectionLabel}>Đánh giá</p>
               <div className={styles.reviewSummary}>
-                <span className={styles.ratingNum}>{hotel.rating}</span>
+                <span className={styles.ratingNum}>{ Number(hotel.rawRating).toFixed(1)}</span>
                 <span className={styles.reviewCount}>/ 5</span>
                 <span className={styles.reviewTotal} style={{ marginLeft: 8, color: '#6b7280', fontSize: 12 }}>
                   {reviews.length ?? 0} đánh giá
