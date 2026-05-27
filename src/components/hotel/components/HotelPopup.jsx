@@ -353,6 +353,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
           src={images[0]}
           alt={`${hotel.name} main`}
           className={styles.hotelImage}
+          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://storage.googleapis.com/support-forums-api/attachment/thread-62654029-5647160710799411463.png"; }}
           onClick={() => {
             setImgIndex(0);
             openImageViewer();
@@ -368,6 +369,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                   src={image}
                   alt={`${hotel.name} ${imageIndex + 1}`}
                   className={styles.thumbnailImage}
+                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://storage.googleapis.com/support-forums-api/attachment/thread-62654029-5647160710799411463.png"; }}
                   onClick={() => {
                     setImgIndex(imageIndex);
                     openImageViewer();
@@ -512,30 +514,11 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                         </p>
                       </div>
                     )}
-                    {hotel.aiSentiment.analyzedReviews !== undefined && (
-                      <div>
-                        <p className="text-xs text-blue-700">Reviews Analyzed</p>
-                        <p className="text-sm font-medium text-blue-900">
-                          {hotel.aiSentiment.analyzedReviews}
-                        </p>
-                      </div>
-                    )}
+
                   </div>
                 </div>
               )}
 
-              {/* AI Summary Display (styled) - simplified to avoid JSX nesting issues */}
-              {hotel?.aiSummary && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                  <h4 className="font-bold text-blue-900 mb-2">AI Summary</h4>
-                  {hotel.aiSummary.overview && (
-                    <p className="text-sm text-blue-800">{hotel.aiSummary.overview}</p>
-                  )}
-                  {hotel.aiSummary.notes && (
-                    <p className="text-xs text-on-surface-variant italic mt-2">Note: {hotel.aiSummary.notes}</p>
-                  )}
-                </div>
-              )}
               
               <div className={styles.bookingBox}>
                 <p className={styles.bookingTitle}>Check In / Check Out</p>
@@ -677,6 +660,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                 className={styles.imageViewerImage}
                 onMouseDown={beginDrag}
                 draggable={false}
+                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://storage.googleapis.com/support-forums-api/attachment/thread-62654029-5647160710799411463.png"; }}
                 style={{
                   transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
                   transition: isDragging ? "none" : "transform 0.2s ease",

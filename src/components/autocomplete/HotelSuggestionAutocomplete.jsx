@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import Icon from '@/components/ui/Icon';
-import { discoverService } from '@/services/backend/discover.service';
+import { searchHotels } from '@/services/backend/discover.service';
 
 // ============================================================================
 // CONSTANTS
@@ -195,10 +195,9 @@ function HotelSuggestionAutocomplete({
       abortControllerRef.current = new AbortController();
       
       try {
-        const results = await discoverService.searchHotels(
+        const results = await searchHotels(
           trimmedTerm,
           { latitude: 10.75887508, longitude: 106.67538868 }, // Default GPS coordinates (Ho Chi Minh City)
-          { signal: abortControllerRef.current.signal }
         );
         
         setCachedResults(trimmedTerm, results);

@@ -55,9 +55,7 @@ function RightPanel({ group, initialMembers, onRemoveMember }) {
               {group.name.slice(0, 2).toUpperCase()}
             </div>
           )}
-          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center text-xs">
-            🔔
-          </div>
+
         </div>
         <h3 className="font-bold text-gray-900 text-base text-center">{group.name}</h3>
         {group.description && (
