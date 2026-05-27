@@ -97,9 +97,8 @@ export function normalizeHotelResult(raw, fallbackLocation) {
     .filter(Boolean);
 
   // Always guarantee at least one image so cluster markers never break
-  const images = imageUrls.length > 0
-    ? imageUrls
-    : ['/placeholder.png'];
+  const images = imageUrls
+
 
   // ── Rating ─────────────────────────────────────────────────────────────
   // sample_output_2.json: raw_rating (0–5), ai_score (float)

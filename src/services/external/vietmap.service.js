@@ -527,10 +527,6 @@ export function createClusterMarkerElement(cluster, firstHotel, hotelCount, onCl
   img.style.display = 'block';
   
   // Add error handler for image loading
-  img.onerror = () => {
-    img.src = 'https://via.placeholder.com/60x60?text=Hotels';
-  };
-  
   inner.appendChild(img);
 
   // ── Badge (quantity circle) ───────────────────────────────────────────────

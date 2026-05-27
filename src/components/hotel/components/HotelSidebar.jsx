@@ -22,7 +22,7 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
   };
 
   return (
-    <aside className="w-full bg-surface-container-lowest border-l border-outline-variant/20 flex flex-col overflow-hidden h-full">
+    <aside className=" max-h-[620px] w-full bg-surface-container-lowest border-l border-outline-variant/20 flex flex-col overflow-hidden h-full">
       <div className="bg-surface-container-lowest/95 backdrop-blur-sm z-10 px-6 pt-6 pb-4 border-b border-outline-variant/10 flex-none">
         <div className="flex items-center justify-between gap-3">
           <div>
