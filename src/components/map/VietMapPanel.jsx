@@ -497,7 +497,7 @@ function VietMapPanel() {
   }
 
   return (
-    <div className="flex-1 relative overflow-hidden h-full min-h-[640px] bg-gray-50">
+    <div className="flex-1 relative overflow-hidden h-full max-h-[640px] bg-gray-50">
       <div className="vietmap-container">
         <div ref={mapRef} className="absolute inset-0 w-full h-full" />
         
