@@ -392,8 +392,8 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
               <div className="flex-1 min-w-0">
                 <h2 className={styles.hotelName}>{hotel.name}</h2>
                 <div className={styles.ratingRow}>
-                  <div className={styles.stars}>{renderStars(hotel.rating)}</div>
-                  <span className={styles.ratingNum}>{hotel.rating}</span>
+                  <div className={styles.stars}>{renderStars(hotel.rawRating)}</div>
+                  <span className={styles.ratingNum}>{hotel.rawRating}</span>
                 </div>
                 {(hotel.ai_score !== undefined && hotel.ai_score !== null) && (
                   <div className={styles.aiScoreRow}>

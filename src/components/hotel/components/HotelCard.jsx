@@ -113,7 +113,7 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
           <div className="absolute top-3 right-3 glass px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
             <Icon name="star" filled size={14} className="text-amber-500" />
             <span className={`text-sm font-bold ${accent === 'green' ? 'text-emerald-300' : 'text-primary'}`}>
-              {hotel?.rating ? Number(hotel.rating).toFixed(1) : hotel?.rawRating ? Number(hotel.rawRating).toFixed(1) : "-"}
+              {hotel?.rawRating ? Number(hotel.rawRating).toFixed(1) : "-"}
             </span>
           </div>
 

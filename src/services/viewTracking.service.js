@@ -3,7 +3,7 @@
  * Handles tracking hotel views via POST /views endpoint
  */
 
-const API_BASE_URL = 'https://api.haubaka.xyz';
+const API_BASE_URL = 'http://localhost:8000';
 
 class ViewTrackingService {
   /**
