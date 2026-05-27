@@ -619,8 +619,8 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onLostSign
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, tripId, fakeActive, firestoreMembers, currentUid]);
 
-  // ── Client-side "mất kết nối" detection (15s, không push Firestore) ─────────
-  // Kiểm tra mỗi 5 giây. Nếu now - updated_at > 15s thì hiển thị mất kết nối + phát âm thanh.
+  // ── Client-side "mất kết nối" detection (12s, không push Firestore) ─────────
+  // Kiểm tra mỗi 3 giây. Nếu now - updated_at > 12s thì hiển thị mất kết nối + phát âm thanh.
   // Reset ngay khi member cập nhật lại (updated_at mới hơn).
   const localLostPingedRef = useRef(new Map()); // uid -> updatedAt đã phát ping
   const firestoreMembersRef = useRef(firestoreMembers);
@@ -651,7 +651,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onLostSign
         const updatedAt = t.updated_at?.toMillis?.() ?? (t.updated_at?.seconds != null ? t.updated_at.seconds * 1000 : null);
         if (updatedAt === null) return;
         const diffSec = (now - updatedAt) / 1000;
-        if (diffSec > 15) {
+        if (diffSec > 12) {
           nextLost.add(m.uid);
           // Phát âm thanh + hiển thị toast chỉ 1 lần cho mỗi lần mất kết nối (theo updatedAt)
           const lastPinged = localLostPingedRef.current.get(m.uid);
@@ -676,7 +676,7 @@ export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onLostSign
       });
       setLocalLostSet(nextLost);
     };
-    const id = setInterval(checkLocalLost, 5_000);
+    const id = setInterval(checkLocalLost, 3_000);
     checkLocalLost(); // chạy ngay lần đầu
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps

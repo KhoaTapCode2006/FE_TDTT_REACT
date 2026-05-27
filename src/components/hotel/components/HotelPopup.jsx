@@ -514,14 +514,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                         </p>
                       </div>
                     )}
-                    {hotel.aiSentiment.analyzedReviews !== undefined && (
-                      <div>
-                        <p className="text-xs text-blue-700">Reviews Analyzed</p>
-                        <p className="text-sm font-medium text-blue-900">
-                          {hotel.aiSentiment.analyzedReviews}
-                        </p>
-                      </div>
-                    )}
+
                   </div>
                 </div>
               )}
