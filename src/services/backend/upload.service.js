@@ -175,14 +175,6 @@ const API_BASE_URL = import.meta.env.VITE_LOCAL_API || 'http://localhost:8000';
 /**
  * Create configured axios instance for upload API
  */
-const uploadClient = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000, // 30 seconds for file uploads
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
 /**
  * Request interceptor - Add authentication token to all requests
  */

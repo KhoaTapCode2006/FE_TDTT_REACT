@@ -6,15 +6,9 @@
     import LoginPage from '../pages/auth/LoginPage';
     import SignupPage from '../pages/auth/SignupPage';
     import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
-    import ProfilePage from '../pages/profile/ProfilePage';
-    import MyStaysPage from '../pages/profile/MyStaysPage';
-    import SavedListsPage from '../pages/profile/SavedListsPage';
-    import AccountCollectionsPage from '../pages/profile/AccountCollectionsPage';
-    import CollectionPage from '../pages/CollectionPage';
     import TripPage from '../pages/TripPage';
     import GroupChatPage from '../pages/GroupChatPage';
     import InformationPage from '../pages/profile/InformationPage';
-    import LikedPlacesPage from '../pages/profile/LikedPlacesPage';
     import LikedCollectionsPage from '../pages/profile/LikedCollectionsPage';
     import CollectionPage from '../pages/collection/CollectionPage';
     import CollectionsDashboard from '../pages/collection/CollectionsDashboard';
