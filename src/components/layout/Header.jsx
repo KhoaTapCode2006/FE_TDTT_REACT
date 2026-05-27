@@ -3,6 +3,8 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
 import NotificationBell from "@/components/ui/NotificationBell";
 import { useAuth } from "../../contexts/AuthContext";
+import { useNotifications } from "../../features/notifications/hooks/useNotifications";
+import NotificationPanel from "../../features/notifications/components/NotificationPanel";
 
 const LANGS = [
   { code: "EN", flag: "🇺🇸", label: "English" },
@@ -21,9 +23,15 @@ function Header({ hideNavigation = false }) {
   const [langOpen, setLangOpen] = useState(false);
   const [lang, setLang] = useState(LANGS[0]);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   
   const langRef = useRef(null);
   const accountRef = useRef(null);
+  const notifRef = useRef(null);
+
+  const { notifications, unreadCount, markAsRead, markAllAsRead, deleteNotification } = useNotifications(
+    isAuthenticated ? user?.uid : null
+  );
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -33,6 +41,9 @@ function Header({ hideNavigation = false }) {
       }
       if (accountRef.current && !accountRef.current.contains(event.target)) {
         setAccountOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(event.target)) {
+        setNotifOpen(false);
       }
     };
 
@@ -105,28 +116,61 @@ function Header({ hideNavigation = false }) {
               >
                 Collections
               </Link>
-              {isAuthenticated && (
-                <>
-                  <Link 
-                    to="/account/information" 
-                    className={`text-sm font-semibold transition-colors pb-0.5 ${
-                      location.pathname === '/account/information'
-                        ? 'text-primary border-b-2 border-secondary' 
-                        : 'text-on-surface-variant hover:text-primary'
-                    }`}
-                  >
-                    My Account
-                  </Link>
-                </>
-              )}
+              <Link 
+                to="/trips" 
+                className={`text-sm font-semibold transition-colors pb-0.5 ${
+                  location.pathname === '/trips' || location.pathname.startsWith('/trips/')
+                    ? 'text-primary border-b-2 border-secondary' 
+                    : 'text-on-surface-variant hover:text-primary'
+                }`}
+              >
+                Trips
+              </Link>
+              <Link 
+                to="/chat" 
+                className={`text-sm font-semibold transition-colors pb-0.5 ${
+                  location.pathname === '/chat' || location.pathname.startsWith('/chat/')
+                    ? 'text-primary border-b-2 border-secondary' 
+                    : 'text-on-surface-variant hover:text-primary'
+                }`}
+              >
+                Chat
+              </Link>
             </>
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Notification Bell - Only show when authenticated */}
-          {isAuthenticated && !loading && (
-            <NotificationBell />
+          {/* Notification Bell — chỉ hiện khi đã đăng nhập */}
+          {isAuthenticated && (
+            <div className="relative" ref={notifRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setNotifOpen((v) => !v);
+                  setAccountOpen(false);
+                  setLangOpen(false);
+                }}
+                className="relative flex items-center justify-center w-9 h-9 rounded-full hover:bg-surface-container transition-colors"
+                aria-label="Thông báo"
+              >
+                <Icon name="notifications" className="text-primary" size={22} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[16px] h-4 px-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <NotificationPanel
+                  notifications={notifications}
+                  onMarkAsRead={markAsRead}
+                  onDeleteNotification={deleteNotification}
+                  onClose={() => setNotifOpen(false)}
+                />
+              )}
+            </div>
           )}
 
           {/* Language Selector */}

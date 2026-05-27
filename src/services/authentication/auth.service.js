@@ -445,18 +445,6 @@ class AuthService {
     // First, try to get user-friendly message from error code
     let message = errorMessages[error.code];
     
-    // If no mapped message, check if it's a Firebase configuration issue (only for specific codes)
-    if (!message) {
-      const configErrorCodes = ['permission-denied', 'unavailable'];
-      if (configErrorCodes.includes(error.code) || 
-          (error.message && error.message.includes('Firebase') && error.message.includes('not configured'))) {
-        message = 'Firebase is not properly configured. Please check your environment variables and Firebase project settings.';
-      } else {
-        // Use original error message or fallback
-        message = error.message || 'An unexpected error occurred. Please try again.';
-      }
-    }
-    
     const translatedError = new Error(message);
     translatedError.code = error.code;
     translatedError.originalError = error;

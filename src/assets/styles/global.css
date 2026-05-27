@@ -512,6 +512,49 @@ html, body, #root {
     .imageViewerNavBtn { width: 36px; height: 36px; }
   }
 
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ── Accident ping / radar animation ── */
+@keyframes accident-ping {
+  0%   { transform: translate(-50%, -50%) scale(1);   opacity: 0.7; }
+  100% { transform: translate(-50%, -50%) scale(3.2); opacity: 0; }
+}
+
+.accident-ping-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(220, 38, 38, 0.45);
+  pointer-events: none;
+  animation: accident-ping 1.4s ease-out infinite;
+}
+
+.accident-ping-ring:nth-child(2) {
+  animation-delay: 0.5s;
+}
+
+.accident-marker-wrapper {
+  position: relative;
+  width: 36px;
+  height: 36px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
   /* Screen reader only class for accessibility */
   .sr-only {
     position: absolute;

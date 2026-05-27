@@ -1,0 +1,881 @@
+import { useState, useRef, useEffect, useCallback } from "react";
+import { doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db, auth } from "@/config/firebase";
+import { useTripMembers } from "../hooks/useTripMembers";
+import { useAccidentAlert } from "../hooks/useAccidentAlert";
+import { playLostSignalPing } from "../hooks/useLostSignalAlert";
+import { useRouteChangeAlert } from "../hooks/useRouteChangeAlert";
+import { useMemberLeftAlert } from "../hooks/useMemberLeftAlert";
+import { MEMBER_COLORS } from "./modals/TripMapModal";
+import FakeGpsControl from "./FakeGpsControl";
+import { trackingState } from "../../../services/trip/trackingState";
+
+// ─── TripMapPanel ─────────────────────────────────────────────────────────────
+// Giống TripMapModal nhưng là panel inline (không có modal wrapper).
+// Dùng cho tab "TripMap" trong TripPage.
+
+const statusLabel = {
+  active:          { text: "Đang di chuyển", color: "text-green-600" },
+  lost_signal:     { text: "Mất tín hiệu",   color: "text-yellow-600" },
+  change_route:    { text: "Đổi lộ trình",   color: "text-orange-500" },
+  arrived:         { text: "Đã đến",          color: "text-blue-600" },
+  left:            { text: "Đã rời",           color: "text-gray-400" },
+  no_share:        { text: "Không chia sẻ",   color: "text-gray-400" },
+  offline:         { text: "Offline",          color: "text-gray-400" },};
+
+export default function TripMapPanel({ trip, onFakeStart, onFakeStop, onLostSignal: onLostSignalProp, onResumeSignal: onResumeSignalProp }) {
+  const mapRef     = useRef(null);
+  const mapObjRef  = useRef(null);
+  const markersRef = useRef({});
+  const watchIdRef = useRef(null);
+
+  const [mapReady, setMapReady]             = useState(false);
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [routeInfoMap, setRouteInfoMap]     = useState({});
+  const [loadingRoutes, setLoadingRoutes]   = useState(false);
+  const [distToDestM, setDistToDestM]       = useState(null);
+  const [fakeActive, setFakeActive]         = useState(false);
+  const [localLostSet, setLocalLostSet]     = useState(new Set()); // uid bị mất kết nối theo client
+  const [lostSignalToasts, setLostSignalToasts] = useState([]); // toast "X đã bị mất tín hiệu"
+  const [gpsBlocked, setGpsBlocked]         = useState(() => {
+    // Khôi phục trạng thái lost_signal sau F5
+    if (!trip?.id || !auth.currentUser?.uid) return false;
+    return localStorage.getItem(`gpsBlocked:${trip.id}:${auth.currentUser.uid}`) === "1";
+  });
+  const [myRealPos, setMyRealPos]           = useState(null); // { lat, lng }
+
+  const hasInitialFitRef    = useRef(false);
+  const routeSignaturesRef  = useRef({}); // { [memberId]: signature string }
+  const currentUid  = auth.currentUser?.uid;
+  const tripId      = trip?.id;
+  const isActive    = trip?.status === "active";
+
+  const { members: firestoreMembers, trackingReady } = useTripMembers(tripId ?? null);
+
+  // Chỉ alert accident khi trip đang active
+  useAccidentAlert(isActive ? firestoreMembers : [], currentUid);
+
+  // Phát ping khi có member mất tín hiệu — toast được trigger từ checkLocalLost (client-side 15s)
+
+  // Phát Mario coin khi có member đổi lộ trình (change_route) — chỉ khi trip active
+  useRouteChangeAlert(isActive ? firestoreMembers : [], currentUid);
+
+  // Thông báo khi có member rời chuyến đi — chỉ khi trip active
+  const { toasts, dismissToast } = useMemberLeftAlert(isActive ? firestoreMembers : [], currentUid);
+
+  const memberTracking = Object.fromEntries(
+    firestoreMembers
+      .filter((m) => m.tracking)
+      .map((m) => [m.uid, {
+        lat:      m.tracking.lat      ?? null,
+        lng:      m.tracking.lng      ?? null,
+        status:   m.tracking.status   || "no_share",
+        accident: m.tracking.accident === true,
+        updated_at: m.tracking.updated_at,
+      }])
+  );
+
+  const DEST = {
+    lat:  trip?.place?.gps_coordinates?.latitude  ?? 10.7626,
+    lng:  trip?.place?.gps_coordinates?.longitude ?? 106.6822,
+    name: trip?.place?.name ?? "Điểm đến",
+  };
+
+  const stoppedSharingRef = useRef(false); // giữ lại để block pushTracking khi logout
+  const gpsBlockedRef = useRef(gpsBlocked);
+  const pinggedUidsRef = useRef(new Map()); // uid -> updatedAt đã phát ping, tránh ping lặp
+  const lastPushTimeRef = useRef(0); // timestamp (ms) của lần push tracking gần nhất
+  const myRealPosRef = useRef(null); // ref mirror của myRealPos để dùng trong interval
+
+  const dismissLostSignalToast = useCallback((id) => {
+    setLostSignalToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+  const setGpsBlockedPersist = useCallback((val) => {
+    gpsBlockedRef.current = val; // update ref ngay lập tức trước re-render
+    setGpsBlocked(val);
+    if (tripId && currentUid) {
+      if (val) {
+        localStorage.setItem(`gpsBlocked:${tripId}:${currentUid}`, "1");
+      } else {
+        localStorage.removeItem(`gpsBlocked:${tripId}:${currentUid}`);
+      }
+    }
+  }, [tripId, currentUid]);
+
+  // ── Push GPS ──────────────────────────────────────────────────────────────
+  const pushTracking = useCallback(async (lat, lng) => {
+    if (!currentUid || !tripId) return;
+    if (trackingState.isLoggedOut()) {
+      console.log("[TripMapPanel] pushTracking BLOCKED");
+      return;
+    }
+    console.log("[TripMapPanel] pushTracking lat:", lat, "lng:", lng);
+    const R = 6371000;
+    const dLat = (DEST.lat - lat) * Math.PI / 180;
+    const dLng = (DEST.lng - lng) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    setDistToDestM(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+    try {
+      await setDoc(doc(db, "trips", tripId, "members", currentUid), {
+        tracking: { lat, lng, updated_at: serverTimestamp(), status: "active" },
+      }, { merge: true });
+    } catch (err) {
+      console.warn("[TripMapPanel] pushTracking failed:", err);
+    }
+  }, [currentUid, tripId, DEST.lat, DEST.lng]);
+
+  const pushTrackingRef = useRef(pushTracking);
+  useEffect(() => { pushTrackingRef.current = pushTracking; }, [pushTracking]);
+
+  // ── Tính distToDestM từ myRealPos khi GPS đã có (phòng trường hợp pushTracking bị block) ──
+  useEffect(() => {
+    if (!myRealPos) return;
+    const { lat, lng } = myRealPos;
+    const R = 6371000;
+    const dLat = (DEST.lat - lat) * Math.PI / 180;
+    const dLng = (DEST.lng - lng) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    setDistToDestM(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myRealPos, DEST.lat, DEST.lng]);
+
+
+  // ── GPS setup ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentUid || !tripId) return;
+    if (!navigator.geolocation) return;
+
+    // Nếu đang fake GPS thì không watch GPS thực
+    if (fakeActive) return;
+
+    // Nếu user nhấn Mất tín hiệu thì không push GPS
+    if (gpsBlocked) return;
+
+    console.log("[TripMapPanel] GPS effect STARTING — fakeActive:", fakeActive);
+
+    const ref = doc(db, "trips", tripId, "members", currentUid);
+    setDoc(ref, { tracking: { status: "active", updated_at: serverTimestamp() } }, { merge: true }).catch(() => {});
+
+    const updateDistToDestM = (lat, lng) => {
+      const R = 6371000;
+      const dLat = (DEST.lat - lat) * Math.PI / 180;
+      const dLng = (DEST.lng - lng) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      setDistToDestM(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+    };
+
+    // Nếu đã có vị trí cached (ví dụ sau khi resume từ ngắt tín hiệu) → push ngay, bỏ qua getCurrentPosition
+    if (myRealPosRef.current) {
+      const { lat, lng } = myRealPosRef.current;
+      updateDistToDestM(lat, lng);
+      lastPushTimeRef.current = Date.now();
+      pushTrackingRef.current?.(lat, lng);
+    } else {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude: lat, longitude: lng } = pos.coords;
+          setMyRealPos({ lat, lng });
+          myRealPosRef.current = { lat, lng };
+          updateDistToDestM(lat, lng);
+          lastPushTimeRef.current = Date.now();
+          pushTrackingRef.current?.(lat, lng);
+        },
+        () => {}, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
+    }
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setMyRealPos({ lat, lng });
+        myRealPosRef.current = { lat, lng };
+        updateDistToDestM(lat, lng);
+        // watchPosition chỉ cập nhật vị trí local; interval bên dưới lo việc push Firestore
+      },
+      () => {}, { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+    );
+
+    // Push tracking lên Firestore mỗi 10 giây, dù vị trí có thay đổi hay không
+    const pushIntervalId = setInterval(() => {
+      const pos = myRealPosRef.current;
+      if (!pos) return;
+      lastPushTimeRef.current = Date.now();
+      pushTrackingRef.current?.(pos.lat, pos.lng);
+    }, 10_000);
+    return () => {
+      clearInterval(pushIntervalId);
+      if (watchIdRef.current != null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      // Không ghi no_share ở đây — để effect riêng bên dưới xử lý khi unmount thật
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUid, tripId, fakeActive, gpsBlocked]);
+
+  // Ghi no_share khi unmount thật — dùng ref để đọc giá trị mới nhất tại thời điểm unmount
+  const noShareInfoRef = useRef({ currentUid, tripId });
+  useEffect(() => { noShareInfoRef.current = { currentUid, tripId }; }, [currentUid, tripId]);
+
+  useEffect(() => {
+    return () => {
+      const { currentUid: uid, tripId: tid } = noShareInfoRef.current;
+      if (!uid || !tid) return;
+      if (gpsBlockedRef.current || trackingState.isLoggedOut()) return;
+      updateDoc(doc(db, "trips", tid, "members", uid), {
+        "tracking.status":     "no_share",
+        "tracking.updated_at": serverTimestamp(),
+      }).catch(() => {});
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // [] = chỉ chạy cleanup khi unmount thật
+
+  // ── Build members ─────────────────────────────────────────────────────────
+  // Khi trip chưa active: chỉ hiển thị bản thân
+  // Khi active: hiển thị tất cả members
+  const visibleFirestoreMembers = isActive
+    ? firestoreMembers
+    : firestoreMembers.filter((m) => m.uid === currentUid);
+
+  // allMembers: dùng cho sidebar — hiện tất cả member đã từng có tracking (kể cả no_share)
+  const allMembers = visibleFirestoreMembers
+    .map((m, i) => {
+      const t = memberTracking[m.uid];
+      const hasRealGps = !!(t?.lat != null && t?.lng != null);
+      const displayName = m.display_name ?? m.username ?? m.uid;
+      return {
+        id:     m.uid,
+        name:   displayName,
+        avatar: displayName.slice(0, 2).toUpperCase(),
+        avatar_url: m.avatar_url ?? null,
+        color:  MEMBER_COLORS[i % MEMBER_COLORS.length],
+        lat:    hasRealGps ? t.lat : null,
+        lng:    hasRealGps ? t.lng : null,
+        hasRealGps,
+        status:   t?.status || "no_share",
+        accident: t?.accident === true,
+        isMe:     m.uid === currentUid,
+      };
+    })
+    .filter((m) => m.status !== "no_share" || m.isMe) // sidebar: luôn hiện bản thân, ẩn người khác nếu no_share
+    .sort((a, b) => {
+      // Ưu tiên 1: tai nạn lên đầu
+      if (a.accident && !b.accident) return -1;
+      if (!a.accident && b.accident) return 1;
+      // Ưu tiên 2: mất kết nối (client-side) lên thứ hai
+      const aLostLocal = localLostSet.has(a.id) || (a.isMe && gpsBlocked);
+      const bLostLocal = localLostSet.has(b.id) || (b.isMe && gpsBlocked);
+      if (aLostLocal && !bLostLocal) return -1;
+      if (!aLostLocal && bLostLocal) return 1;
+      // Ưu tiên 3: mất tín hiệu (Firestore) lên thứ ba
+      const aLost = a.status === "lost_signal";
+      const bLost = b.status === "lost_signal";
+      if (aLost && !bLost) return -1;
+      if (!aLost && bLost) return 1;
+      // Ưu tiên 4: đổi lộ trình lên thứ tư
+      const aChange = a.status === "change_route";
+      const bChange = b.status === "change_route";
+      if (aChange && !bChange) return -1;
+      if (!aChange && bChange) return 1;
+      return 0;
+    });
+
+  // members: dùng cho map markers — chỉ member đang active có GPS
+  const members = allMembers.filter((m) => m.hasRealGps && m.status !== "no_share");
+
+  // ── Init map ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!mapRef.current || mapObjRef.current) return;
+    const init = () => {
+      if (!window.vietmapgl) { setTimeout(init, 300); return; }
+      const map = new window.vietmapgl.Map({
+        container: mapRef.current,
+        style: `https://maps.vietmap.vn/maps/styles/dm/style.json?apikey=6033c4efaa0e172ca5cb9ebc5c9d394da9a38466072ce84e`,
+        center: [DEST.lng, DEST.lat],
+        zoom: 13,
+        antialias: true,
+      });
+      mapObjRef.current = map;
+      map.on("load", () => setMapReady(true));
+    };
+    init();
+    return () => {
+      Object.values(markersRef.current).forEach((m) => m.remove());
+      markersRef.current = {};
+      hasInitialFitRef.current = false;
+      if (mapObjRef.current) { mapObjRef.current.remove(); mapObjRef.current = null; }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId]);
+
+  // ── Helper: build marker DOM element ─────────────────────────────────────
+  const buildMarkerEl = useCallback((m, onClickFn) => {
+    // Wrapper bao ngoài để chứa cả ping rings + avatar circle
+    const wrapper = document.createElement("div");
+    wrapper.className = "accident-marker-wrapper";
+    wrapper.title = m.isMe ? `${m.name} (bạn)` : m.name;
+
+    // Avatar circle (inner)
+    const inner = document.createElement("div");
+    const bg    = m.accident ? "#dc2626" : m.color;
+    const pulse = m.isMe
+      ? `box-shadow:0 0 0 4px ${m.color}44,0 2px 8px rgba(0,0,0,0.3);`
+      : `box-shadow:0 2px 8px rgba(0,0,0,0.3);`;
+    inner.style.cssText = `position:relative;z-index:1;width:36px;height:36px;border-radius:50%;background:${bg};border:3px solid white;${pulse}display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:white;cursor:pointer;transition:transform 0.2s,background 0.3s;`;
+    inner.innerHTML = m.avatar;
+
+    // Ping rings — chỉ khi accident
+    if (m.accident) {
+      const ring1 = document.createElement("div");
+      ring1.className = "accident-ping-ring";
+      const ring2 = document.createElement("div");
+      ring2.className = "accident-ping-ring";
+      wrapper.appendChild(ring1);
+      wrapper.appendChild(ring2);
+    }
+
+    wrapper.appendChild(inner);
+
+    inner.addEventListener("mouseenter", () => { inner.style.transform = "scale(1.2)"; });
+    inner.addEventListener("mouseleave", () => { inner.style.transform = "scale(1)"; });
+    wrapper.addEventListener("click", onClickFn);
+
+    return wrapper;
+  }, []);
+
+  // ── Helper: sync existing marker element to current accident state ────────
+  const syncMarkerEl = useCallback((el, m) => {
+    // el là wrapper; inner là child cuối (avatar circle)
+    const inner = el.querySelector("div[style]") ?? el.lastElementChild;
+    if (!inner) return;
+
+    const bg = m.accident ? "#dc2626" : m.color;
+    inner.style.background = bg;
+    inner.innerHTML = m.avatar;
+
+    // Thêm / xóa ping rings
+    const existingRings = el.querySelectorAll(".accident-ping-ring");
+    if (m.accident && existingRings.length === 0) {
+      const ring1 = document.createElement("div");
+      ring1.className = "accident-ping-ring";
+      const ring2 = document.createElement("div");
+      ring2.className = "accident-ping-ring";
+      el.insertBefore(ring2, inner);
+      el.insertBefore(ring1, ring2);
+    } else if (!m.accident) {
+      existingRings.forEach((r) => r.remove());
+    }
+  }, []);
+
+  // ── Update markers ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!mapReady || !mapObjRef.current || !window.vietmapgl) return;
+    const map = mapObjRef.current;
+
+    if (!markersRef.current["__dest__"]) {
+      const destEl = document.createElement("div");
+      destEl.style.cssText = `width:40px;height:40px;border-radius:50%;background:#255dad;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:20px;`;
+      destEl.innerHTML = "🏁";
+      destEl.title = `${DEST.name} — Điểm đến`;
+      markersRef.current["__dest__"] = new window.vietmapgl.Marker({ element: destEl, anchor: "center" })
+        .setLngLat([DEST.lng, DEST.lat]).addTo(map);
+    }
+
+    // Xóa marker của member không còn trong danh sách (ngưng chia sẻ / rời trip)
+    const activeMemberIds = new Set(members.filter((m) => m.status !== "no_share").map((m) => m.id));
+    Object.keys(markersRef.current).forEach((id) => {
+      if (id === "__dest__") return;
+      if (!activeMemberIds.has(id)) {
+        markersRef.current[id].remove();
+        delete markersRef.current[id];
+        // Xóa route line tương ứng
+        const layerId  = `route-line-${id}`;
+        const sourceId = `route-${id}`;
+        if (map.getLayer(layerId))   map.removeLayer(layerId);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
+      }
+    });
+
+    members.forEach((m) => {
+      // Không render marker cho member đang no_share
+      if (m.status === "no_share") return;
+      if (markersRef.current[m.id]) {
+        markersRef.current[m.id].setLngLat([m.lng, m.lat]);
+        const el = markersRef.current[m.id].getElement();
+        if (el) syncMarkerEl(el, m);
+      } else {
+        const el = buildMarkerEl(m, () => handleMemberClick(m));
+        markersRef.current[m.id] = new window.vietmapgl.Marker({ element: el, anchor: "center" })
+          .setLngLat([m.lng, m.lat]).addTo(map);
+      }
+    });
+
+    // fitBounds chỉ chạy một lần khi map load xong lần đầu
+    // Sau đó user tự zoom/pan, không reset nữa
+    if (!hasInitialFitRef.current) {
+      hasInitialFitRef.current = true;
+      const all  = [[DEST.lng, DEST.lat], ...members.map((m) => [m.lng, m.lat])];
+      const lngs = all.map((p) => p[0]);
+      const lats  = all.map((p) => p[1]);
+      map.fitBounds(
+        [[Math.min(...lngs) - 0.005, Math.min(...lats) - 0.005], [Math.max(...lngs) + 0.005, Math.max(...lats) + 0.005]],
+        { padding: 60, duration: 800, maxZoom: 16 }
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, memberTracking]);
+
+  // Dọn routeInfoMap + routeSignaturesRef khi member ngưng chia sẻ (không còn trong members)
+  useEffect(() => {
+    const activeMemberIds = new Set(members.filter((m) => m.status !== "no_share").map((m) => m.id));
+    setRouteInfoMap((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      Object.keys(next).forEach((id) => {
+        if (!activeMemberIds.has(id)) { delete next[id]; changed = true; }
+      });
+      return changed ? next : prev;
+    });
+    // Dọn signature của member không còn active
+    Object.keys(routeSignaturesRef.current).forEach((id) => {
+      if (!activeMemberIds.has(id)) delete routeSignaturesRef.current[id];
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberTracking]);
+
+  // ── Route helpers ─────────────────────────────────────────────────────────
+  // Tạo "signature" đại diện cho hành trình — dùng điểm giữa + điểm cuối
+  // (bỏ qua coordinates[0] vì nó luôn thay đổi theo vị trí GPS hiện tại)
+  const routeSignature = (coords) => {
+    if (!coords?.length) return "";
+    const mid = coords[Math.floor(coords.length / 2)];
+    const end = coords[coords.length - 1];
+    return `${mid[0].toFixed(4)},${mid[1].toFixed(4)}|${end[0].toFixed(4)},${end[1].toFixed(4)}`;
+  };
+
+  const fetchAndDrawRoute = useCallback(async (map, member) => {
+    const layerId  = `route-line-${member.id}`;
+    const sourceId = `route-${member.id}`;
+
+    // Đảm bảo source + layer tồn tại trước khi fetch
+    // → route cũ vẫn hiển thị trong khi đang tải route mới
+    if (!map.getSource(sourceId)) {
+      map.addSource(sourceId, {
+        type: "geojson",
+        data: { type: "Feature", geometry: { type: "LineString", coordinates: [] } },
+      });
+    }
+    if (!map.getLayer(layerId)) {
+      map.addLayer({
+        id: layerId, type: "line", source: sourceId,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": member.color, "line-width": 4, "line-opacity": 0.85 },
+      });
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${member.lng},${member.lat};${DEST.lng},${DEST.lat}?overview=full&geometries=geojson`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error();
+      const data   = await res.json();
+      const route  = data?.routes?.[0];
+      const coords = route?.geometry?.coordinates;
+      if (!coords?.length) throw new Error();
+
+      // ── Route change detection ──────────────────────────────────────────
+      const newSig  = routeSignature(coords);
+      const prevSig = routeSignaturesRef.current[member.id];
+
+      if (prevSig !== undefined && prevSig !== newSig) {
+        // Hành trình thay đổi → push status change_route lên Firestore
+        setDoc(
+          doc(db, "trips", tripId, "members", member.id),
+          { tracking: { status: "change_route", updated_at: serverTimestamp() } },
+          { merge: true }
+        ).catch((err) => console.warn("[TripMapPanel] change_route push failed:", err));
+      }
+      routeSignaturesRef.current[member.id] = newSig;
+      // ───────────────────────────────────────────────────────────────────
+
+      // Cập nhật data của source hiện có — không xóa/thêm lại layer
+      map.getSource(sourceId).setData({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: coords },
+      });
+      // Đảm bảo style đúng (solid line)
+      map.setPaintProperty(layerId, "line-width", 4);
+      map.setPaintProperty(layerId, "line-opacity", 0.85);
+      map.setPaintProperty(layerId, "line-dasharray", [1, 0]); // reset về solid
+      return { distKm: (route.distance / 1000).toFixed(1), timeMin: Math.round(route.duration / 60), memberName: member.name, hasRealGps: member.hasRealGps };
+    } catch {
+      // Fallback: vẽ đường thẳng nét đứt
+      map.getSource(sourceId).setData({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: [[member.lng, member.lat], [DEST.lng, DEST.lat]] },
+      });
+      map.setPaintProperty(layerId, "line-width", 3);
+      map.setPaintProperty(layerId, "line-opacity", 0.7);
+      map.setPaintProperty(layerId, "line-dasharray", [2, 2]);
+      const R = 6371;
+      const dLat = (DEST.lat - member.lat) * Math.PI / 180;
+      const dLng = (DEST.lng - member.lng) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(member.lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      const distKm = (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1);
+      return { distKm, timeMin: Math.round(distKm / 0.5), memberName: member.name, hasRealGps: member.hasRealGps };
+    }
+  }, [DEST.lat, DEST.lng]);
+
+  const loadAllRoutes = useCallback(async (currentMembers) => {
+    if (!mapObjRef.current || !mapReady) return;
+    setLoadingRoutes(true);
+    try {
+      const results = await Promise.all(currentMembers.map((m) => fetchAndDrawRoute(mapObjRef.current, m).then((info) => [m.id, info])));
+      setRouteInfoMap(Object.fromEntries(results.filter(([, info]) => info)));
+    } finally {
+      setLoadingRoutes(false);
+    }
+  }, [mapReady, fetchAndDrawRoute]);
+
+  const handleMemberClick = useCallback((member) => {
+    if (!mapObjRef.current || !mapReady) return;
+    setSelectedMember((prev) => prev?.id === member.id ? null : member);
+    mapObjRef.current.flyTo({ center: [member.lng, member.lat], zoom: 14, duration: 800 });
+  }, [mapReady]);
+
+  // Key bao gồm cả tọa độ để trigger lại khi GPS cập nhật lần đầu
+  const memberGpsKey = members.map((m) => `${m.id}:${m.lat?.toFixed(5)},${m.lng?.toFixed(5)}`).join("|");
+  useEffect(() => {
+    if (!mapReady || members.length === 0) return;
+    loadAllRoutes(members);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, memberGpsKey]);
+
+  // Khi fake GPS active: redraw route mỗi khi memberTracking thay đổi
+  // (vị trí fake được push lên Firestore → useTripMembers cập nhật → memberTracking thay đổi)
+  const memberTrackingKey = Object.entries(memberTracking)
+    .map(([uid, t]) => `${uid}:${t.lat?.toFixed(6)},${t.lng?.toFixed(6)}`)
+    .join("|");
+  useEffect(() => {
+    if (!mapReady || !fakeActive || members.length === 0) return;
+    loadAllRoutes(members);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, fakeActive, memberTrackingKey]);
+
+  // ── Lost signal detection ─────────────────────────────────────────────────
+  // Mỗi 30 giây, kiểm tra member nào có updated_at quá 120s mà vẫn "active"
+  // → push status "lost_signal" lên Firestore.
+  // Chỉ chạy khi fake GPS tắt và trip đang active.
+  useEffect(() => {
+    if (!isActive || !tripId) return;
+
+    const checkLostSignal = () => {
+      // Không chạy khi fake GPS đang bật
+      if (fakeActive) return;
+
+      const now = Date.now();
+      firestoreMembers.forEach((m) => {
+        // Bỏ qua bản thân
+        if (m.uid === currentUid) return;
+
+        const t = m.tracking;
+
+        // Nếu member đã active trở lại → reset để lần sau có thể ping lại
+        if (t?.status === "active") {
+          pinggedUidsRef.current.delete(m.uid);
+        }
+
+        if (!t || t.status !== "active") return;
+
+        // updated_at có thể là Firestore Timestamp hoặc null
+        const updatedAt = t.updated_at?.toMillis?.() ?? t.updated_at?.seconds * 1000 ?? null;
+        if (updatedAt === null) return;
+
+        const diffSec = (now - updatedAt) / 1000;
+        if (diffSec > 90) {
+          console.log(`[TripMapPanel] lost_signal detected for ${m.uid}, diff=${Math.round(diffSec)}s`);
+
+          // Chỉ ping nếu uid chưa có trong map HOẶC updated_at đã thay đổi
+          const lastPingedAt = pinggedUidsRef.current.get(m.uid);
+          if (lastPingedAt === undefined || lastPingedAt !== updatedAt) {
+            pinggedUidsRef.current.set(m.uid, updatedAt);
+            playLostSignalPing();
+          }
+
+          setDoc(
+            doc(db, "trips", tripId, "members", m.uid),
+            { tracking: { status: "lost_signal", updated_at: serverTimestamp() } },
+            { merge: true }
+          ).catch((err) => console.warn("[TripMapPanel] lost_signal push failed:", err));
+        }
+      });
+    };
+
+    const intervalId = setInterval(checkLostSignal, 30_000);
+    return () => clearInterval(intervalId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, tripId, fakeActive, firestoreMembers, currentUid]);
+
+  // ── Client-side "mất kết nối" detection (15s, không push Firestore) ─────────
+  // Kiểm tra mỗi 5 giây. Nếu now - updated_at > 15s thì hiển thị mất kết nối + phát âm thanh.
+  // Reset ngay khi member cập nhật lại (updated_at mới hơn).
+  const localLostPingedRef = useRef(new Map()); // uid -> updatedAt đã phát ping
+  const firestoreMembersRef = useRef(firestoreMembers);
+  useEffect(() => { firestoreMembersRef.current = firestoreMembers; }, [firestoreMembers]);
+
+  // Dùng ref để interval luôn đọc fakeActive mới nhất mà không cần restart
+  const fakeActiveRef = useRef(fakeActive);
+  useEffect(() => { fakeActiveRef.current = fakeActive; }, [fakeActive]);
+
+  useEffect(() => {
+    if (!isActive) {
+      setLocalLostSet(new Set());
+      return;
+    }
+    const checkLocalLost = () => {
+      // Đọc từ ref để luôn có giá trị mới nhất
+      if (fakeActiveRef.current) {
+        // Khi fake GPS bật: xóa toàn bộ localLostSet để không hiển thị "mất kết nối" sai
+        setLocalLostSet(new Set());
+        return;
+      }
+      const now = Date.now();
+      const nextLost = new Set();
+      firestoreMembersRef.current.forEach((m) => {
+        if (m.uid === currentUid) return; // bỏ qua bản thân
+        const t = m.tracking;
+        if (!t) return;
+        const updatedAt = t.updated_at?.toMillis?.() ?? (t.updated_at?.seconds != null ? t.updated_at.seconds * 1000 : null);
+        if (updatedAt === null) return;
+        const diffSec = (now - updatedAt) / 1000;
+        if (diffSec > 15) {
+          nextLost.add(m.uid);
+          // Phát âm thanh + hiển thị toast chỉ 1 lần cho mỗi lần mất kết nối (theo updatedAt)
+          const lastPinged = localLostPingedRef.current.get(m.uid);
+          if (lastPinged !== updatedAt) {
+            localLostPingedRef.current.set(m.uid, updatedAt);
+            playLostSignalPing();
+            // Thêm toast
+            const toastId = `${m.uid}-${updatedAt}`;
+            const name = m.display_name ?? m.username ?? m.uid;
+            setLostSignalToasts((prev) => {
+              if (prev.some((t) => t.id === toastId)) return prev;
+              return [...prev, { id: toastId, name }];
+            });
+            setTimeout(() => {
+              setLostSignalToasts((prev) => prev.filter((t) => t.id !== toastId));
+            }, 5_000);
+          }
+        } else {
+          // Đã kết nối lại → reset ping để lần sau có thể phát lại
+          localLostPingedRef.current.delete(m.uid);
+        }
+      });
+      setLocalLostSet(nextLost);
+    };
+    const id = setInterval(checkLocalLost, 5_000);
+    checkLocalLost(); // chạy ngay lần đầu
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, currentUid]); // fakeActive đọc qua ref — không cần trong deps
+  const meAccident = allMembers.find((m) => m.isMe)?.accident === true;
+  const meArrived  = allMembers.find((m) => m.isMe)?.status === "arrived";
+  const canArrive  = distToDestM !== null && distToDestM < 500;
+
+  const handleAccident = useCallback(async () => {
+    if (!currentUid || !tripId) return;
+    try {
+      await setDoc(doc(db, "trips", tripId, "members", currentUid), { tracking: { accident: !meAccident, updated_at: serverTimestamp() } }, { merge: true });
+    } catch (err) { console.warn("[TripMapPanel] handleAccident failed:", err); }
+  }, [currentUid, tripId, meAccident]);
+
+  const handleArrive = useCallback(async () => {
+    if (!currentUid || !tripId) return;
+    try {
+      await setDoc(doc(db, "trips", tripId, "members", currentUid), { tracking: { status: "arrived", updated_at: serverTimestamp() } }, { merge: true });
+    } catch (err) { console.warn("[TripMapPanel] handleArrive failed:", err); }
+  }, [currentUid, tripId]);
+
+  if (!trip) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-gray-400">
+        <span className="text-4xl mb-3">🗺️</span>
+        <p className="text-sm font-medium">Chọn một chuyến đi để xem bản đồ</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      {/* Member sidebar */}
+      <div className="w-64 shrink-0 border-r border-gray-100 flex flex-col">
+        {/* Trip status + actions */}
+        <div className="px-4 pt-3 pb-3 border-b border-gray-100">
+
+          {/* Badge trạng thái trip */}
+          {!isActive && (
+            <div className="mt-2 flex items-center gap-1.5 bg-yellow-50 border border-yellow-200 rounded-lg px-2.5 py-1.5">
+              <span className="text-xs text-yellow-700 font-medium">
+                {trip.status === "ended" ? "Chuyến đi đã kết thúc" : "Chờ chủ chuyến đi bắt đầu"}
+              </span>
+            </div>
+          )}
+
+          {/* Nút Accident + Arrive — chỉ khi active */}
+          {isActive && allMembers.some((m) => m.isMe) && (
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={handleAccident}
+                className={`flex-1 py-1 rounded-lg text-xs font-semibold transition-colors ${meAccident ? "bg-red-100 text-red-600 hover:bg-red-200" : "bg-red-500 hover:bg-red-600 text-white"}`}
+              >
+                {meAccident ? "Hủy báo" : "Báo tai nạn"}
+              </button>
+              <button
+                onClick={handleArrive}
+                disabled={!canArrive || meArrived}
+                title={!canArrive ? `Cần đến gần hơn (${distToDestM != null ? Math.round(distToDestM) + "m" : "?"})` : ""}
+                className={`flex-1 py-1 rounded-lg text-xs font-semibold transition-colors ${meArrived ? "bg-blue-100 text-blue-400 cursor-not-allowed" : canArrive ? "bg-blue-500 hover:bg-blue-600 text-white" : "bg-gray-100 text-gray-400 cursor-not-allowed"}`}
+              >
+                Đã đến
+              </button>
+            </div>
+          )}
+        </div>
+
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-4 pt-3 pb-2">
+          {isActive ? `Thành viên (${allMembers.length})` : "Vị trí của bạn"}
+        </p>
+        <div className="flex-1 overflow-y-auto">
+          {allMembers.length === 0 && (
+            <div className="px-4 py-6 text-center text-xs text-gray-400">
+              <span className="block text-2xl mb-2">📡</span>
+              {isActive ? "Chưa có thành viên nào chia sẻ vị trí" : "Đang chờ GPS của bạn..."}
+            </div>
+          )}
+          {allMembers.map((m) => {
+            const isLocalLost = localLostSet.has(m.id) || (m.isMe && gpsBlocked);
+            const sl   = isLocalLost
+              ? { text: "Mất kết nối", color: "text-yellow-600" }
+              : (statusLabel[m.status] || statusLabel.no_share);
+            const info = routeInfoMap[m.id];
+            return (
+              <button
+                key={m.id}
+                onClick={() => handleMemberClick(m)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${selectedMember?.id === m.id ? "bg-primary/10" : "hover:bg-gray-50"} ${m.accident ? "bg-red-50" : isLocalLost ? "bg-yellow-50" : ""}`}
+              >
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 relative"
+                  style={{ background: m.accident ? "#dc2626" : isLocalLost ? "#d97706" : m.color }}
+                >
+                  {m.avatar}
+                  {m.hasRealGps && !m.accident && !isLocalLost && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full" />}
+                  {m.accident && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-600 border-2 border-white rounded-full animate-pulse" />}
+                  {isLocalLost && !m.accident && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-yellow-400 border-2 border-white rounded-full animate-pulse" />}
+                </div>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <span className={`text-sm truncate ${selectedMember?.id === m.id ? "font-semibold text-primary" : m.accident ? "font-semibold text-red-600" : isLocalLost ? "font-semibold text-yellow-700" : "text-gray-700"}`}>
+                    {m.isMe ? "Bạn" : m.name}
+                  </span>
+                  <span className={`text-[10px] ${m.accident ? "text-red-500" : sl.color}`}>
+                    {m.accident ? "Tai nạn" : sl.text}
+                  </span>
+                </div>
+                {/* Route info — bên phải */}
+                <div className="shrink-0 flex flex-col items-end gap-0.5">
+                  {info ? (
+                    <>
+                      <span className="text-[10px] text-gray-500 font-medium">{info.distKm} km</span>
+                      <span className="text-[10px] text-gray-400">⏱ ~{info.timeMin} ph</span>
+                      {!info.hasRealGps && <span className="text-[9px] text-yellow-500">⚠</span>}
+                    </>
+                  ) : loadingRoutes ? (
+                    <span className="text-[10px] text-gray-300">...</span>
+                  ) : null}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+      </div>
+
+      {/* Map */}
+      <div className="flex-1 relative">
+        <div ref={mapRef} className="absolute inset-0 w-full h-full" />
+        {!mapReady && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/90">
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* Fake GPS control — chỉ hiện khi trip active */}
+        {isActive && (
+          <FakeGpsControl            tripId={tripId}
+            initialLat={myRealPos?.lat ?? members.find((m) => m.isMe)?.lat}
+            initialLng={myRealPos?.lng ?? members.find((m) => m.isMe)?.lng}
+            initialLostSignal={gpsBlocked}
+            onActivate={() => {
+              setFakeActive(true);
+              onFakeStart?.();
+            }}
+            onStop={() => { setFakeActive(false); setGpsBlockedPersist(false); onFakeStop?.(); }}
+            onLostSignal={() => { setGpsBlockedPersist(true); onLostSignalProp?.(); }}
+            onResumeSignal={() => { setGpsBlockedPersist(false); onResumeSignalProp?.(); }}
+            onPositionChange={(lat, lng) => {
+              const R = 6371000;
+              const dLat = (DEST.lat - lat) * Math.PI / 180;
+              const dLng = (DEST.lng - lng) * Math.PI / 180;
+              const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat * Math.PI / 180) * Math.cos(DEST.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+              setDistToDestM(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+            }}
+          />
+        )}
+
+        {/* Toast: member rời chuyến đi + mất kết nối */}
+        {(toasts.length > 0 || lostSignalToasts.length > 0) && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-50 pointer-events-none">
+            {toasts.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center gap-2 bg-gray-800/90 text-white text-xs font-medium px-4 py-2.5 rounded-xl shadow-lg backdrop-blur-sm pointer-events-auto animate-fade-in"
+              >
+                <span><span className="font-bold">{t.name}</span> đã rời chuyến đi</span>
+                <button
+                  onClick={() => dismissToast(t.id)}
+                  className="ml-1 text-white/60 hover:text-white transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+            {lostSignalToasts.map((t) => (
+              <div
+                key={t.id}
+                className="flex items-center gap-2 bg-yellow-600/90 text-white text-xs font-medium px-4 py-2.5 rounded-xl shadow-lg backdrop-blur-sm pointer-events-auto animate-fade-in"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <span><span className="font-bold">{t.name}</span> đã bị mất kết nối</span>
+                <button
+                  onClick={() => dismissLostSignalToast(t.id)}
+                  className="ml-1 text-white/60 hover:text-white transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

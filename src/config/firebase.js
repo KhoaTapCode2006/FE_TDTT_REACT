@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getDatabase } from 'firebase/database';
 
 /**
  * Firebase Configuration
@@ -65,6 +66,8 @@ const app = initializeApp(firebaseConfig);
 // ============================================
 
 export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const rtdb = getDatabase(app);
 
 // ============================================
 // Initialize Firestore (Temporary - for backward compatibility)

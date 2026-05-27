@@ -24,8 +24,22 @@ const AppContextProvider = ({ children }) => {
   // Search GPS state for map auto-navigation (Task 7.1 - Requirement 6.1)
   const [searchGps, setSearchGps] = useState(null);
   
-  // Tọa độ mặc định (Chợ Bến Thành, TP.HCM) để bản đồ không bị trắng
-  const [userLoc, setUserLoc] = useState({ lat: 10.7719, lng: 106.6983 }); 
+  // Tọa độ mặc định (Chợ Bến Thành, TP.HCM) — fallback nếu GPS bị từ chối
+  const [userLoc, setUserLoc] = useState({ lat: 10.7719, lng: 106.6983 });
+
+  // Lấy GPS thực của user khi app khởi động
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      (err) => {
+        console.warn('Geolocation denied or unavailable, using default location:', err.message);
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  }, []);
 
   const [dates, setDates] = useState({
     checkIn: new Date(),

@@ -5,9 +5,38 @@ import { hotelSearchService } from "@/services/backend/hotelSearch.service";
 function LocationInput({ value, onChange, onSelect }) {
   const [suggestions, setSuggestions] = useState([]);
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
   const timerRef = useRef(null);
   const wrapRef = useRef(null);
+
+  async function handleUseCurrentLocation() {
+    if (!navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        try {
+          // Reverse geocode qua window.API nếu có, fallback về tọa độ thô
+          const label = window.API?.reverseGeocode
+            ? await window.API.reverseGeocode(lat, lng)
+            : `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          onChange(label);
+          onSelect(label);
+        } catch {
+          const label = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          onChange(label);
+          onSelect(label);
+        } finally {
+          setLocating(false);
+        }
+      },
+      (err) => {
+        console.warn('Geolocation error:', err.message);
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  }
 
   useEffect(() => {
     function handleClick(e) {
@@ -60,9 +89,19 @@ function LocationInput({ value, onChange, onSelect }) {
             className="border-0 focus:ring-0 w-full text-sm font-medium bg-transparent outline-none text-on-surface p-0"
           />
         </div>
-        {loading && (
-          <Icon name="progress_activity" size={16} className="text-on-surface-variant animate-spin flex-none" />
-        )}
+        <button
+          type="button"
+          title="Dùng vị trí hiện tại"
+          onClick={handleUseCurrentLocation}
+          disabled={locating}
+          className="flex-none p-1 rounded-lg hover:bg-surface-container-low transition-colors disabled:opacity-50"
+        >
+          <Icon
+            name={locating ? "sync" : "my_location"}
+            size={18}
+            className={`text-on-surface-variant ${locating ? "animate-spin" : ""}`}
+          />
+        </button>
       </div>
 
       {open && suggestions.length > 0 && (
