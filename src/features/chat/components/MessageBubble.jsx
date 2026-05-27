@@ -50,7 +50,11 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
     ...hotel,
     rating: hotel.raw_rating ?? 0,
     pricePerNight: hotel.price ?? 0,
-    images: hotel.images?.map((img) => img.original_image ?? img.thumbnail).filter(Boolean) ?? [],
+    // Pass image objects with { original, thumbnail } so HotelPopup's getImageWithFallback works correctly
+    images: hotel.images?.map((img) => ({
+      original: img.original_image ?? img.original ?? null,
+      thumbnail: img.thumbnail ?? null,
+    })).filter((img) => img.original || img.thumbnail) ?? [],
     reviews: hotel.user_reviews?.map((r) => ({
       author: "Khách",
       content: r.text,

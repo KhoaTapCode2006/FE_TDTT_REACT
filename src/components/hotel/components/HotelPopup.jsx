@@ -353,6 +353,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
           src={images[0]}
           alt={`${hotel.name} main`}
           className={styles.hotelImage}
+          onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://storage.googleapis.com/support-forums-api/attachment/thread-62654029-5647160710799411463.png"; }}
           onClick={() => {
             setImgIndex(0);
             openImageViewer();
@@ -368,6 +369,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                   src={image}
                   alt={`${hotel.name} ${imageIndex + 1}`}
                   className={styles.thumbnailImage}
+                  onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://storage.googleapis.com/support-forums-api/attachment/thread-62654029-5647160710799411463.png"; }}
                   onClick={() => {
                     setImgIndex(imageIndex);
                     openImageViewer();
@@ -677,6 +679,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                 className={styles.imageViewerImage}
                 onMouseDown={beginDrag}
                 draggable={false}
+                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://storage.googleapis.com/support-forums-api/attachment/thread-62654029-5647160710799411463.png"; }}
                 style={{
                   transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoomLevel})`,
                   transition: isDragging ? "none" : "transform 0.2s ease",
