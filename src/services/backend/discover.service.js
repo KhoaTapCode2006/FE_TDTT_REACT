@@ -116,7 +116,7 @@ export async function suggestAddress(query, gps = null) {
     body.gps = { latitude: gps.latitude, longitude: gps.longitude };
   }
 
-  const response = await discoverClient.post('/discover/address-suggest', body);
+  const response = await discoverClient.post('/address-suggest', body);
   return response.data?.data?.suggestions ?? [];
 }
 
@@ -152,7 +152,7 @@ export async function searchHotels(name, gps = null) {
     };
   }
 
-  const response = await discoverClient.post('/discover/hotels', body);
+  const response = await discoverClient.post('/hotels', body);
   return response.data?.data ?? [];
 }
 
@@ -166,7 +166,7 @@ export async function searchHotels(name, gps = null) {
 export async function getHotelById(hotelId) {
   if (!hotelId) return null;
   try {
-    const response = await discoverClient.get(`/discover/hotels/${encodeURIComponent(hotelId)}`);
+    const response = await discoverClient.get(`/hotels/${encodeURIComponent(hotelId)}`);
     return response.data?.data ?? null;
   } catch {
     return null;

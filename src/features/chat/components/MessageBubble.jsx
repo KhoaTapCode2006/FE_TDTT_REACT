@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Avatar from "./Avatar";
 import { getHotelById } from "@/services/backend/discover.service";
 import HotelPopup from "@/components/hotel/components/HotelPopup";
@@ -131,8 +132,9 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
         </div>
       </div>
 
-      {showPopup && popupHotel && (
-        <HotelPopup hotel={popupHotel} onClose={() => setShowPopup(false)} />
+      {showPopup && popupHotel && createPortal(
+        <HotelPopup hotel={popupHotel} onClose={() => setShowPopup(false)} />,
+        document.body
       )}
     </>
   );
