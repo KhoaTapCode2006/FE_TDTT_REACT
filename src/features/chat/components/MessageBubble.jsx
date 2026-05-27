@@ -48,8 +48,23 @@ function PlaceCard({ attachment, isMine, fallbackText }) {
 
   const popupHotel = hotel ? {
     ...hotel,
-    rating: hotel.raw_rating ?? 0,
+    rating: hotel.ai_sentiment?.ai_score || hotel.raw_rating || 0,
     pricePerNight: hotel.price ?? 0,
+    rawRating: hotel.raw_rating || 0,
+    ai_score: hotel.ai_sentiment?.ai_score || 0,
+    // AI Sentiment (for popup display)
+    aiSentiment: hotel.ai_sentiment ? {
+      aiScore: hotel.ai_sentiment.ai_score || 0,
+      trustWeight: hotel.ai_sentiment.trust_weight || 0,
+      analyzedReviews: hotel.ai_sentiment.analyzed_reviews?.length || 0,
+    } : null,
+    // AI Summary
+    aiSummary: hotel.ai_summary ? {
+      overview: hotel.ai_summary.overview || '',
+      pros: Array.isArray(hotel.ai_summary.pros) ? hotel.ai_summary.pros : [],
+      cons: Array.isArray(hotel.ai_summary.cons) ? hotel.ai_summary.cons : [],
+      notes: hotel.ai_summary.notes || '',
+    } : null,
     // Pass image objects with { original, thumbnail } so HotelPopup's getImageWithFallback works correctly
     images: hotel.images?.map((img) => ({
       original: img.original_image ?? img.original ?? null,

@@ -526,18 +526,6 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                 </div>
               )}
 
-              {/* AI Summary Display (styled) - simplified to avoid JSX nesting issues */}
-              {hotel?.aiSummary && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                  <h4 className="font-bold text-blue-900 mb-2">AI Summary</h4>
-                  {hotel.aiSummary.overview && (
-                    <p className="text-sm text-blue-800">{hotel.aiSummary.overview}</p>
-                  )}
-                  {hotel.aiSummary.notes && (
-                    <p className="text-xs text-on-surface-variant italic mt-2">Note: {hotel.aiSummary.notes}</p>
-                  )}
-                </div>
-              )}
               
               <div className={styles.bookingBox}>
                 <p className={styles.bookingTitle}>Check In / Check Out</p>
