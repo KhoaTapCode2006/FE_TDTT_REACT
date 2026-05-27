@@ -322,27 +322,58 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
     return '';
   };
 
+  const getReviewRawStar = (review) => {
+    if (!review || typeof review !== 'object') return 0;
+    const rawCandidates = [
+      review.raw_star,
+      review.raw_stars,
+      review.rawStars,
+      review.rating,
+      review.stars,
+      review.review_score,
+      review.score,
+      review.adjusted_stars,
+      review.adjustedStars,
+      review.sentiment_score,
+      review.sentimentScore,
+      hotel.rating,
+      hotel.rawRating,
+      hotel.raw_rating
+    ];
+
+    for (const value of rawCandidates) {
+      if (value === 0) return 0;
+      if (value === null || value === undefined) continue;
+      const numberValue = Number(value);
+      if (!Number.isNaN(numberValue)) return Math.round(numberValue);
+    }
+
+    return 0;
+  };
+
+  const normalizePopupReview = (review) => {
+    if (typeof review === 'string') {
+      return {
+        author: 'Guest',
+        content: review,
+        raw_star: 0,
+      };
+    }
+    return {
+      author: review.author || review.name || 'Guest',
+      content: normalizeReviewText(review),
+      raw_star: getReviewRawStar(review),
+      date:
+        review.date || review.created_at || review.createdAt || review.createdAtTimestamp || null,
+      source: review.source || null,
+    };
+  };
+
   // Prepare reviews data
-  const reviews = hotel.reviews?.length
-    ? hotel.reviews
+  const reviews = Array.isArray(hotel.reviews) && hotel.reviews.length > 0
+    ? hotel.reviews.map(normalizePopupReview)
     : hotel.latestReview
-    ? [
-        {
-          author: hotel.latestReview.author || 'Guest',
-          content: normalizeReviewText(hotel.latestReview),
-          raw_star: Math.round(
-            Number(
-              hotel.latestReview?.raw_star ??
-                hotel.latestReview?.rating ??
-                hotel.latestReview?.stars ??
-                hotel.latestReview?.review_score ??
-                hotel.latestReview?.score ??
-                hotel.rating ??
-                0
-            ) || 0
-          ),
-        },
-      ]
+    ? [normalizePopupReview(hotel.latestReview)]
     : [];
 
   // Prepare amenities data
