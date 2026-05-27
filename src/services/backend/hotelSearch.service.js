@@ -93,13 +93,32 @@ function normalizeReviewItem(review) {
   return {
     author: review.author || review.name || 'Guest',
     content: content || '',
-    raw_star:
-      review.raw_star ??
-      review.rating ??
-      review.stars ??
-      review.review_score ??
-      review.score ??
-      0,
+    // Support various backend fields: raw_star, raw_stars, rawStars, rating, stars,
+    // review_score, score, adjusted_stars. Prefer raw_stars/raw_star when available.
+    raw_star: (() => {
+      const rawCandidates = [
+        review.raw_star,
+        review.raw_stars,
+        review.rawStars,
+        review.rating,
+        review.stars,
+        review.review_score,
+        review.score,
+        review.adjusted_stars,
+        review.adjustedStars
+      ];
+      for (const v of rawCandidates) {
+        if (v === 0) return 0;
+        if (v === null || v === undefined) continue;
+        const n = Number(v);
+        if (!Number.isNaN(n)) return Math.round(n);
+      }
+      return 0;
+    })(),
+    // Preserve original numeric fields if present
+    raw_stars: review.raw_stars ?? review.rawStars ?? null,
+    adjusted_stars: review.adjusted_stars ?? review.adjustedStars ?? null,
+    sentiment_score: review.sentiment_score ?? review.sentimentScore ?? null,
     date: review.date || review.created_at || null,
     source: review.source || null
   };
@@ -781,7 +800,14 @@ async getTopViewsHotelsWeekly(limit = 16) {
         originalAmenities: hotel.amenities,
         reviews: normalizedUserReviews,
         userReviews: normalizedUserReviews,
-        latestReview: hotel.latest_review || hotel.latestReview || null,
+        latestReview:
+          normalizedUserReviews && normalizedUserReviews.length > 0
+            ? normalizedUserReviews[0]
+            : hotel.latest_review
+            ? normalizeReviewItem(hotel.latest_review)
+            : hotel.latestReview
+            ? normalizeReviewItem(hotel.latestReview)
+            : null,
         totalViews: views.totalViews,
         weeklyViews: views.weeklyViews
       };
@@ -923,7 +949,14 @@ async getTopViewsHotelsAllTime(limit = 16) {
         originalAmenities: hotel.amenities,
         reviews: normalizedUserReviews,
         userReviews: normalizedUserReviews,
-        latestReview: hotel.latest_review || hotel.latestReview || null,
+        latestReview:
+          normalizedUserReviews && normalizedUserReviews.length > 0
+            ? normalizedUserReviews[0]
+            : hotel.latest_review
+            ? normalizeReviewItem(hotel.latest_review)
+            : hotel.latestReview
+            ? normalizeReviewItem(hotel.latestReview)
+            : null,
         totalViews: views.totalViews,
         weeklyViews: views.weeklyViews
       };

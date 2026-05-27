@@ -330,7 +330,17 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
         {
           author: hotel.latestReview.author || 'Guest',
           content: normalizeReviewText(hotel.latestReview),
-          raw_star: Math.round(hotel.rating),
+          raw_star: Math.round(
+            Number(
+              hotel.latestReview?.raw_star ??
+                hotel.latestReview?.rating ??
+                hotel.latestReview?.stars ??
+                hotel.latestReview?.review_score ??
+                hotel.latestReview?.score ??
+                hotel.rating ??
+                0
+            ) || 0
+          ),
         },
       ]
     : [];
@@ -558,7 +568,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                     <div>
                       <p className={styles.reviewAuthor}>{review.author}</p>
                       <div className={styles.reviewRawStar}>
-                        {renderStars(review.raw_star || hotel.rating)}
+                        {renderStars(review.raw_star || 0)}
                       </div>
                       <p className={styles.reviewContent}>{normalizeReviewText(review)}</p>
                     </div>
