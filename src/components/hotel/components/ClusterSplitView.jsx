@@ -2,6 +2,7 @@ import { useApp } from "@/app/AppContext";
 import HotelPopup from "./HotelPopup";
 import Icon from "@/components/ui/Icon";
 import { fmtPrice } from "@/utils/format";
+import { getImageWithFallback } from "@/utils/imageUtils";
 
 function ClusterSplitView() {
   const { clusterHotels, activeHotel, setActiveHotel, setClusterHotels, setHoveredHotelId } = useApp();
@@ -57,7 +58,6 @@ function ClusterSplitView() {
                 onMouseLeave={() => setHoveredHotelId(null)}
                 onClick={(e) => {
                   e.stopPropagation();
-                  console.log('Sidebar hotel clicked:', hotel.id, hotel.name);
                   setActiveHotel(hotel);
                 }}
                 className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
@@ -69,9 +69,12 @@ function ClusterSplitView() {
                 <div className="flex items-start gap-3">
                   {hotel.images && hotel.images[0] && (
                     <img
-                      src={hotel.images[0]}
+                      src={getImageWithFallback(hotel.images[0]) || "https://lh3.googleusercontent.com/p/AF1QipNKKx5nFjXqKvLBqJvLqKvLBqJvLqKvLBqJvLqK=s1600-w400"}
                       alt={hotel.name}
                       className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+                      onError={(e) => {
+                        e.target.src = "https://lh3.googleusercontent.com/p/AF1QipNKKx5nFjXqKvLBqJvLqKvLBqJvLqKvLBqJvLqK=s1600-w400";
+                      }}
                     />
                   )}
                   <div className="flex-1 min-w-0">

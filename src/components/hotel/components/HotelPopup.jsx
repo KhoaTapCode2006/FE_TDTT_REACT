@@ -3,8 +3,10 @@ import { usePopup } from "../hooks/usePopup";
 import { useApp } from "@/app/AppContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { fmtPrice, fmtDate } from "@/utils/format";
-import SaveToListModal from "@/components/profile/SaveToListModal";
+import { fmtPrice, fmtDate, fmtPriceExact, formatViewCount } from "@/utils/format";
+import { getImageWithFallback } from "@/utils/imageUtils";
+import SaveToCollectionModal from "@/components/profile/SaveToCollectionModal";
+import viewTrackingService from "@/services/viewTracking.service";
 import styles from "./HotelPopup.module.css";
 
 const IconClose = () => (
@@ -186,7 +188,7 @@ const getAmenityLabel = (amenityKey) => {
   return labels[amenityKey] || amenityKey;
 };
 
-const formatPrice = (price) => fmtPrice(price);
+const formatPrice = (price) => fmtPriceExact(price);
 
 const TAB_ITEMS = [
   { id: "overview", label: "Mô tả & Giá" },
@@ -234,8 +236,13 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
       setActiveTab("overview");
       setIsAmenitiesExpanded(false);
       setImgIndex(0);
+      
+      // Track view when popup opens
+      if (hotel?.id) {
+        viewTrackingService.trackView(hotel.id);
+      }
     }
-  }, [isOpen, hotel?.name]);
+  }, [isOpen, hotel?.name, hotel?.id]);
 
   if (!isOpen || !hotel) return null;
 
@@ -249,12 +256,17 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
       return;
     }
     
-    console.log('Opening SaveToListModal');
+    console.log('Opening SaveToCollectionModal');
     setShowSaveModal(true);
   };
 
-  // Ensure images array exists
-  const images = hotel.images?.length ? hotel.images : ["https://via.placeholder.com/640x480?text=No+Image"];
+  // Process images - extract URLs with fallback and apply optimization
+  const images = hotel.images?.length 
+    ? hotel.images.map(img => {
+        // Use getImageWithFallback to get optimized URL
+        return getImageWithFallback(img) || null;
+      }).filter(Boolean) // Remove nulls
+    : ["https://via.placeholder.com/640x480?text=No+Image"];
 
   const prevImg = () => {
     setImgIndex((i) => (i - 1 + images.length) % images.length);
@@ -299,14 +311,25 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
   const renderStars = (rating) =>
     [1, 2, 3, 4, 5].map((s) => <StarIcon key={s} filled={s <= Math.round(rating)} />);
 
+  const normalizeReviewText = (review) => {
+    if (!review) return '';
+    if (typeof review === 'string') return review;
+    if (typeof review.content === 'string') return review.content;
+    if (typeof review.text === 'string') return review.text;
+    if (typeof review.body === 'string') return review.body;
+    if (review.content && typeof review.content === 'object') return JSON.stringify(review.content);
+    if (review.text && typeof review.text === 'object') return JSON.stringify(review.text);
+    return '';
+  };
+
   // Prepare reviews data
   const reviews = hotel.reviews?.length
     ? hotel.reviews
     : hotel.latestReview
     ? [
         {
-          author: hotel.latestReview.author,
-          content: hotel.latestReview.text,
+          author: hotel.latestReview.author || 'Guest',
+          content: normalizeReviewText(hotel.latestReview),
           raw_star: Math.round(hotel.rating),
         },
       ]
@@ -377,22 +400,54 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                     <span className={styles.aiScore}>AI Score: {Number(hotel.ai_score).toFixed(1)}</span>
                   </div>
                 )}
-                <div className={styles.address}>
-                  <IconLocation /><span>{hotel.address}</span>
-                </div>
+                {/* Show distance instead of address */}
+                {hotel.distance !== undefined && hotel.distance !== null && hotel.distance > 0 ? (
+                  <div className={styles.address}>
+                    <IconLocation /><span>{hotel.distance.toFixed(2)} km</span>
+                  </div>
+                ) : hotel.address ? (
+                  <div className={styles.address}>
+                    <IconLocation /><span>{hotel.address}</span>
+                  </div>
+                ) : null}
               </div>
               
-              {/* Save Button */}
-              <button
-                type="button"
-                onClick={handleSaveClick}
-                className="flex-none p-3 rounded-full hover:bg-surface-container transition-colors group"
-                title="Lưu vào danh sách"
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary group-hover:scale-110 transition-transform">
-                  <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-                </svg>
-              </button>
+              {/* Right side: Save Button and View Statistics */}
+              <div className="flex flex-col items-end gap-2">
+                {/* Save Button */}
+                <button
+                  type="button"
+                  onClick={handleSaveClick}
+                  className="flex-none p-3 rounded-full hover:bg-surface-container transition-colors group"
+                  title="Lưu vào danh sách"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary group-hover:scale-110 transition-transform">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                  </svg>
+                </button>
+                
+                {/* View Statistics - below bookmark */}
+                {hotel?.views && (hotel.views.totalViews > 0 || hotel.views.total_views > 0) && (
+                  <div className="flex flex-col gap-1 text-xs text-on-surface-variant text-right">
+                    <div className="flex items-center gap-1 justify-end">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      <span>{formatViewCount(hotel.views.totalViews || hotel.views.total_views || 0)}</span>
+                    </div>
+                    {(hotel.views.weeklyViews !== undefined || hotel.views.weekly_views !== undefined) && (
+                      <div className="flex items-center gap-1 justify-end">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                          <polyline points="17 6 23 6 23 12" />
+                        </svg>
+                        <span>{hotel.views.weeklyViews || hotel.views.weekly_views || 0} tuần này</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -418,35 +473,80 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                 {hotel.description ??
                   `${hotel.name} nằm tại vị trí thuận tiện, phù hợp cho cả du lịch và công tác. Khách sạn có không gian sạch sẽ, dịch vụ thân thiện và dễ dàng di chuyển đến các điểm tham quan.`}
               </p>
-              
-              {/* Book Now Button */}
-              <button
-                className="w-full mt-4 px-6 py-3 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
-                onClick={() => {
-                  // TODO: Navigate to booking page or open booking modal
-                  console.log('Booking hotel:', hotel.id);
-                  alert('Tính năng đặt phòng đang được phát triển');
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
-                Đặt Phòng
-              </button>
+
+              {/* Hotel Link */}
+              {hotel?.link && (
+                <a 
+                  href={hotel.link} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline mt-2 block font-medium"
+                >
+                  Link khách sạn: {hotel.name}
+                </a>
+              )}
+
+              {/* AI Sentiment Display */}
+              {hotel?.aiSentiment && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-600">
+                      <path d="M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20z" />
+                      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                      <circle cx="12" cy="17" r="0.5" fill="currentColor" />
+                    </svg>
+                    <h4 className="font-bold text-blue-900">AI Analysis</h4>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <p className="text-xs text-blue-700">AI Score</p>
+                      <p className="text-2xl font-bold text-blue-900">
+                        {hotel.aiSentiment.aiScore?.toFixed(1) || 'N/A'}
+                      </p>
+                    </div>
+                    {hotel.aiSentiment.trustWeight !== undefined && (
+                      <div>
+                        <p className="text-xs text-blue-700">Trust Weight</p>
+                        <p className="text-sm font-medium text-blue-900">
+                          {(hotel.aiSentiment.trustWeight * 100).toFixed(0)}%
+                        </p>
+                      </div>
+                    )}
+                    {hotel.aiSentiment.analyzedReviews !== undefined && (
+                      <div>
+                        <p className="text-xs text-blue-700">Reviews Analyzed</p>
+                        <p className="text-sm font-medium text-blue-900">
+                          {hotel.aiSentiment.analyzedReviews}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Summary Display (styled) - simplified to avoid JSX nesting issues */}
+              {hotel?.aiSummary && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                  <h4 className="font-bold text-blue-900 mb-2">AI Summary</h4>
+                  {hotel.aiSummary.overview && (
+                    <p className="text-sm text-blue-800">{hotel.aiSummary.overview}</p>
+                  )}
+                  {hotel.aiSummary.notes && (
+                    <p className="text-xs text-on-surface-variant italic mt-2">Note: {hotel.aiSummary.notes}</p>
+                  )}
+                </div>
+              )}
               
               <div className={styles.bookingBox}>
-                <p className={styles.bookingTitle}>Check Availability</p>
+                <p className={styles.bookingTitle}>Check In / Check Out</p>
                 <div className={styles.dateRow}>
                   <div className={styles.dateBox}>
-                    <span className={styles.dateLabel}>Check In</span>
-                    <span className={styles.dateValue}>{displayDates.checkIn ? fmtDate(displayDates.checkIn) : "Select date"}</span>
+                    <span className={styles.dateLabel}>Check In Time</span>
+                    <span className={styles.dateValue}>{hotel.checkInTime != null ? hotel.checkInTime : "12:30"}</span>
                   </div>
                   <div className={styles.dateBox}>
-                    <span className={styles.dateLabel}>Check Out</span>
-                    <span className={styles.dateValue}>{displayDates.checkOut ? fmtDate(displayDates.checkOut) : "Select date"}</span>
+                    <span className={styles.dateLabel}>Check Out Time</span>
+                    <span className={styles.dateValue}>{hotel.checkOutTime != null ? hotel.checkOutTime : "12:00"}</span>
                   </div>
                 </div>
               </div>
@@ -464,6 +564,9 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
               <div className={styles.reviewSummary}>
                 <span className={styles.ratingNum}>{hotel.rating}</span>
                 <span className={styles.reviewCount}>/ 5</span>
+                <span className={styles.reviewTotal} style={{ marginLeft: 8, color: '#6b7280', fontSize: 12 }}>
+                  {reviews.length ?? 0} đánh giá
+                </span>
               </div>
               {reviews.map((review, index) => (
                 <div key={`${review.author}-${index}`} className={styles.reviewBox}>
@@ -474,7 +577,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                       <div className={styles.reviewRawStar}>
                         {renderStars(review.raw_star || hotel.rating)}
                       </div>
-                      <p className={styles.reviewContent}>{review.content || review.text}</p>
+                      <p className={styles.reviewContent}>{normalizeReviewText(review)}</p>
                     </div>
                   </div>
                 </div>
@@ -589,8 +692,8 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
         </div>
       )}
 
-      {/* Save to List Modal */}
-      <SaveToListModal
+      {/* Save to Collection Modal */}
+      <SaveToCollectionModal
         isOpen={showSaveModal}
         onClose={() => setShowSaveModal(false)}
         hotel={hotel}

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lodgy4U - Khám phá Việt Nam</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --surface-color: #ffffff;
+            --primary-green: #16a34a; 
+            --primary-light: #dcfce7;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            --shadow-lg: 0 10px 25px -5px rgba(0,0,0,0.05);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); min-height: 100vh; padding: 15px 40px; overflow-x: hidden; }
+
+        /* HEADER */
+        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 0 30px 0; }
+        .logo { display: flex; align-items: center; gap: 10px; font-size: 1.75rem; font-weight: 800; color: var(--text-main); text-decoration: none; letter-spacing: -0.5px; }
+        .logo i { color: var(--primary-green); }
+        .header-actions { display: flex; align-items: center; gap: 20px; }
+        .lang-select { color: var(--text-muted); display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 0.95rem; font-weight: 500; }
+        .btn-enter { background: var(--primary-green); color: white; padding: 12px 24px; border-radius: 30px; font-weight: 600; cursor: pointer; font-size: 0.95rem; transition: 0.3s; text-decoration: none; box-shadow: 0 4px 12px rgba(22, 163, 74, 0.2); }
+        .btn-enter:hover { background: #15803d; transform: translateY(-2px); }
+
+        /* MAIN HERO SECTION */
+        .hero { display: grid; grid-template-columns: 1.2fr 1.2fr 380px; gap: 40px; margin-bottom: 40px; align-items: center; }
+
+        /* HERO LEFT (Search Box) */
+        .hero-left { display: flex; flex-direction: column; justify-content: center; }
+        .ai-badge { display: inline-flex; align-items: center; gap: 8px; background: var(--primary-light); color: var(--primary-green); padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 25px; border: 1px solid rgba(22, 163, 74, 0.2); align-self: flex-start; }
+        .hero-title { font-size: 3.5rem; line-height: 1.15; font-weight: 800; margin-bottom: 20px; color: #020617; letter-spacing: -1px; }
+        .hero-title span { color: var(--primary-green); }
+        .hero-desc { color: var(--text-muted); font-size: 1.1rem; line-height: 1.6; margin-bottom: 30px; max-width: 95%; }
+
+        /* SEARCH BOX */
+        .search-container { background: var(--surface-color); border-radius: 20px; padding: 12px; display: flex; align-items: center; border: 1px solid var(--border-color); box-shadow: var(--shadow-lg); margin-bottom: 25px; }
+        .search-field { flex: 1; padding: 0 15px; border-right: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 4px; }
+        .search-field:last-of-type { border-right: none; }
+        .search-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .search-input { background: transparent; border: none; color: var(--text-main); font-size: 0.95rem; font-weight: 600; outline: none; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        .search-input i { color: var(--primary-green); font-size: 1rem; }
+        .search-btn { background: var(--primary-green); color: white; width: 55px; height: 55px; border-radius: 14px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; transition: 0.3s; margin-left: 5px; box-shadow: 0 4px 10px rgba(22, 163, 74, 0.3); }
+        .search-btn:hover { transform: scale(1.05); background: #15803d; }
+
+        .suggestions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .suggestions span { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
+        .tag { background: var(--surface-color); border: 1px solid var(--border-color); color: var(--text-muted); padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: 0.3s; box-shadow: var(--shadow-sm); }
+        .tag:hover, .tag.active { color: var(--primary-green); border-color: var(--primary-green); background: var(--primary-light); }
+
+        /* HERO MAP (Vector phong cách MapSVG) */
+        .hero-map { 
+            position: relative; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            height: 600px;
+            background: #f0fdf4; 
+            border-radius: 24px;
+            border: 2px solid #bbf7d0;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(22, 163, 74, 0.05);
+        }
+        
+        .map-bg-img {
+            position: absolute; 
+            width: 100%; 
+            height: 120%; 
+            object-fit: cover; 
+            object-position: right center;
+            opacity: 0.85; 
+            filter: sepia(1) hue-rotate(85deg) saturate(1.5) opacity(0.8);
+        }
+
+        .map-pin { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer; z-index: 10; }
+        .pin-img { width: 40px; height: 40px; border-radius: 50%; border: 3px solid white; background: var(--surface-color); overflow: hidden; box-shadow: var(--shadow-md); transition: 0.3s; }
+        .pin-img img { width: 100%; height: 100%; object-fit: cover; }
+        .pin-label { font-size: 0.8rem; font-weight: 700; color: var(--text-main); background: rgba(255,255,255,0.95); padding: 2px 8px; border-radius: 12px; box-shadow: var(--shadow-sm); }
+        
+        /* Hiệu ứng Active/Hover */
+        .map-pin.active .pin-img { border-color: var(--primary-green); transform: scale(1.2); box-shadow: 0 0 0 5px rgba(22, 163, 74, 0.2); }
+        .map-pin:hover .pin-img { transform: scale(1.1); }
+
+        /* TỌA ĐỘ ĐẢO VÀ TỈNH THÀNH */
+        .pin-hn { top: 15%; left: 35%; }
+        .pin-dn { top: 45%; left: 50%; }
+        .pin-nt { top: 62%; left: 55%; }
+        .pin-dl { top: 70%; left: 45%; }
+        .pin-hcm { top: 82%; left: 35%; }
+        .pin-pq { top: 92%; left: 15%; }
+
+        /* Đặc tả Hoàng Sa - Trường Sa */
+        .island-marker {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            z-index: 5;
+        }
+        .island-dot {
+            width: 12px; height: 12px;
+            background: #ef4444; 
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+            animation: pulseRed 2s infinite;
+        }
+        .island-text {
+            font-size: 0.75rem; font-weight: 700; color: #1e293b;
+            background: rgba(255,255,255,0.85); padding: 4px 8px;
+            border-radius: 6px; border: 1px solid #cbd5e1;
+        }
+        .hoang-sa { top: 38%; right: 18%; }
+        .truong-sa { top: 75%; right: 8%; }
+
+        @keyframes pulseRed {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        /* HERO RIGHT (Top Places) */
+        .hero-right { display: flex; flex-direction: column; gap: 15px; justify-content: center; }
+        .cards-header { display: flex; align-items: center; gap: 10px; color: var(--text-main); font-weight: 700; font-size: 1.1rem; margin-bottom: 5px; }
+        .cards-header i { color: #ef4444; }
+        .hotel-card { background: var(--surface-color); border-radius: 16px; overflow: hidden; border: 1px solid var(--border-color); box-shadow: var(--shadow-sm); transition: 0.3s; display: flex; gap: 15px; padding: 12px; align-items: center; }
+        .hotel-card:hover { border-color: var(--primary-green); box-shadow: var(--shadow-md); transform: translateX(-5px); }
+        .card-img-container { position: relative; width: 100px; height: 100px; border-radius: 12px; overflow: hidden; flex-shrink: 0; }
+        .card-img-container img { width: 100%; height: 100%; object-fit: cover; }
+        .card-badge { position: absolute; top: 5px; left: 5px; background: rgba(255, 255, 255, 0.95); color: #ef4444; padding: 3px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; box-shadow: var(--shadow-sm); display: flex; align-items: center; gap: 3px; }
+        .card-content { flex: 1; }
+        .card-title { font-size: 1rem; font-weight: 700; margin-bottom: 4px; color: var(--text-main); }
+        .card-location { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+        .card-price { font-size: 1.1rem; font-weight: 800; color: var(--primary-green); }
+        .card-price span { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; }
+
+        /* THÔNG TIN (Features & Stats) */
+        .features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 25px; background: var(--surface-color); padding: 30px; border-radius: 20px; border: 1px solid var(--border-color); margin-bottom: 25px; box-shadow: var(--shadow-sm); }
+        .feature-item { display: flex; flex-direction: column; gap: 12px; padding-right: 25px; border-right: 1px solid var(--border-color); }
+        .feature-item:last-child { border-right: none; padding-right: 0; }
+        .feature-icon { width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+        .fi-1 { background: #f0fdf4; color: #16a34a; }
+        .fi-2 { background: #eef2ff; color: #4f46e5; }
+        .fi-3 { background: #f0f9ff; color: #0284c7; }
+        .fi-4 { background: #fffbeb; color: #d97706; }
+        .feature-title { font-size: 1.05rem; font-weight: 700; color: var(--text-main); }
+        .feature-desc { font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; }
+
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; background: var(--surface-color); padding: 30px; border-radius: 20px; border: 1px solid var(--border-color); align-items: center; box-shadow: var(--shadow-sm); }
+        .stat-item { display: flex; align-items: center; gap: 18px; justify-content: center; }
+        .stat-icon { font-size: 1.8rem; color: var(--primary-green); }
+        .stat-info { display: flex; flex-direction: column; }
+        .stat-num { font-size: 1.4rem; font-weight: 800; color: var(--text-main); }
+        .stat-label { font-size: 0.9rem; color: var(--text-muted); font-weight: 500; }
+
+        /* =========================================
+           ANIMATIONS & SEQUENCE LOGIC 
+           ========================================= */
+        .seq-map { opacity: 0; animation: fadeIn 1s ease forwards 0.2s; }
+        .seq-pin-1 { opacity: 0; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 0.8s; }
+        .seq-pin-2 { opacity: 0; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 1.0s; }
+        .seq-pin-3 { opacity: 0; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 1.2s; }
+        .seq-pin-4 { opacity: 0; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 1.4s; }
+        .seq-pin-5 { opacity: 0; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 1.6s; }
+        .seq-pin-6 { opacity: 0; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 1.8s; }
+        .seq-island-1 { opacity: 0; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 2.0s; }
+        .seq-island-2 { opacity: 0; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 2.2s; }
+        .seq-card-title { opacity: 0; animation: slideInRight 0.6s ease forwards 2.6s; }
+        .seq-card-1 { opacity: 0; animation: slideInRight 0.6s ease forwards 2.8s; }
+        .seq-card-2 { opacity: 0; animation: slideInRight 0.6s ease forwards 3.0s; }
+        .seq-card-3 { opacity: 0; animation: slideInRight 0.6s ease forwards 3.2s; }
+        .seq-info-1 { opacity: 0; animation: slideInUp 0.7s ease forwards 3.6s; }
+        .seq-info-2 { opacity: 0; animation: slideInUp 0.7s ease forwards 3.8s; }
+        .seq-search-1 { opacity: 0; animation: slideInUp 0.8s ease forwards 4.4s; }
+        .seq-search-2 { opacity: 0; animation: slideInUp 0.8s ease forwards 4.6s; }
+        .seq-search-3 { opacity: 0; animation: slideInUp 0.8s ease forwards 4.8s; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes popIn { 0% { opacity: 0; transform: scale(0.3); } 70% { transform: scale(1.1); } 100% { opacity: 1; transform: scale(1); } }
+        @keyframes slideInRight { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes slideInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="#" class="logo">
+            <i class="fa-solid fa-location-dot"></i> Lodgy4U
+        </a>
+        <div class="header-actions">
+            <div class="lang-select"><i class="fa-solid fa-globe"></i> VI <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem;"></i></div>
+            <a href="#" class="btn-enter">Đăng nhập</a>
+        </div>
+    </header>
+
+    <main class="hero">
+        <div class="hero-left">
+            <div class="seq-search-1">
+                <div class="ai-badge"><i class="fa-solid fa-wand-magic-sparkles"></i> AI-Powered Search</div>
+                <h1 class="hero-title">Tìm khách sạn <span>lý tưởng</span>,<br>theo <span>cách của bạn</span></h1>
+                <p class="hero-desc">Hệ thống phân tích thông minh giúp bạn tìm ra chỗ ở hoàn hảo nhất trong chớp mắt.</p>
+            </div>
+            
+            <div class="search-container seq-search-2">
+                <div class="search-field">
+                    <span class="search-label">Điểm đến</span>
+                    <div class="search-input"><i class="fa-solid fa-location-dot"></i> Đà Lạt, Lâm Đồng</div>
+                </div>
+                <div class="search-field">
+                    <span class="search-label">Nhận phòng</span>
+                    <div class="search-input"><i class="fa-regular fa-calendar"></i> Hôm nay</div>
+                </div>
+                <div class="search-field">
+                    <span class="search-label">Khách</span>
+                    <div class="search-input"><i class="fa-solid fa-user"></i> 2 người</div>
+                </div>
+                <button class="search-btn" onclick="executeSearch()">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+            </div>
+
+            <div class="suggestions seq-search-3">
+                <span>Xu hướng:</span>
+                <span class="tag active">Đà Lạt</span>
+                <span class="tag">Nha Trang</span>
+                <span class="tag">Phú Quốc</span>
+                <span class="tag">Đà Nẵng</span>
+            </div>
+        </div>
+
+        <div class="hero-map">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/d/d7/Vietnam_location_map.svg" class="map-bg-img seq-map" alt="Vietnam Map">
+            
+            <div class="island-marker hoang-sa seq-island-1">
+                <div class="island-dot"></div>
+                <div class="island-text">QĐ. Hoàng Sa</div>
+            </div>
+            <div class="island-marker truong-sa seq-island-2">
+                <div class="island-dot"></div>
+                <div class="island-text">QĐ. Trường Sa</div>
+            </div>
+
+            <div class="map-pin pin-hn seq-pin-1">
+                <div class="pin-img"><img src="https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80" alt="Hà Nội"></div>
+                <span class="pin-label">Hà Nội</span>
+            </div>
+            <div class="map-pin pin-dn seq-pin-2">
+                <div class="pin-img"><img src="https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80" alt="Đà Nẵng"></div>
+                <span class="pin-label">Đà Nẵng</span>
+            </div>
+            <div class="map-pin pin-nt seq-pin-3">
+                <div class="pin-img"><img src="https://images.unsplash.com/photo-1583417657208-a00684f18db2?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80" alt="Nha Trang"></div>
+                <span class="pin-label">Nha Trang</span>
+            </div>
+            <div class="map-pin pin-dl active seq-pin-4">
+                <div class="pin-img"><img src="https://images.unsplash.com/photo-1622359218884-2a1e35a0ce8f?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80" alt="Đà Lạt"></div>
+                <span class="pin-label">Đà Lạt</span>
+            </div>
+            <div class="map-pin pin-hcm seq-pin-5">
+                <div class="pin-img"><img src="https://images.unsplash.com/photo-1583417319070-4b69b4f34c0e?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80" alt="TP.HCM"></div>
+                <span class="pin-label">TP. Hồ Chí Minh</span>
+            </div>
+            <div class="map-pin pin-pq seq-pin-6">
+                <div class="pin-img"><img src="https://images.unsplash.com/photo-1620215715908-163e0ebbb27a?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&q=80" alt="Phú Quốc"></div>
+                <span class="pin-label">Phú Quốc</span>
+            </div>
+        </div>
+
+        <div class="hero-right">
+            <div class="cards-header seq-card-title"><i class="fa-solid fa-fire"></i> Top view hotel tuần này</div>
+            
+            <div class="hotel-card seq-card-1">
+                <div class="card-img-container">
+                    <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80" alt="Hotel">
+                    <div class="card-badge"><i class="fa-solid fa-arrow-trend-up"></i> Top 1</div>
+                </div>
+                <div class="card-content">
+                    <div class="card-title">Mercure Dalat</div>
+                    <div class="card-location"><i class="fa-solid fa-location-dot"></i> Đà Lạt, Lâm Đồng</div>
+                    <div class="card-price">1.250.000đ<span>/đêm</span></div>
+                </div>
+            </div>
+
+            <div class="hotel-card seq-card-2">
+                <div class="card-img-container">
+                    <img src="https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80" alt="Hotel">
+                    <div class="card-badge"><i class="fa-solid fa-arrow-trend-up"></i> Top 2</div>
+                </div>
+                <div class="card-content">
+                    <div class="card-title">Vinpearl Resort</div>
+                    <div class="card-location"><i class="fa-solid fa-location-dot"></i> Đảo Hòn Tre, NT</div>
+                    <div class="card-price">2.890.000đ<span>/đêm</span></div>
+                </div>
+            </div>
+
+            <div class="hotel-card seq-card-3">
+                <div class="card-img-container">
+                    <img src="https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&q=80" alt="Hotel">
+                    <div class="card-badge"><i class="fa-solid fa-arrow-trend-up"></i> Top 3</div>
+                </div>
+                <div class="card-content">
+                    <div class="card-title">JW Marriott</div>
+                    <div class="card-location"><i class="fa-solid fa-location-dot"></i> Bãi Khem, Phú Quốc</div>
+                    <div class="card-price">6.690.000đ<span>/đêm</span></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <section class="features seq-info-1">
+        <div class="feature-item">
+            <div class="feature-icon fi-1"><i class="fa-solid fa-magnifying-glass"></i></div>
+            <div class="feature-title">Tìm kiếm thông minh</div>
+            <div class="feature-desc">AI hiểu nhu cầu của bạn và tìm ra khách sạn phù hợp nhất.</div>
+        </div>
+        <div class="feature-item">
+            <div class="feature-icon fi-2"><i class="fa-regular fa-bookmark"></i></div>
+            <div class="feature-title">Bộ sưu tập cá nhân</div>
+            <div class="feature-desc">Lưu, sắp xếp và chia sẻ khách sạn yêu thích với bạn bè.</div>
+        </div>
+        <div class="feature-item">
+            <div class="feature-icon fi-3"><i class="fa-regular fa-comment-dots"></i></div>
+            <div class="feature-title">Trợ lý AI 24/7</div>
+            <div class="feature-desc">Hỏi đáp mọi thắc mắc về khách sạn và khu vực xung quanh.</div>
+        </div>
+        <div class="feature-item">
+            <div class="feature-icon fi-4"><i class="fa-solid fa-code-compare"></i></div>
+            <div class="feature-title">So sánh dễ dàng</div>
+            <div class="feature-desc">Đối chiếu thông tin giá cả, tiện ích để lựa chọn tốt nhất.</div>
+        </div>
+    </section>
+
+    <section class="stats seq-info-2">
+        <div class="stat-item">
+            <div class="stat-icon"><i class="fa-solid fa-hotel"></i></div>
+            <div class="stat-info"><span class="stat-num">20K+</span><span class="stat-label">Khách sạn toàn quốc</span></div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-icon"><i class="fa-solid fa-house-user"></i></div>
+            <div class="stat-info"><span class="stat-num">50K+</span><span class="stat-label">Lodgings đa dạng</span></div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-icon"><i class="fa-solid fa-map-location-dot"></i></div>
+            <div class="stat-info"><span class="stat-num">63</span><span class="stat-label">Tỉnh thành bao phủ</span></div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-icon"><i class="fa-solid fa-microchip"></i></div>
+            <div class="stat-info"><span class="stat-num">1M+</span><span class="stat-label">Lượt truy vấn AI</span></div>
+        </div>
+    </section>
+
+    <script>
+        function executeSearch() {
+            const btn = document.querySelector('.search-btn');
+            const originalIcon = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            btn.style.opacity = '0.8';
+            
+            setTimeout(() => {
+                alert("Điều hướng sang trang Hotels Search Result...\n(Hành động: window.location.href = '/hotels')");
+                btn.innerHTML = originalIcon;
+                btn.style.opacity = '1';
+            }, 800);
+        }
+    </script>
+</body>
+</html>

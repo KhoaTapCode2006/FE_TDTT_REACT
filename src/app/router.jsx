@@ -1,5 +1,6 @@
     import { createBrowserRouter, Navigate } from 'react-router-dom';
     import HomePage from '../pages/HomePage';
+    import IntroPage from '../pages/IntroPage';
     import MainLayout from '../layouts/MainLayout';
     import AuthLayout from '../layouts/AuthLayout';
     import LoginPage from '../pages/auth/LoginPage';
@@ -12,6 +13,11 @@
     import CollectionPage from '../pages/CollectionPage';
     import TripPage from '../pages/TripPage';
     import GroupChatPage from '../pages/GroupChatPage';
+    import InformationPage from '../pages/profile/InformationPage';
+    import LikedPlacesPage from '../pages/profile/LikedPlacesPage';
+    import LikedCollectionsPage from '../pages/profile/LikedCollectionsPage';
+    import CollectionPage from '../pages/collection/CollectionPage';
+    import CollectionsDashboard from '../pages/collection/CollectionsDashboard';
     import { RequireAuth } from '../components/auth/ProtectedRoute';
 
     export const router = createBrowserRouter([
@@ -19,9 +25,10 @@
         path: '/',
         element: <MainLayout />,
         children: [
+        { path: '/intro', element: <IntroPage /> },
         { path: '/', element: <HomePage /> },
         // Collections routes
-        { path: '/collections', element: <AccountCollectionsPage /> },
+        { path: '/collections', element: <CollectionsDashboard /> },
         { path: '/collections/:collectionId', element: <CollectionPage /> },
         // Trip & Chat routes
         { path: '/trips', element: <TripPage /> },
@@ -32,28 +39,37 @@
         { path: '/savedlist', element: <Navigate to="/account/savedlist" replace /> },
         // Protected profile routes
         {
-          path: '/account/profile',
+          path: '/account/information',
           element: (
             <RequireAuth>
-              <ProfilePage />
+              <InformationPage />
             </RequireAuth>
           )
         },
         {
+          path: '/account/liked-places',
+          element: <Navigate to="/account/information" replace />
+        },
+        // Redirect old routes
+        {
+          path: '/account/profile',
+          element: <Navigate to="/account/information" replace />
+        },
+        {
           path: '/account/mystay',
+          element: <Navigate to="/account/information" replace />
+        },
+        {
+          path: '/account/liked-collections',
           element: (
             <RequireAuth>
-              <MyStaysPage />
+              <LikedCollectionsPage />
             </RequireAuth>
           )
         },
         {
           path: '/account/savedlist',
-          element: (
-            <RequireAuth>
-              <SavedListsPage />
-            </RequireAuth>
-          )
+          element: <Navigate to="/account/liked-collections" replace />
         }
         ]
     },

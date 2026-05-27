@@ -1,29 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import ProfileSidebar from '@/components/profile/ProfileSidebar';
-import ProfileHeader from '@/components/profile/ProfileHeader';
 import InfoSection from '@/components/profile/InfoSection';
-import FavoritesSection from '@/components/profile/FavoritesSection';
 import EditInfoModal from '@/components/profile/EditInfoModal';
+import AvatarEditor from '@/components/profile/AvatarEditor';
 import Icon from '@/components/ui/Icon';
+import TravelPreferenceSurvey from '@/components/profile/TravelPreferenceSurvey';
 import { profileService } from '@/services/profile/profile.service';
-
+import FavoritesSection from '@/components/profile/FavoritesSection';
 /**
- * ProfilePage Component
- * Main profile page for authenticated users
- * Displays personal information, favorites, and social links
+ * InformationPage Component
+ * User profile information page
+ * Displays personal information and account details
  */
-const ProfilePage = () => {
+const InformationPage = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [showAvatarEditor, setShowAvatarEditor] = useState(false);
+  const [isSurveyOpen, setIsSurveyOpen] = useState(false);
 
   /**
-   * Fetch profile data from Firestore
+   * Fetch profile data
    */
   const fetchProfileData = async () => {
     if (!user?.uid) {
@@ -40,12 +39,12 @@ const ProfilePage = () => {
       if (data) {
         setProfileData(data);
       } else {
-        // Profile doesn't exist, create a new one with basic info from auth user
+        // Profile doesn't exist, create a new one
         console.log('Profile not found, creating new profile...');
         try {
           const newProfile = await profileService.createProfile(user.uid, {
             email: user.email,
-            fullName: user.displayName || '',
+            displayName: user.displayName || '',
             username: user.displayName || user.email?.split('@')[0] || '',
             avatar: user.photoURL ? { url: user.photoURL, provider: 'auth' } : null
           });
@@ -76,57 +75,26 @@ const ProfilePage = () => {
 
   /**
    * Handle edit profile button click
-   * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5
    */
   const handleEditProfile = () => {
-    console.log('📝 handleEditProfile called in ProfilePage');
-    console.log('Current isEditModalOpen:', isEditModalOpen);
-    console.log('Current profileData:', profileData);
-    
     setIsEditModalOpen(true);
-    console.log('✅ Set isEditModalOpen to true');
   };
 
   /**
    * Handle profile update from EditInfoModal
-   * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 10.4, 10.5
    */
   const handleProfileUpdate = async (updatedData) => {
-    console.log('🔄 handleProfileUpdate called');
-    console.log('User UID:', user?.uid);
-    console.log('Updated data:', updatedData);
-    
     if (!user?.uid) {
-      console.error('❌ User not authenticated');
       throw new Error('User not authenticated');
     }
 
     try {
-      console.log('📤 Calling profileService.updateProfile...');
-      
-      // Call profileService.updateProfile with uid and updated data
-      // Requirement 10.4: Use updateProfile method from profileService
       const updatedProfile = await profileService.updateProfile(user.uid, updatedData);
-      
-      console.log('✅ Profile updated successfully:', updatedProfile);
-      
-      // Update local state after successful save
-      // Requirement 3.2: Update local profileData state
       setProfileData(updatedProfile);
-      
-      // Close modal on successful save
-      // Requirement 3.5: Close modal after successful save
       setIsEditModalOpen(false);
-      
-      // Return success (no error thrown means success)
       return updatedProfile;
     } catch (err) {
-      console.error('❌ Error updating profile:', err);
-      console.error('Error code:', err.code);
-      console.error('Error message:', err.message);
-      
-      // Re-throw error to be handled by EditInfoModal
-      // Requirement 3.3: Handle validation errors
+      console.error('Error updating profile:', err);
       throw err;
     }
   };
@@ -138,19 +106,51 @@ const ProfilePage = () => {
     setIsEditModalOpen(false);
   };
 
+  const handleOpenSurvey = () => {
+    setIsSurveyOpen(true);
+  };
+
+  const handleCloseSurvey = () => {
+    setIsSurveyOpen(false);
+  };
+
+  const handleSurveyComplete = () => {
+    setIsSurveyOpen(false);
+  };
+
+  /**
+   * Handle avatar save (Task 10.2 - Requirement 10.6)
+   */
+  const handleAvatarSave = async (blob) => {
+    if (!user?.uid) {
+      throw new Error('User not authenticated');
+    }
+
+    try {
+      // Create FormData with blob
+      const formData = new FormData();
+      formData.append('avatar', blob, 'avatar.jpg');
+      
+      // Upload avatar to server
+      const response = await profileService.uploadAvatar(user.uid, blob);
+      
+      // Update profile data with new avatar URL
+      const updatedProfile = await profileService.getProfile(user.uid);
+      setProfileData(updatedProfile);
+      
+      return response;
+    } catch (err) {
+      console.error('Error uploading avatar:', err);
+      throw err;
+    }
+  };
+
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Sidebar */}
-      <ProfileSidebar activeItem="profile" />
+    <div className="min-h-screen bg-background flex flex-col">
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Profile Header */}
-          <div className="mb-8">
-            <ProfileHeader onEdit={handleEditProfile} />
-          </div>
-
           {/* Loading State */}
           {loading && (
             <div className="flex flex-col items-center justify-center py-16">
@@ -181,13 +181,34 @@ const ProfilePage = () => {
 
           {/* Profile Content */}
           {!loading && !error && profileData && (
-            <div className="space-y-6">
-              {/* Personal Information Section */}
-              <InfoSection 
-                profileData={profileData} 
-                onEdit={handleEditProfile}
-                loading={loading}
-              />
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_280px] gap-6 items-start">
+                <div>
+                  <InfoSection 
+                    profileData={profileData} 
+                    onEdit={handleEditProfile}
+                    onAvatarClick={() => setShowAvatarEditor(true)}
+                    loading={loading}
+                  />
+                </div>
+
+                <div className="flex justify-center lg:justify-end">
+                  <button
+                    type="button"
+                    onClick={handleOpenSurvey}
+                    className="w-full lg:w-56 flex flex-col items-center justify-center gap-3 bg-linear-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border border-blue-300 px-6 py-5 rounded-3xl transition-all shadow-sm hover:shadow-md text-center"
+                  >
+                    <Icon name="flight_takeoff" size={28} className="text-blue-600" />
+                    <div>
+                      <p className="font-semibold text-blue-900">Khảo Sát</p>
+                      <p className="text-sm text-blue-700">Trải Nghiệm</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Spacing adjustment between sections (Task 10.2 - Requirement 10.7) */}
+              <div className="h-8" />
 
               {/* Edit Info Modal */}
               <EditInfoModal
@@ -197,37 +218,29 @@ const ProfilePage = () => {
                 onSave={handleProfileUpdate}
               />
 
-              {/* Favorites Section */}
-              <FavoritesSection 
-                userId={user?.uid}
+              {/* Avatar Editor Modal (Task 10.2 - Requirement 10.1, 10.2, 10.3) */}
+              <AvatarEditor
+                isOpen={showAvatarEditor}
+                onClose={() => setShowAvatarEditor(false)}
+                currentAvatar={profileData?.avatar?.url || profileData?.photoURL}
+                onSave={handleAvatarSave}
               />
 
-              {/* Social Links Section - Placeholder */}
-              <div className="bg-white rounded-2xl border border-outline-variant/20 p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="font-headline font-bold text-2xl text-on-surface">
-                    Social Links
-                  </h2>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-surface-container-low text-on-surface rounded-xl font-semibold text-sm hover:bg-surface-container transition-colors">
-                    <Icon name="add" size={18} />
-                    Add Link
-                  </button>
-                </div>
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-surface-container-low rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Icon name="link" size={32} className="text-on-surface-variant" />
-                  </div>
-                  <p className="text-on-surface-variant text-sm">
-                    No social links added yet. Connect your social media profiles!
-                  </p>
-                </div>
-              </div>
-            </div>
+              <TravelPreferenceSurvey
+                isOpen={isSurveyOpen}
+                onClose={handleCloseSurvey}
+                onComplete={handleSurveyComplete}
+              />
+            </>
           )}
+
+
+          <FavoritesSection/>
         </div>
       </main>
+
     </div>
   );
 };
 
-export default ProfilePage;
+export default InformationPage;

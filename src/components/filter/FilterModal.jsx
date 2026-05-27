@@ -1,5 +1,6 @@
 import React, { useState, useEffect, memo } from 'react';
 import Icon from '@/components/ui/Icon';
+import { useApp } from '@/app/AppContext'; // Task 4.2: Import useApp
 import StarRatingFilter from './StarRatingFilter';
 import PropertyTypeFilter from './PropertyTypeFilter';
 import AmenitiesFilter from './AmenitiesFilter';
@@ -9,6 +10,9 @@ import AvailableRoomsFilter from './AvailableRoomsFilter';
 const FilterModal = memo(({ isOpen, filters, onClose, onApply }) => {
   const [draft, setDraft] = useState({ ...filters });
   const [isApplying, setIsApplying] = useState(false);
+  
+  // Task 4.2: Get availableAmenities from AppContext
+  const { availableAmenities } = useApp();
 
   // Update draft when filters prop changes
   useEffect(() => {
@@ -108,13 +112,7 @@ const FilterModal = memo(({ isOpen, filters, onClose, onApply }) => {
 
         {/* Content - Scrollable */}
         <div className="overflow-y-auto px-4 sm:px-7 pb-4 flex flex-col gap-6 sm:gap-7 flex-1">
-          {!hasAnyFilters && (
-            <div className="text-center py-8 text-on-surface-variant">
-              <Icon name="filter_alt_off" size={48} className="mx-auto mb-3 opacity-50" />
-              <p className="text-sm font-medium">Chưa có bộ lọc nào được áp dụng</p>
-              <p className="text-xs mt-1">Chọn các tùy chọn bên dưới để lọc kết quả</p>
-            </div>
-          )}
+          {/* Task 4.1: Removed empty filter message */}
           
           {/* Star Rating Filter */}
           <StarRatingFilter 
@@ -128,10 +126,11 @@ const FilterModal = memo(({ isOpen, filters, onClose, onApply }) => {
             onChange={(value) => setDraft(prev => ({ ...prev, types: value }))}
           />
 
-          {/* Amenities Filter */}
+          {/* Amenities Filter - Task 4.2: Pass availableAmenities */}
           <AmenitiesFilter 
             value={draft.amenities}
             onChange={(value) => setDraft(prev => ({ ...prev, amenities: value }))}
+            availableAmenities={availableAmenities}
           />
 
           {/* Price Range Filter */}

@@ -12,7 +12,7 @@ const ForgotPasswordPage = () => {
           <div className="text-center mb-8">
             <Link to="/" className="inline-block">
               <h1 className="font-headline font-extrabold text-2xl text-primary">
-                Booking4LU
+                Lodgy4U
               </h1>
             </Link>
           </div>

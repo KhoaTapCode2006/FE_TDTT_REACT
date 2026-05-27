@@ -18,7 +18,7 @@ function Footer() {
             </a>
           ))}
         </div>
-        <p className="text-[10px] text-outline">© 2024 Booking4U. Editorial Excellence in Travel.</p>
+        <p className="text-[10px] text-outline">© 2024 Lodgy4U. Editorial Excellence in Travel.</p>
       </div>
     </footer>
   );

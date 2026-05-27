@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Icon from "@/components/ui/Icon";
+import NotificationBell from "@/components/ui/NotificationBell";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNotifications } from "../../features/notifications/hooks/useNotifications";
 import NotificationPanel from "../../features/notifications/components/NotificationPanel";
@@ -72,8 +73,8 @@ function Header({ hideNavigation = false }) {
 
   // Get user initials for avatar
   const getUserInitials = () => {
-    if (user?.fullName) {
-      const names = user.fullName.trim().split(' ');
+    if (user?.displayName) {
+      const names = user.displayName.trim().split(' ');
       if (names.length === 1) {
         return names[0].charAt(0).toUpperCase();
       }
@@ -104,26 +105,6 @@ function Header({ hideNavigation = false }) {
                 }`}
               >
                 Hotels
-              </Link>
-              <Link 
-                to="#" 
-                className={`text-sm font-semibold transition-colors pb-0.5 ${
-                  location.pathname === '/experiences' 
-                    ? 'text-primary border-b-2 border-secondary' 
-                    : 'text-on-surface-variant hover:text-primary'
-                }`}
-              >
-                Experiences
-              </Link>
-              <Link 
-                to="#" 
-                className={`text-sm font-semibold transition-colors pb-0.5 ${
-                  location.pathname === '/social' 
-                    ? 'text-primary border-b-2 border-secondary' 
-                    : 'text-on-surface-variant hover:text-primary'
-                }`}
-              >
-                Social
               </Link>
               <Link 
                 to="/collections" 
@@ -245,7 +226,7 @@ function Header({ hideNavigation = false }) {
                   {getUserAvatar() ? (
                     <img 
                       src={getUserAvatar()} 
-                      alt={user?.fullName || 'User'} 
+                      alt={user?.displayName || 'User'} 
                       className="w-8 h-8 rounded-full object-cover"
                     />
                   ) : (
@@ -264,7 +245,7 @@ function Header({ hideNavigation = false }) {
                         {getUserAvatar() ? (
                           <img 
                             src={getUserAvatar()} 
-                            alt={user?.fullName || 'User'} 
+                            alt={user?.displayName || 'User'} 
                             className="w-12 h-12 rounded-full object-cover"
                           />
                         ) : (
@@ -274,55 +255,16 @@ function Header({ hideNavigation = false }) {
                         )}
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-sm text-on-surface truncate">
-                            {user?.fullName || user?.email}
+                            {user?.displayName || user?.email}
                           </p>
                           <p className="text-xs text-on-surface-variant truncate">
                             {user?.email}
                           </p>
-                          {user?.memberTier && (
-                            <p className="text-xs text-secondary font-semibold mt-0.5">
-                              {user.memberTier} Member
-                            </p>
-                          )}
                         </div>
                       </div>
                     </div>
 
                     {/* Menu Items */}
-                    <div className="p-2 space-y-1">
-                      <Link
-                        to="/account/mystay"
-                        onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
-                      >
-                        <Icon name="luggage" size={20} className="text-on-surface-variant" />
-                        My Stays
-                      </Link>
-                      <Link
-                        to="/account/savedlist"
-                        onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
-                      >
-                        <Icon name="favorite" size={20} className="text-on-surface-variant" />
-                        Saved Lists
-                      </Link>
-                      <Link
-                        to="/profile"
-                        onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
-                      >
-                        <Icon name="person" size={20} className="text-on-surface-variant" />
-                        My Profile
-                      </Link>
-                      <Link
-                        to="/settings"
-                        onClick={() => setAccountOpen(false)}
-                        className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-on-surface hover:bg-surface-container-low transition-colors"
-                      >
-                        <Icon name="settings" size={20} className="text-on-surface-variant" />
-                        Settings
-                      </Link>
-                    </div>
 
                     {/* Logout */}
                     <div className="p-2 border-t border-outline-variant/20">

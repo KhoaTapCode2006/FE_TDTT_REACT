@@ -8,9 +8,9 @@ import Icon from '@/components/ui/Icon';
  * Shared navigation sidebar for all profile pages
  * 
  * @param {Object} props
- * @param {string} props.activeItem - Active navigation item ('mystays' | 'savedlists' | 'reviews' | 'friends')
+ * @param {string} props.activeItem - Active navigation item ('profile' | 'likedcollections')
  */
-const ProfileSidebar = ({ activeItem = 'mystays' }) => {
+const ProfileSidebar = ({ activeItem = 'profile' }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -41,30 +41,10 @@ const ProfileSidebar = ({ activeItem = 'mystays' }) => {
       path: '/account/profile',
     },
     {
-      id: 'mystays',
-      label: 'My Stays',
-      icon: 'hotel',
-      path: '/account/mystay',
-    },
-    {
-      id: 'savedlists',
-      label: 'Saved Lists',
-      icon: 'bookmark',
-      path: '/account/savedlist',
-    },
-    {
-      id: 'reviews',
-      label: 'Reviews',
-      icon: 'star',
-      path: '/account/reviews',
-      disabled: true,
-    },
-    {
-      id: 'friends',
-      label: 'Friends',
-      icon: 'group',
-      path: '/account/friends',
-      disabled: true,
+      id: 'likedcollections',
+      label: 'Liked Places',
+      icon: 'favorite',
+      path: '/account/liked-collections',
     },
   ];
 
@@ -88,7 +68,7 @@ const ProfileSidebar = ({ activeItem = 'mystays' }) => {
             {user?.photoURL || user?.avatar?.url ? (
               <img
                 src={user.photoURL || user.avatar.url}
-                alt={user.displayName || user.fullName || 'User'}
+                alt={user.displayName || user.username || 'User'}
                 className="w-full h-full object-cover"
               />
             ) : (
@@ -99,7 +79,7 @@ const ProfileSidebar = ({ activeItem = 'mystays' }) => {
           {/* User Info */}
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm text-on-surface truncate">
-              {user?.displayName || user?.fullName || user?.username || 'User'}
+              {user?.displayName || user?.username || 'User'}
             </p>
             <p className="text-xs text-on-surface-variant truncate">
               {user?.email}
