@@ -1,65 +1,181 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import SearchBar from '@/components/search/SearchBar';
 import HotelSidebar from '@/components/hotel/components/HotelSidebar';
-import HotelPopup from '@/components/hotel/components/HotelPopup';
 import FilterModal from '@/components/filter/FilterModal';
-import ClusterSplitView from '@/components/hotel/components/ClusterSplitView';
 import VietMapPanel from '@/components/map/VietMapPanel'; 
 import ErrorBoundary from '@/components/ErrorBoundary';
 import Icon from '@/components/ui/Icon';
+import Splitter from '@/components/ui/Splitter';
+import HotelListSection from '@/components/hotel/components/HotelListSection';
 import { useApp } from '@/app/AppContext';
-import { searchHotels } from '@/services/backend/hotel.service';
+import { hotelSearchService } from '@/services/backend/hotelSearch.service';
+import { getFavoritePlaces } from '@/services/profile/favorites.service';
 
 
 const HomePage = () => {
   const { 
     activeHotel, setActiveHotel, 
     filters, setFilters,
-    location, dates, guests, radiusM,
-    setHotels, setLoading,
-    clusterHotels, setClusterHotels
+    location, dates, guests, userLoc,
+    setHotels, setLoading, setSearchGps
   } = useApp();
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Layout state for splitter - Map 30%, Hotels 70%
+  const [splitterPosition, setSplitterPosition] = useState(20);
+  const [mapWidth, setMapWidth] = useState(40);
+  const [hotelListWidth, setHotelListWidth] = useState(60);
+  const [layoutMode, setLayoutMode] = useState('list');
   
   // Debouncing and request cancellation
   const debounceTimeoutRef = useRef(null);
   const currentRequestRef = useRef(null);
 
+  // Restore layout state from session storage on mount
+  useEffect(() => {
+    const restoreLayoutState = () => {
+      try {
+        const savedLayout = sessionStorage.getItem('homepage-layout');
+        if (savedLayout) {
+          const layoutState = JSON.parse(savedLayout);
+          if (layoutState.splitterPosition !== undefined) {
+            setSplitterPosition(layoutState.splitterPosition);
+            setMapWidth(layoutState.splitterPosition);
+            setHotelListWidth(100 - layoutState.splitterPosition);
+            
+            // Calculate layout mode based on restored position
+            const mode = layoutState.splitterPosition < 40 ? 'grid' : 'list';
+            setLayoutMode(mode);
+          }
+        }
+      } catch (err) {
+        console.error('Error restoring layout state:', err);
+        // Silently fail - use default layout
+      }
+    };
+    restoreLayoutState();
+  }, []);
+
+  // Save layout state to session storage
+  const saveLayoutState = useCallback((position) => {
+    try {
+      const layoutState = {
+        splitterPosition: position,
+        timestamp: Date.now()
+      };
+      sessionStorage.setItem('homepage-layout', JSON.stringify(layoutState));
+    } catch (err) {
+      console.error('Error saving layout state:', err);
+      // Silently fail - layout won't persist
+    }
+  }, []);
+
+  // Handle splitter drag events
+  const handleSplitterDrag = useCallback((position) => {
+    setSplitterPosition(position);
+    setMapWidth(position);
+    setHotelListWidth(100 - position);
+    
+    // Calculate layout mode: grid if map < 40%, list if >= 40%
+    const mode = position < 40 ? 'grid' : 'list';
+    setLayoutMode(mode);
+    
+    // Save layout state
+    saveLayoutState(position);
+  }, [saveLayoutState]);
+
   const performHotelSearch = useCallback(async (searchFilters) => {
     try {
       setLoading(true);
-      setError(null); // Clear previous errors
+      setError(null); // Xóa lỗi cũ
       
-      // Cancel previous request if it exists
+      // Hủy request trước đó nếu có
       if (currentRequestRef.current) {
         currentRequestRef.current.cancelled = true;
       }
       
-      // Create new request tracker
       const requestTracker = { cancelled: false };
       currentRequestRef.current = requestTracker;
       
-      // Convert price filter to priceRange format
-      const priceRange = {};
-      if (searchFilters.priceMin !== null) priceRange.minPrice = searchFilters.priceMin;
-      if (searchFilters.priceMax !== null) priceRange.maxPrice = searchFilters.priceMax;
+      // 1. Chuẩn hóa chuỗi Address từ global state `location`
+      const addressStr = location?.address || location?.display || '';
       
-      const results = await searchHotels({
-        location,
-        checkIn: dates.checkIn,
-        checkOut: dates.checkOut,
-        guests,
-        priceRange,
-        radius: radiusM,
-        filters: searchFilters
+      // 2. Use user's current location for GPS if location.gps is not set
+      const gpsData = location?.gps?.latitude && location?.gps?.longitude 
+        ? location.gps 
+        : { latitude: userLoc.lat, longitude: userLoc.lng, geohash: '' };
+
+      // 3. Trích xuất ref_id
+      const refId = location?.ref_id || '';
+
+      // Chốt chặn bảo vệ: Nếu chưa chọn địa điểm hoặc thiếu ngày, không gọi API để tránh lỗi crash validation
+      if (!addressStr || !dates?.checkIn || !dates?.checkOut) {
+        console.warn('⚠️ Chưa đủ tham số bắt buộc để tìm kiếm:', { addressStr, gpsData, dates });
+        setHotels([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Format dates as ISO strings (YYYY-MM-DD)
+      const checkInStr = dates.checkIn.toISOString().split('T')[0];
+      const checkOutStr = dates.checkOut.toISOString().split('T')[0];
+      
+      // Format children as array of ages
+      const childrenArray = Array.isArray(guests?.children) 
+        ? guests.children 
+        : (guests?.children > 0 ? Array(guests.children).fill(0) : []);
+      
+      // Calculate total party size
+      const partySize = (guests?.adults || 2) + childrenArray.length;
+      
+      // 4. Gọi hàm searchHotels từ đúng hotelSearchService mới
+      const response = await hotelSearchService.searchHotels({
+        address: addressStr,
+        gps: gpsData,
+        ref_id: refId,
+        check_in: checkInStr,
+        check_out: checkOutStr,
+        adults: guests?.adults || 2,
+        children: childrenArray,
+        personality: searchFilters?.personality || '',
+        trip_style: 'kham_pha', // Default trip style
+        trip_criteria: {
+          budget_min: 0,
+          budget_max: 0,
+          trip_style: 'kham_pha',
+          party_size: partySize
+        },
+        max_ranked_hotels: 50
       });
       
-      // Only update state if request wasn't cancelled
+      // Extract hotels and searching_place from response
+      const results = response.hotels || response || [];
+      const searchingPlace = response.searchingPlace || null;
+      
+      // Chỉ cập nhật state nếu request không bị hủy giữa chừng
       if (!requestTracker.cancelled) {
-        setHotels(results);
+        // Try to fetch user's favorites and annotate results so heart icons sync
+        try {
+          const favs = await getFavoritePlaces();
+          const favSet = new Set(favs.map(f => f.propertyToken || f.id || f.hotelId));
+          const annotated = results.map(h => ({ ...h, isFavorited: favSet.has(h.propertyToken || h.id) }));
+          setHotels(annotated);
+        } catch (err) {
+          // If user not authenticated or fetch fails, fallback to plain results
+          console.debug('Could not fetch favorites (user may be unauthenticated):', err?.message || err);
+          setHotels(results);
+        }
         
-        // Reset active hotel when results change
+        // Set map GPS from searching_place if available
+        if (searchingPlace && searchingPlace.gps && setSearchGps) {
+          console.log('✅ Setting map GPS from searching_place:', searchingPlace.gps);
+          setSearchGps({
+            latitude: searchingPlace.gps.latitude,
+            longitude: searchingPlace.gps.longitude
+          });
+        }
+        
         if (activeHotel) {
           setActiveHotel(null);
         }
@@ -68,9 +184,7 @@ const HomePage = () => {
       if (!currentRequestRef.current?.cancelled) {
         console.error('Error applying filters:', error);
         
-        // Set user-friendly error message
         let errorMessage = 'Có lỗi xảy ra khi tìm kiếm khách sạn. Vui lòng thử lại.';
-        
         if (error.code === 'NETWORK_ERROR' || !navigator.onLine) {
           errorMessage = 'Không thể kết nối mạng. Vui lòng kiểm tra kết nối internet.';
         } else if (error.response?.status === 429) {
@@ -86,7 +200,7 @@ const HomePage = () => {
         setLoading(false);
       }
     }
-  }, [location, dates, guests, radiusM, setHotels, setLoading, activeHotel, setActiveHotel]);
+  }, [location, dates, guests, userLoc, setHotels, setLoading, activeHotel, setActiveHotel]);
 
   const debouncedHotelSearch = useCallback((searchFilters) => {
     // Clear existing timeout
@@ -100,22 +214,18 @@ const HomePage = () => {
     }, 300); // 300ms debounce delay
   }, [performHotelSearch]);
 
+  // Task 2.1: Remove filter-triggered API calls
+  // Filters now only update AppContext state, client-side filtering happens automatically
   const handleFilterApply = async (newFilters) => {
     setFilters(newFilters);
     setFilterModalOpen(false);
-    
-    // Use debounced search to prevent excessive API calls
-    debouncedHotelSearch(newFilters);
+    // NO API call - filtering is done client-side in AppContext
   };
 
-  const handleRetry = () => {
+  const handleRetry = async () => {
     setError(null);
+    // Retry the hotel search (not filter search)
     debouncedHotelSearch(filters);
-  };
-
-  const handleClosePopup = () => {
-    setActiveHotel(null);
-    setClusterHotels([]);
   };
 
   return (
@@ -151,28 +261,38 @@ const HomePage = () => {
 
       {/* 2. Vùng nội dung chính: Chia đôi Bản đồ và Sidebar */}
       <main className="flex-1 flex overflow-hidden relative min-h-0">
-        {/* Bản đồ bên trái (hoặc nền) */}
-        <div className="flex-1 min-w-0">
-          <ErrorBoundary>
-            <VietMapPanel />
-          </ErrorBoundary>
-        </div>
+          {/* Bản đồ bên trái */}
+          <div 
+            className="min-w-0 transition-all duration-200"
+            style={{ width: `${mapWidth}%` }}
+          >
+            <ErrorBoundary>
+              <VietMapPanel />
+            </ErrorBoundary>
+          </div>
 
-        {/* Sidebar bên phải */}
-        <HotelSidebar onFilterOpen={() => setFilterModalOpen(true)} />
-      </main>
+          {/* Splitter */}
+          <Splitter
+            initialPosition={splitterPosition}
+            minLeftWidth={30}
+            minRightWidth={300}
+            onPositionChange={handleSplitterDrag}
+          />
 
-      {/* 3. Conditional rendering: Split-view for clusters, standard popup for single hotels */}
-      {clusterHotels && clusterHotels.length > 0 ? (
-        <ClusterSplitView />
-      ) : activeHotel ? (
-        <HotelPopup 
-          hotel={activeHotel} 
-          onClose={handleClosePopup} 
-        />
-      ) : null}
+          {/* Sidebar bên phải */}
+          <div 
+            className="flex-shrink-0 h-full transition-all duration-200"
+            style={{ width: `${hotelListWidth}%` }}
+          >
+            <HotelSidebar 
+              onFilterOpen={() => setFilterModalOpen(true)}
+              layoutMode={layoutMode}
+              mapWidth={mapWidth}
+            />
+          </div>
+        </main>
 
-      {/* 4. Filter Modal */}
+      {/* 3. Filter Modal */}
       {filterModalOpen && (
         <FilterModal
           isOpen={filterModalOpen}
@@ -181,7 +301,12 @@ const HomePage = () => {
           onApply={handleFilterApply}
         />
       )}
+      <div>
+        <HotelListSection />
+      </div>
     </div>
+
+
   );
 };
 

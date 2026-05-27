@@ -30,7 +30,7 @@
   - Mark task complete when tests are written, run, and passing on unfixed code
   - _Requirements: 3.1, 3.2, 3.3_
 
-- [x] 3. Fix for invalid escape sequence parse error
+- [ ] 3. Fix for invalid escape sequence parse error
 
   - [x] 3.1 Implement the fix
     - Replace invalid escape sequence `\hotel-\\` with valid string literal fallback ID
@@ -43,7 +43,7 @@
     - _Preservation: Valid property_token usage and all other transformation logic from design_
     - _Requirements: 1.1, 1.2, 2.1, 2.2, 3.1, 3.2, 3.3_
 
-  - [x] 3.2 Verify bug condition exploration test now passes
+  - [ ] 3.2 Verify bug condition exploration test now passes
     - **Property 1: Expected Behavior** - Valid Fallback ID Generation
     - **IMPORTANT**: Re-run the SAME test from task 1 - do NOT write a new test
     - The test from task 1 encodes the expected behavior
@@ -55,7 +55,7 @@
     - Verify module can be imported without SyntaxError
     - _Requirements: 2.1, 2.2_
 
-  - [x] 3.3 Verify preservation tests still pass
+  - [ ] 3.3 Verify preservation tests still pass
     - **Property 2: Preservation** - Valid Property Token Usage and Transform Logic
     - **IMPORTANT**: Re-run the SAME tests from task 2 - do NOT write new tests
     - Run preservation property tests from step 2
@@ -64,7 +64,7 @@
     - Verify hotels with valid property_token still use that token as ID
     - Verify all other transformation logic remains unchanged
 
-- [x] 4. Checkpoint - Ensure all tests pass
+- [ ] 4. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
   - Verify application can build and run successfully
   - Verify transformBackendHotel function works correctly for both null and valid property_token cases

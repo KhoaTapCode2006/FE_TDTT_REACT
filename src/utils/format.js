@@ -11,6 +11,23 @@
   }).format(n);
 }
 
+/**
+ * Format view count with K/M suffixes
+ * @param {number} count - View count number
+ * @returns {string} Formatted view count (e.g., "1.2K", "1.5M")
+ */
+export function formatViewCount(count) {
+  if (!count || typeof count !== 'number') return '0';
+  
+  if (count >= 1000000) {
+    return (count / 1000000).toFixed(1) + 'M';
+  }
+  if (count >= 1000) {
+    return (count / 1000).toFixed(1) + 'K';
+  }
+  return count.toString();
+}
+
 export function fmtDate(d) {
   if (!d) return "";
   return d.toLocaleDateString("en-GB", {
@@ -22,7 +39,7 @@ export function fmtDate(d) {
 
 export function normalizeAmenityKey(rawAmenity) {
   if (!rawAmenity) return "";
-  const value = String(rawAmenity).trim().toLowerCase();
+  const value = String(rawAmenity).toLowerCase();
   if (value.includes("wifi")) return "wifi";
   if (value.includes("breakfast")) return "breakfast";
   if (value.includes("parking")) return "parking";
@@ -42,11 +59,31 @@ export function normalizeHotelResult(raw, fallbackLocation) {
   // ── Safety: reject completely malformed input ──────────────────────────
   if (!raw || typeof raw !== 'object') return null;
 
+  // Debug logging
+  console.log('🔄 normalizeHotelResult called with:', {
+    hasRaw: !!raw,
+    rawId: raw.id,
+    rawPropertyToken: raw.propertyToken,
+    rawProperty_token: raw.property_token,
+    rawName: raw.name
+  });
+
   // ── Coordinates ────────────────────────────────────────────────────────
-  // sample_output_2.json: { gps_coordinates: { latitude, longitude } }
-  const gps = raw.gps_coordinates || {};
-  const lat = parseFloat(gps.latitude ?? raw.lat ?? raw.latitude) || null;
-  const lng = parseFloat(gps.longitude ?? raw.lng ?? raw.longitude) || null;
+  // After transformHotelDetailResponse, data is in camelCase with coordinates.latitude/longitude
+  // Also check gpsCoordinates (from snakeToCamel) and flat lat/lng fields
+  const coords = raw.coordinates || raw.gpsCoordinates || raw.gps_coordinates || {};
+  
+  // Try to get lat/lng from various sources (prioritize transformed format)
+  let lat = coords.latitude ?? raw.lat ?? raw.latitude;
+  let lng = coords.longitude ?? raw.lng ?? raw.longitude;
+  
+  // Convert to numbers if they're strings
+  if (typeof lat === 'string') lat = parseFloat(lat);
+  if (typeof lng === 'string') lng = parseFloat(lng);
+  
+  // Set to null if invalid (but allow 0 as valid coordinate)
+  if (typeof lat !== 'number' || isNaN(lat)) lat = null;
+  if (typeof lng !== 'number' || isNaN(lng)) lng = null;
 
   // ── Images ─────────────────────────────────────────────────────────────
   // sample_output_2.json: images: [{ thumbnail, original_image }]
@@ -79,12 +116,14 @@ export function normalizeHotelResult(raw, fallbackLocation) {
     : [];
 
   // ── Reviews ────────────────────────────────────────────────────────────
-  // sample_output_2.json: user_reviews: [{ text, raw_stars }]
-  const reviews = Array.isArray(raw.user_reviews)
-    ? raw.user_reviews.map(r => ({
-        author: r.reviewer_name || r.author || 'Khách',
-        text: r.review_text || r.text || r.comment || '',
-        raw_star: r.raw_stars ?? r.raw_star ?? 0,
+  // After transformHotelDetailResponse, data is in camelCase: userReviews with rawStars
+  // Also check old format: user_reviews with raw_stars or raw_rating
+  const rawReviews = raw.userReviews || raw.user_reviews || [];
+  const reviews = Array.isArray(rawReviews)
+    ? rawReviews.map(r => ({
+        author: r.reviewerName || r.reviewer_name || r.author || 'Khách',
+        text: r.reviewText || r.review_text || r.text || r.comment || '',
+        rawRating: r.rawStars ?? r.raw_stars ?? r.rawRating ?? r.raw_rating ?? r.raw_star ?? 0,
       }))
     : [];
 
@@ -101,9 +140,15 @@ export function normalizeHotelResult(raw, fallbackLocation) {
       ? raw.nearbyLandmarks
       : [];
 
-  return {
+  // ── Identity ───────────────────────────────────────────────────────────
+  // Ensure both id and propertyToken are set
+  const hotelId = raw.id || raw.propertyToken || raw.property_token || raw.link || Math.random().toString(36).slice(2);
+  const propertyToken = raw.propertyToken || raw.property_token || raw.id || hotelId;
+
+  const result = {
     // Identity
-    id: raw.id || raw.property_token || raw.link || Math.random().toString(36).slice(2),
+    id: hotelId,
+    propertyToken: propertyToken,
     name: raw.name || 'Unknown Hotel',
     type: raw.type || 'Hotel',
     badge: raw.badge || raw.deal || null,
@@ -134,8 +179,40 @@ export function normalizeHotelResult(raw, fallbackLocation) {
     amenities,
     latestReview,
     reviews,
+    userReviews: reviews, // Alias for consistency with transformed data
 
     // AI metadata
     ai_score: raw.ai_score != null ? Number(raw.ai_score) : null,
   };
+
+  // Debug logging
+  console.log('✅ normalizeHotelResult output:', {
+    id: result.id,
+    propertyToken: result.propertyToken,
+    name: result.name,
+    hasLat: result.lat !== null,
+    hasLng: result.lng !== null
+  });
+
+  return result;
+}
+
+/**
+* Return full numeric price without K/M suffixes (e.g., 250.000đ)
+ * @param {number} n
+ * @param {string} currency
+ * @returns {string}
+ */
+export function fmtPriceExact(n, currency = 'VND') {
+  const value = Number(n) || 0;
+  if (currency === 'VND') {
+    // Định dạng phân cách hàng nghìn bằng dấu chấm và thêm đuôi đ (e.g., 250.000đ)
+    return `${Math.round(value).toLocaleString('vi-VN')}đ`;
+  }
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value);
 }
