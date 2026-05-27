@@ -106,6 +106,16 @@ function Header({ hideNavigation = false }) {
                 Collections
               </Link>
               <Link 
+                to="/account/information" 
+                className={`text-sm font-semibold transition-colors pb-0.5 ${
+                  location.pathname === '/account/information' || location.pathname.startsWith('/trips/')
+                    ? 'text-primary border-b-2 border-secondary' 
+                    : 'text-on-surface-variant hover:text-primary'
+                }`}
+              >
+                Information & Liked Places
+              </Link>
+              <Link 
                 to="/trips" 
                 className={`text-sm font-semibold transition-colors pb-0.5 ${
                   location.pathname === '/trips' || location.pathname.startsWith('/trips/')

@@ -103,6 +103,45 @@ const TravelPreferenceSurvey = ({ isOpen, onClose, onComplete }) => {
     setFormData(prev => ({ ...prev, notes: text }));
   };
 
+  const getOptionDisabled = (field, option) => {
+    if (field === 'excluded_amenities') {
+      return (
+        formData.preferred_amenities.includes(option) ||
+        formData.must_have_amenities.includes(option)
+      );
+    }
+
+    if (field === 'disliked_location_tags') {
+      return formData.preferred_location_tags.includes(option);
+    }
+
+    return false;
+  };
+
+  useEffect(() => {
+    const blockedAmenities = new Set([
+      ...formData.preferred_amenities,
+      ...formData.must_have_amenities
+    ]);
+    const filteredExcluded = (formData.excluded_amenities || []).filter(
+      (option) => !blockedAmenities.has(option)
+    );
+
+    if (filteredExcluded.length !== formData.excluded_amenities.length) {
+      setFormData((prev) => ({ ...prev, excluded_amenities: filteredExcluded }));
+    }
+  }, [formData.preferred_amenities, formData.must_have_amenities, formData.excluded_amenities]);
+
+  useEffect(() => {
+    const filteredDisliked = (formData.disliked_location_tags || []).filter(
+      (option) => !formData.preferred_location_tags.includes(option)
+    );
+
+    if (filteredDisliked.length !== formData.disliked_location_tags.length) {
+      setFormData((prev) => ({ ...prev, disliked_location_tags: filteredDisliked }));
+    }
+  }, [formData.preferred_location_tags, formData.disliked_location_tags]);
+
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
@@ -215,14 +254,19 @@ const TravelPreferenceSurvey = ({ isOpen, onClose, onComplete }) => {
                   const isSelected = isMulti
                     ? (formData[field] || []).includes(option)
                     : formData[field] === getWeatherValue(option);
+                  const isDisabled = getOptionDisabled(field, option);
 
                   return (
                     <button
                       key={option}
-                      onClick={() => handleOptionSelect(field, option, isMulti)}
+                      type="button"
+                      onClick={() => !isDisabled && handleOptionSelect(field, option, isMulti)}
+                      disabled={isDisabled}
                       className={`px-4 py-2 rounded-lg font-medium transition-all ${
                         isSelected
                           ? 'bg-primary text-white shadow-md'
+                          : isDisabled
+                          ? 'bg-surface-container border border-outline text-on-surface-variant opacity-50 cursor-not-allowed'
                           : 'bg-surface-container border border-outline hover:bg-surface-container-high'
                       }`}
                     >
