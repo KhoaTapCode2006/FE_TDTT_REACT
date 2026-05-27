@@ -395,7 +395,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                 <h2 className={styles.hotelName}>{hotel.name}</h2>
                 <div className={styles.ratingRow}>
                   <div className={styles.stars}>{renderStars(hotel.rawRating)}</div>
-                  <span className={styles.ratingNum}>{hotel.rawRating}</span>
+                  <span className={styles.ratingNum}>{ Number(hotel.rawRating).toFixed(1)}</span>
                 </div>
                 {(hotel.ai_score !== undefined && hotel.ai_score !== null) && (
                   <div className={styles.aiScoreRow}>
@@ -473,7 +473,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
               <p className={styles.sectionLabel}>Mô tả</p>
               <p className={styles.descriptionText}>
                 {hotel.description ??
-                  `${hotel.name} nằm tại vị trí thuận tiện, phù hợp cho cả du lịch và công tác. Khách sạn có không gian sạch sẽ, dịch vụ thân thiện và dễ dàng di chuyển đến các điểm tham quan.`}
+                  `${hotel.name} chưa có mô tả nào.`}
               </p>
 
               {/* Hotel Link */}
