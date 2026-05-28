@@ -82,10 +82,10 @@ const AccountCollectionsPage = () => {
       {/* Page Header */}
       <div className="mb-8">
         <h1 className="font-headline font-bold text-3xl text-on-surface mb-2">
-          Collections
+          Bộ sưu tập
         </h1>
         <p className="text-base text-on-surface-variant">
-          Discover and organize your favorite hotel collections
+          Khám phá và sắp xếp các bộ sưu tập khách sạn yêu thích của bạn
         </p>
       </div>
 
@@ -93,7 +93,7 @@ const AccountCollectionsPage = () => {
       {loading && (
         <div className="flex flex-col items-center justify-center py-16">
           <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-4"></div>
-          <p className="text-on-surface-variant">Loading collections...</p>
+          <p className="text-on-surface-variant">Đang tải bộ sưu tập...</p>
         </div>
       )}
 
@@ -102,13 +102,13 @@ const AccountCollectionsPage = () => {
         <div className="flex flex-col items-center justify-center py-16">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md text-center">
             <Icon name="error" className="text-red-500 mb-4" size={48} />
-            <h3 className="font-semibold text-red-800 mb-2">Error Loading Collections</h3>
+            <h3 className="font-semibold text-red-800 mb-2">Lỗi: Không tải được bộ sưu tập</h3>
             <p className="text-red-600 text-sm mb-4">{error}</p>
             <button
               onClick={loadCollections}
               className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
             >
-              Try Again
+              Thử lại
             </button>
           </div>
         </div>
@@ -121,14 +121,14 @@ const AccountCollectionsPage = () => {
           <section>
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-headline font-bold text-2xl text-on-surface">
-                My Collections
+                Các bộ sưu tập của tôi
               </h2>
               <button
                 onClick={() => setShowCreateModal(true)}
                 className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
               >
                 <Icon name="add" size={20} />
-                Create Collection
+                Tạo bộ sưu tập
               </button>
             </div>
             
@@ -145,9 +145,9 @@ const AccountCollectionsPage = () => {
             ) : (
               <EmptyState
                 icon="collections"
-                title="No collections yet"
-                description="Create your first collection to start organizing your favorite hotels and destinations."
-                actionLabel="Create Collection"
+                title="Chưa có bộ sưu tập"
+                description="Tạo bộ sưu tập đầu tiên của bạn để bắt đầu sắp xếp các khách sạn và địa điểm yêu thích."
+                actionLabel="Tạo bộ sưu tập"
                 onAction={() => setShowCreateModal(true)}
               />
             )}
@@ -156,7 +156,7 @@ const AccountCollectionsPage = () => {
           {/* Community Collections Section */}
           <section>
             <h2 className="font-headline font-bold text-2xl text-on-surface mb-6">
-              Community Collections
+              Bộ sưu tập cộng đồng
             </h2>
             
             {/* Popular Tags */}
@@ -243,14 +243,14 @@ const CollectionCard = ({ collection, onClick }) => {
               ? 'bg-green-100 text-green-700'
               : 'bg-gray-100 text-gray-700'
           }`}>
-            {collection.visibility === 'public' ? 'Public' : 'Private'}
+            {collection.visibility === 'public' ? 'Công khai' : 'Riêng tư'}
           </span>
         </div>
 
         {/* Item Count Badge */}
         <div className="absolute bottom-3 left-3">
           <span className="bg-black/70 text-white px-2 py-1 rounded-full text-xs font-semibold">
-            {collection.hotels?.length || 0} items
+            {collection.hotels?.length || 0} mục
           </span>
         </div>
       </div>

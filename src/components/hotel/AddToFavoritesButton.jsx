@@ -112,7 +112,7 @@ const AddToFavoritesButton = ({
         
         setNotification({
           type: 'success',
-          message: 'Removed from favorites'
+          message: 'Đã gỡ khỏi yêu thích'
         });
       } else {
         // Add to favorites - only send place_id (property_token)
@@ -122,7 +122,7 @@ const AddToFavoritesButton = ({
         
         setNotification({
           type: 'success',
-          message: 'Added to favorites'
+          message: 'Đã thêm vào yêu thích'
         });
       }
 
@@ -135,7 +135,7 @@ const AddToFavoritesButton = ({
       
       setNotification({
         type: 'error',
-        message: error.message || 'Failed to update favorites. Please try again.'
+        message: error.message || 'Không thể cập nhật yêu thích. Vui lòng thử lại.'
       });
     } finally {
       setLoading(false);
@@ -218,7 +218,7 @@ className={`flex items-center justify-center w-full h-full relative group/fav tr
                 className="mt-2 px-6 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors text-sm font-medium"
                 aria-label="Close notification"
               >
-                Close
+                Đóng lại
               </button>
             </div>
           </div>

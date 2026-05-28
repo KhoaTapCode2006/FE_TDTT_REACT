@@ -3,7 +3,7 @@
  * Handles tracking hotel views via POST /views endpoint
  */
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_LOCAL_API || 'http://localhost:8000';
 
 class ViewTrackingService {
   /**

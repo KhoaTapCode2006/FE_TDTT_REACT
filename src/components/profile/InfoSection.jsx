@@ -12,7 +12,7 @@ const InfoSection = ({ profileData, onEdit, onAvatarClick, loading = false }) =>
   /**
    * Format field value with placeholder for empty fields
    */
-  const formatValue = (value, placeholder = 'Not provided') => {
+  const formatValue = (value, placeholder = 'Chưa cung cấp') => {
     if (value === null || value === undefined || value === '') {
       return <span className="text-on-surface-variant italic">{placeholder}</span>;
     }
@@ -40,7 +40,7 @@ const InfoSection = ({ profileData, onEdit, onAvatarClick, loading = false }) =>
           </div>
           
           <h2 className="font-headline font-bold text-3xl text-on-surface">
-            Personal Information
+            Thông tin cá nhân
           </h2>
         </div>
         
@@ -51,7 +51,7 @@ const InfoSection = ({ profileData, onEdit, onAvatarClick, loading = false }) =>
           aria-label="Edit profile information"
         >
           <Icon name="edit" size={20} aria-hidden="true" />
-          Edit
+          Chỉnh sửa
         </button>
       </div>
 
@@ -60,7 +60,7 @@ const InfoSection = ({ profileData, onEdit, onAvatarClick, loading = false }) =>
         {/* Display Name */}
         <div>
           <label className="text-sm font-semibold text-on-surface-variant uppercase tracking-wide mb-2 block">
-            Display Name
+            Tên hiển thị
           </label>
           <p className="text-on-surface font-medium text-lg">
             {formatValue(profileData?.displayName)}
@@ -70,7 +70,7 @@ const InfoSection = ({ profileData, onEdit, onAvatarClick, loading = false }) =>
         {/* Username */}
         <div>
           <label className="text-sm font-semibold text-on-surface-variant uppercase tracking-wide mb-2 block">
-            Username
+            Tên tài khoản
           </label>
           <p className="text-on-surface font-medium text-lg">
             {formatValue(profileData?.username)}
@@ -80,7 +80,7 @@ const InfoSection = ({ profileData, onEdit, onAvatarClick, loading = false }) =>
         {/* Email (Read-only) */}
         <div>
           <label className="text-sm font-semibold text-on-surface-variant uppercase tracking-wide mb-2 block">
-            Email
+            Địa chỉ email
           </label>
           <p className="text-on-surface font-medium text-lg flex items-center gap-2">
             {formatValue(profileData?.email)}
@@ -90,7 +90,7 @@ const InfoSection = ({ profileData, onEdit, onAvatarClick, loading = false }) =>
                 size={18} 
                 className="text-primary" 
                 variant="filled"
-                aria-label="Email verified"
+                aria-label="Email đã xác minh"
               />
             )}
           </p>
@@ -99,7 +99,7 @@ const InfoSection = ({ profileData, onEdit, onAvatarClick, loading = false }) =>
         {/* Phone Number */}
         <div>
           <label className="text-sm font-semibold text-on-surface-variant uppercase tracking-wide mb-2 block">
-            Phone Number
+            Số điện thoại
           </label>
           <p className="text-on-surface font-medium text-lg">
             {formatValue(profileData?.phoneNumber)}
@@ -109,10 +109,10 @@ const InfoSection = ({ profileData, onEdit, onAvatarClick, loading = false }) =>
         {/* Bio */}
         <div className="md:col-span-2">
           <label className="text-sm font-semibold text-on-surface-variant uppercase tracking-wide mb-2 block">
-            Bio
+            Tiểu sử
           </label>
           <p className="text-on-surface font-medium text-lg leading-relaxed">
-            {formatValue(profileData?.bio, 'No bio added yet')}
+            {formatValue(profileData?.bio, 'Chưa thêm tiểu sử')}
           </p>
         </div>
       </div>
@@ -123,7 +123,7 @@ const InfoSection = ({ profileData, onEdit, onAvatarClick, loading = false }) =>
           <div className="flex items-center gap-2 text-on-surface-variant text-base">
             <Icon name="calendar_today" size={18} aria-hidden="true" />
             <span>
-              Member since {new Date(profileData.createdAt.toDate?.() || profileData.createdAt).toLocaleDateString('en-US', {
+              Thành viên từ {new Date(profileData.createdAt.toDate?.() || profileData.createdAt).toLocaleDateString('vi-VN', {
                 month: 'long',
                 year: 'numeric'
               })}
@@ -138,7 +138,7 @@ const InfoSection = ({ profileData, onEdit, onAvatarClick, loading = false }) =>
           <div className="flex items-center gap-2 text-on-surface-variant text-base">
             <Icon name="schedule" size={18} aria-hidden="true" />
             <span>
-              Last login: {new Date(profileData.lastLogin.toDate?.() || profileData.lastLogin).toLocaleDateString('en-US', {
+              Đăng nhập lần cuối: {new Date(profileData.lastLogin.toDate?.() || profileData.lastLogin).toLocaleDateString('vi-VN', {
                 month: 'short',
                 day: 'numeric',
                 year: 'numeric',

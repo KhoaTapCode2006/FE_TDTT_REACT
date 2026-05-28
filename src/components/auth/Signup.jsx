@@ -80,7 +80,7 @@ const Signup = () => {
     const rules = {
       email: validators.email,
       password: (value) => validators.password(value).error,
-      acceptTerms: (value) => value ? null : 'You must accept the terms and conditions.'
+      acceptTerms: (value) => value ? null : 'Bạn phải chấp nhận các điều khoản và điều kiện'
     };
     
     const validation = validateForm(formData, rules);

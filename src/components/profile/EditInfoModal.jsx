@@ -52,22 +52,22 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
 
     // Display Name validation - Required
     if (!formData.displayName.trim()) {
-      newErrors.displayName = 'Display name is required';
+      newErrors.displayName = 'Tên hiển thị là bắt buộc';
     } else if (formData.displayName.trim().length < 2) {
-      newErrors.displayName = 'Display name must be at least 2 characters';
+      newErrors.displayName = 'Tên hiển thị phải có ít nhất 2 ký tự';
     } else if (formData.displayName.trim().length > 100) {
-      newErrors.displayName = 'Display name must be less than 100 characters';
+      newErrors.displayName = 'Tên hiển thị phải ít hơn 100 ký tự';
     }
 
     // Username validation - Required
     if (!formData.username.trim()) {
-      newErrors.username = 'Username is required';
+      newErrors.username = 'Tên tài khoản là bắt buộc';
     } else if (formData.username.trim().length < 3) {
-      newErrors.username = 'Username must be at least 3 characters';
+      newErrors.username = 'Tên tài khoản phải có ít nhất 3 ký tự';
     } else if (formData.username.trim().length > 30) {
-      newErrors.username = 'Username must be less than 30 characters';
+      newErrors.username = 'Tên tài khoản phải ít hơn 30 ký tự';
     } else if (!/^[a-zA-Z0-9_]+$/.test(formData.username.trim())) {
-      newErrors.username = 'Username can only contain letters, numbers, and underscores';
+      newErrors.username = 'Tên tài khoản chỪ chữa chữ cái, số và dấu gạch dưới';
     }
 
     // Phone Number validation - Optional but must be valid if provided
@@ -75,15 +75,15 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
       // Basic phone number format validation
       const phoneRegex = /^[\d\s\-\+\(\)]+$/;
       if (!phoneRegex.test(formData.phoneNumber.trim())) {
-        newErrors.phoneNumber = 'Please enter a valid phone number';
+        newErrors.phoneNumber = 'Vui lòng nhập số điện thoại hợp lệ';
       } else if (formData.phoneNumber.trim().replace(/\D/g, '').length < 10) {
-        newErrors.phoneNumber = 'Phone number must be at least 10 digits';
+        newErrors.phoneNumber = 'Số điện thoại phải có ít nhất 10 chữ số';
       }
     }
 
     // Bio validation - Optional but has max length
     if (formData.bio.trim().length > 500) {
-      newErrors.bio = 'Bio must be less than 500 characters';
+      newErrors.bio = 'Tiểu sử phải ít hơn 500 ký tự';
     }
 
     setErrors(newErrors);
@@ -193,7 +193,7 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
     } catch (err) {
       console.error('❌ Error saving profile:', err);
       console.error('Error message:', err.message);
-      setSaveError(err.message || 'Failed to save profile. Please try again.');
+      setSaveError(err.message || 'Không thể lưu hồ sơ. Vui lòng thử lại.');
       setIsSubmitting(false);
     }
   };
@@ -222,10 +222,10 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
         <div className="flex items-center justify-between p-6 border-b border-outline-variant/20">
           <div>
             <h2 className="font-headline font-bold text-2xl text-on-surface">
-              Edit Profile
+              Chỉnh sửa Hồ sơ
             </h2>
             <p className="text-sm text-on-surface-variant mt-1">
-              Update your personal information
+              Cập nhật thông tin cá nhân của bạn
             </p>
           </div>
           <button
@@ -244,7 +244,7 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
           {saveSuccess && (
             <div className="mx-6 mt-6 p-3 bg-green-50 border border-green-200 rounded-xl flex items-center gap-2">
               <Icon name="check_circle" size={18} className="text-green-500 flex-shrink-0" aria-hidden="true" />
-              <p className="text-sm text-green-600">Profile updated successfully!</p>
+              <p className="text-sm text-green-600">Hồ sơ đế cập nhật thành công!</p>
             </div>
           )}
 
@@ -261,7 +261,7 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
             {/* Display Name */}
             <div>
               <label htmlFor="displayName" className="block text-sm font-semibold text-on-surface mb-2">
-                Display Name <span className="text-red-500">*</span>
+                Tên hiển thị <span className="text-red-500">*</span>
               </label>
               <input
                 ref={displayNameRef}
@@ -269,7 +269,7 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
                 type="text"
                 value={formData.displayName}
                 onChange={(e) => handleInputChange('displayName', e.target.value)}
-                placeholder="Enter your display name"
+                placeholder="Nhập tên hiển thị của bạn"
                 disabled={isSubmitting}
                 className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                   errors.displayName 
@@ -284,14 +284,14 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
                 </p>
               )}
               <p className="text-xs text-on-surface-variant mt-1">
-                This is how your name will appear to others
+                Đây là cách tên của bạn sẽ hiển thị cho người khác
               </p>
             </div>
 
             {/* Username */}
             <div>
               <label htmlFor="username" className="block text-sm font-semibold text-on-surface mb-2">
-                Username <span className="text-red-500">*</span>
+                Tên tài khoản <span className="text-red-500">*</span>
               </label>
               <input
                 ref={usernameRef}
@@ -299,7 +299,7 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
                 type="text"
                 value={formData.username}
                 onChange={(e) => handleInputChange('username', e.target.value)}
-                placeholder="Enter your username"
+                placeholder="Nhập tên tài khoản"
                 disabled={isSubmitting}
                 className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                   errors.username 
@@ -314,7 +314,7 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
                 </p>
               )}
               <p className="text-xs text-on-surface-variant mt-1">
-                Letters, numbers, and underscores only
+                Chỉ chữa chữ cái, số và dấu gạch dưới
               </p>
             </div>
 
@@ -324,17 +324,17 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
                 Email
               </label>
               <div className="w-full border border-outline-variant/50 rounded-lg px-4 py-3 text-sm bg-surface-container-low/30 text-on-surface-variant">
-                {profileData?.email || 'Not provided'}
+                {profileData?.email || 'Chưa cung cấp'}
               </div>
               <p className="text-xs text-on-surface-variant mt-1">
-                Email cannot be changed
+                Email không thể đổi
               </p>
             </div>
 
             {/* Phone Number */}
             <div>
               <label htmlFor="phoneNumber" className="block text-sm font-semibold text-on-surface mb-2">
-                Phone Number
+                Số điện thoại
               </label>
               <input
                 ref={phoneNumberRef}
@@ -342,7 +342,7 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
                 type="tel"
                 value={formData.phoneNumber}
                 onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                placeholder="Enter your phone number"
+                placeholder="Nhập số điện thoại"
                 disabled={isSubmitting}
                 className={`w-full border rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                   errors.phoneNumber 
@@ -361,14 +361,14 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
             {/* Bio */}
             <div>
               <label htmlFor="bio" className="block text-sm font-semibold text-on-surface mb-2">
-                Bio
+                Tiểu sử
               </label>
               <textarea
                 ref={bioRef}
                 id="bio"
                 value={formData.bio}
                 onChange={(e) => handleInputChange('bio', e.target.value)}
-                placeholder="Tell us about yourself..."
+                placeholder="Căn cù bấc, hãy cho chúng tôi biết về bạn..."
                 disabled={isSubmitting}
                 rows={4}
                 maxLength={500}
@@ -385,7 +385,7 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
                 </p>
               )}
               <p className="text-xs text-on-surface-variant mt-1">
-                {formData.bio.length}/500 characters
+                {formData.bio.length}/500 ký tự
               </p>
             </div>
           </div>
@@ -399,7 +399,7 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
             disabled={isSubmitting}
             className="flex-1 px-6 py-3 rounded-lg font-semibold text-sm border border-outline-variant text-on-surface hover:bg-surface-container-low transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Cancel
+            Hủy
           </button>
           <button
             type="submit"
@@ -410,7 +410,7 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
             {isSubmitting && (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true"></div>
             )}
-            {isSubmitting ? 'Saving...' : 'Save Changes'}
+            {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
           </button>
         </div>
       </div>
