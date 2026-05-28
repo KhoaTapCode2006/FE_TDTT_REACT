@@ -845,7 +845,7 @@ function CollectionPage() {
       }
 
       // Call DELETE /invitations/{invitationId}
-      const API_BASE_URL = import.meta.env.VITE_LOCAL_API || 'https://api.haubaka.xyz';
+      const API_BASE_URL = import.meta.env.VITE_LOCAL_API;
       const response = await fetch(`${API_BASE_URL}/invitations/${invitationId}`, {
         method: 'DELETE',
         headers: {

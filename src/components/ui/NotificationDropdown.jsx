@@ -37,7 +37,7 @@ export default function NotificationDropdown({
   const navigate = useNavigate();
   const [processingIds, setProcessingIds] = useState(new Set());
   
-  const API_BASE_URL = import.meta.env.VITE_LOCAL_API || 'https://api.haubaka.xyz';
+  const API_BASE_URL = import.meta.env.VITE_LOCAL_API;
   
   const displayNotifications = notifications;
 
@@ -284,9 +284,6 @@ export default function NotificationDropdown({
   /**
    * Mark notification as read
    * 
-   * API: PATCH https://api.haubaka.xyz/users/me/notifications/{notificationId}
-   * Body: { read: true }
-   * 
    * @param {string} notificationId - The ID of the notification to mark as read
    */
   const handleMarkAsRead = async (notificationId) => {
@@ -340,10 +337,6 @@ export default function NotificationDropdown({
 
   /**
    * Accept invitation
-   * 
-   * API: PATCH https://api.haubaka.xyz/invitations/{ref_id}
-   * Body: { status: 'accepted' }
-   * Then: PATCH /users/me/notifications/{notificationId} with { read: true }
    * 
    * @param {string} refId - The ref_id (invitation ID) from notification
    * @param {string} notificationId - The notification ID
@@ -408,10 +401,6 @@ export default function NotificationDropdown({
 
   /**
    * Reject invitation
-   * 
-   * API: PATCH https://api.haubaka.xyz/invitations/{ref_id}
-   * Body: { status: 'declined' }  // MUST BE 'declined', NOT 'rejected'
-   * Then: PATCH /users/me/notifications/{notificationId} with { read: true }
    * 
    * @param {string} refId - The ref_id (invitation ID) from notification
    * @param {string} notificationId - The notification ID

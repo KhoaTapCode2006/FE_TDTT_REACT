@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { auth } from '../../config/firebase';
 
-const API_BASE_URL = import.meta.env.VITE_LOCAL_API || 'https://api.haubaka.xyz';
+const API_BASE_URL = import.meta.env.VITE_LOCAL_API;
 
 // Create axios instance for discover API
 const discoverClient = axios.create({
