@@ -4,7 +4,7 @@ import UpdateGroupModal from "./modals/UpdateGroupModal";
 import AddMemberModal from "./modals/AddMemberModal";
 import ConfirmModal from "./modals/ConfirmModal";
 
-// ─── Chat Header ──────────────────────────────────────────────────────────────
+// ─── Tiêu đề chat ──────────────────────────────────────────────────────────────
 function ChatHeader({
   groupName,
   groupDescription,
@@ -37,7 +37,7 @@ function ChatHeader({
           )}
         </div>
         <div className="flex items-center gap-3 text-gray-500">
-          {/* Toggle right panel button */}
+          {/* Nút bật/tắt bảng thông tin bên phải */}
           <button
             onClick={onToggleRightPanel}
             title={showRightPanel ? "Ẩn thông tin nhóm" : "Hiện thông tin nhóm"}
@@ -62,7 +62,7 @@ function ChatHeader({
             </svg>
           </button>
 
-          {/* 3-dot menu */}
+          {/* Menu ba chấm */}
           <div className="relative">
             <button
               onClick={() => setMenuOpen((v) => !v)}

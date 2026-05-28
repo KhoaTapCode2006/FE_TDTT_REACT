@@ -68,12 +68,12 @@ const ForgotPassword = () => {
             </div>
             
             <h1 className="font-headline font-bold text-2xl text-primary mb-2">
-              Check your inbox
+              Kiểm tra hộp thư đến
             </h1>
             
             <p className="text-on-surface-variant text-sm mb-6">
-              We've sent a password reset link to <strong>{email}</strong>. 
-              Please check your email and follow the instructions to reset your password.
+              Chúng tôi đã gửi liên kết đặt lại mật khẩu đến <strong>{email}</strong>.
+              Vui lòng kiểm tra email và làm theo hướng dẫn để đặt lại mật khẩu.
             </p>
             
             <div className="space-y-3">
@@ -81,7 +81,7 @@ const ForgotPassword = () => {
                 to="/auth/login"
                 className="w-full bg-primary text-white py-3 rounded-xl font-bold text-sm hover:bg-primary-container transition-colors inline-block text-center"
               >
-                Back to Sign In
+                Quay lại đăng nhập
               </Link>
               
               <button
@@ -91,19 +91,19 @@ const ForgotPassword = () => {
                 }}
                 className="w-full bg-surface-container text-on-surface py-3 rounded-xl font-semibold text-sm hover:bg-surface-container-high transition-colors"
               >
-                Try Different Email
+                Thử lại với email khác
               </button>
             </div>
             
             <p className="text-xs text-on-surface-variant mt-6">
-              Didn't receive the email? Check your spam folder or{' '}
+              Nếu không nhận được email, hãy kiểm tra thư mục spam hoặc{' '}
               <button
                 onClick={() => {
                   setEmailSent(false);
                 }}
                 className="text-primary hover:text-primary-container font-semibold"
               >
-                try again
+                thử lại
               </button>
             </p>
           </div>
@@ -122,11 +122,11 @@ const ForgotPassword = () => {
           </div>
           
           <h1 className="font-headline font-bold text-2xl text-primary mb-2">
-            Reset your password
+            Đặt lại mật khẩu
           </h1>
           
           <p className="text-sm text-on-surface-variant">
-            Enter your email address and we'll send you a link to reset your password
+            Nhập địa chỉ email của bạn và chúng tôi sẽ gửi liên kết để đặt lại mật khẩu
           </p>
         </div>
 
@@ -143,13 +143,13 @@ const ForgotPassword = () => {
           {/* Email Field */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-1.5">
-              Email Address
+              Địa chỉ email
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => handleEmailChange(e.target.value)}
-              placeholder="you@example.com"
+              placeholder="nguyen.van.a@example.com"
               required
               className={`w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all bg-surface-container-low/50 ${
                 emailError 
@@ -171,7 +171,7 @@ const ForgotPassword = () => {
             {isSubmitting && (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             )}
-            {isSubmitting ? 'Sending...' : 'Send Reset Link'}
+            {isSubmitting ? 'Đang gửi...' : 'Gửi liên kết đặt lại'}
           </button>
 
           {/* Back to Login */}
@@ -181,7 +181,7 @@ const ForgotPassword = () => {
               className="text-sm font-semibold text-on-surface-variant hover:text-primary transition-colors inline-flex items-center gap-1"
             >
               <Icon name="arrow_back" size={16} />
-              Back to Sign In
+              Quay lại đăng nhập
             </Link>
           </div>
         </form>

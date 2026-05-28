@@ -22,17 +22,17 @@ const HomePage = () => {
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [error, setError] = useState(null);
   
-  // Layout state for splitter - Map 30%, Hotels 70%
+  // Trạng thái bố cục cho splitter - Bản đồ 30%, Khách sạn 70%
   const [splitterPosition, setSplitterPosition] = useState(20);
   const [mapWidth, setMapWidth] = useState(40);
   const [hotelListWidth, setHotelListWidth] = useState(60);
   const [layoutMode, setLayoutMode] = useState('list');
   
-  // Debouncing and request cancellation
+  // Debounce và hủy request
   const debounceTimeoutRef = useRef(null);
   const currentRequestRef = useRef(null);
 
-  // Restore layout state from session storage on mount
+  // Khôi phục trạng thái bố cục từ session storage khi component mount
   useEffect(() => {
     const restoreLayoutState = () => {
       try {
@@ -44,20 +44,20 @@ const HomePage = () => {
             setMapWidth(layoutState.splitterPosition);
             setHotelListWidth(100 - layoutState.splitterPosition);
             
-            // Calculate layout mode based on restored position
+            // Tính chế độ bố cục dựa trên vị trí đã khôi phục
             const mode = layoutState.splitterPosition < 40 ? 'grid' : 'list';
             setLayoutMode(mode);
           }
         }
       } catch (err) {
-        console.error('Error restoring layout state:', err);
-        // Silently fail - use default layout
+        console.error('Lỗi khôi phục trạng thái bố cục:', err);
+        // Không báo lỗi, dùng bố cục mặc định
       }
     };
     restoreLayoutState();
   }, []);
 
-  // Save layout state to session storage
+  // Lưu trạng thái bố cục xuống session storage
   const saveLayoutState = useCallback((position) => {
     try {
       const layoutState = {
@@ -66,22 +66,22 @@ const HomePage = () => {
       };
       sessionStorage.setItem('homepage-layout', JSON.stringify(layoutState));
     } catch (err) {
-      console.error('Error saving layout state:', err);
-      // Silently fail - layout won't persist
+      console.error('Lỗi lưu trạng thái bố cục:', err);
+      // Không báo lỗi, bố cục sẽ không được lưu
     }
   }, []);
 
-  // Handle splitter drag events
+  // Xử lý sự kiện kéo splitter
   const handleSplitterDrag = useCallback((position) => {
     setSplitterPosition(position);
     setMapWidth(position);
     setHotelListWidth(100 - position);
     
-    // Calculate layout mode: grid if map < 40%, list if >= 40%
+    // Tính chế độ bố cục: grid nếu bản đồ < 40%, list nếu >= 40%
     const mode = position < 40 ? 'grid' : 'list';
     setLayoutMode(mode);
     
-    // Save layout state
+    // Lưu trạng thái bố cục
     saveLayoutState(position);
   }, [saveLayoutState]);
 
@@ -101,7 +101,7 @@ const HomePage = () => {
       // 1. Chuẩn hóa chuỗi Address từ global state `location`
       const addressStr = location?.address || location?.display || '';
       
-      // 2. Use user's current location for GPS if location.gps is not set
+      // 2. Dùng vị trí hiện tại của người dùng làm GPS nếu location.gps chưa có
       const gpsData = location?.gps?.latitude && location?.gps?.longitude 
         ? location.gps 
         : { latitude: userLoc.lat, longitude: userLoc.lng, geohash: '' };
@@ -117,16 +117,16 @@ const HomePage = () => {
         return;
       }
       
-      // Format dates as ISO strings (YYYY-MM-DD)
+      // Chuyển ngày sang định dạng ISO (YYYY-MM-DD)
       const checkInStr = dates.checkIn.toISOString().split('T')[0];
       const checkOutStr = dates.checkOut.toISOString().split('T')[0];
       
-      // Format children as array of ages
+      // Chuyển trẻ em thành mảng độ tuổi
       const childrenArray = Array.isArray(guests?.children) 
         ? guests.children 
         : (guests?.children > 0 ? Array(guests.children).fill(0) : []);
       
-      // Calculate total party size
+      // Tính tổng số người trong đoàn
       const partySize = (guests?.adults || 2) + childrenArray.length;
       
       // 4. Gọi hàm searchHotels từ đúng hotelSearchService mới
@@ -139,7 +139,7 @@ const HomePage = () => {
         adults: guests?.adults || 2,
         children: childrenArray,
         personality: searchFilters?.personality || '',
-        trip_style: 'kham_pha', // Default trip style
+        trip_style: 'kham_pha', // Kiểu chuyến đi mặc định
         trip_criteria: {
           budget_min: 0,
           budget_max: 0,
@@ -149,27 +149,27 @@ const HomePage = () => {
         max_ranked_hotels: 50
       });
       
-      // Extract hotels and searching_place from response
+      // Lấy hotels và searching_place từ response
       const results = response.hotels || response || [];
       const searchingPlace = response.searchingPlace || null;
       
       // Chỉ cập nhật state nếu request không bị hủy giữa chừng
       if (!requestTracker.cancelled) {
-        // Try to fetch user's favorites and annotate results so heart icons sync
+        // Thử lấy danh sách yêu thích của người dùng và gắn nhãn để icon trái tim đồng bộ
         try {
           const favs = await getFavoritePlaces();
           const favSet = new Set(favs.map(f => f.propertyToken || f.id || f.hotelId));
           const annotated = results.map(h => ({ ...h, isFavorited: favSet.has(h.propertyToken || h.id) }));
           setHotels(annotated);
         } catch (err) {
-          // If user not authenticated or fetch fails, fallback to plain results
-          console.debug('Could not fetch favorites (user may be unauthenticated):', err?.message || err);
+          // Nếu user chưa xác thực hoặc fetch thất bại, dùng kết quả gốc
+          console.debug('Không thể lấy danh sách yêu thích (có thể người dùng chưa xác thực):', err?.message || err);
           setHotels(results);
         }
         
-        // Set map GPS from searching_place if available
+        // Cập nhật GPS bản đồ từ searching_place nếu có
         if (searchingPlace && searchingPlace.gps && setSearchGps) {
-          console.log('✅ Setting map GPS from searching_place:', searchingPlace.gps);
+          console.log('✅ Đã thiết lập GPS bản đồ từ searching_place:', searchingPlace.gps);
           setSearchGps({
             latitude: searchingPlace.gps.latitude,
             longitude: searchingPlace.gps.longitude
@@ -182,7 +182,7 @@ const HomePage = () => {
       }
     } catch (error) {
       if (!currentRequestRef.current?.cancelled) {
-        console.error('Error applying filters:', error);
+        console.error('Lỗi khi tìm kiếm khách sạn:', error);
         
         let errorMessage = 'Có lỗi xảy ra khi tìm kiếm khách sạn. Vui lòng thử lại.';
         if (error.code === 'NETWORK_ERROR' || !navigator.onLine) {
@@ -203,28 +203,28 @@ const HomePage = () => {
   }, [location, dates, guests, userLoc, setHotels, setLoading, activeHotel, setActiveHotel]);
 
   const debouncedHotelSearch = useCallback((searchFilters) => {
-    // Clear existing timeout
+    // Xóa timeout hiện tại
     if (debounceTimeoutRef.current) {
       clearTimeout(debounceTimeoutRef.current);
     }
     
-    // Set new timeout with minimum delay
+    // Đặt timeout mới với độ trễ tối thiểu
     debounceTimeoutRef.current = setTimeout(() => {
       performHotelSearch(searchFilters);
-    }, 300); // 300ms debounce delay
+    }, 300); // độ trễ debounce 300ms
   }, [performHotelSearch]);
 
-  // Task 2.1: Remove filter-triggered API calls
-  // Filters now only update AppContext state, client-side filtering happens automatically
+  // Nhiệm vụ 2.1: Loại bỏ các lần gọi API do filter kích hoạt
+  // Filters giờ chỉ cập nhật state AppContext, lọc trên client tự động
   const handleFilterApply = async (newFilters) => {
     setFilters(newFilters);
     setFilterModalOpen(false);
-    // NO API call - filtering is done client-side in AppContext
+    // KHÔNG gọi API - lọc được thực hiện trên client trong AppContext
   };
 
   const handleRetry = async () => {
     setError(null);
-    // Retry the hotel search (not filter search)
+    // Thử lại tìm kiếm khách sạn (không phải tìm kiếm filter)
     debouncedHotelSearch(filters);
   };
 
@@ -233,7 +233,7 @@ const HomePage = () => {
       {/* 1. Thanh tìm kiếm nằm trên cùng */}
       <SearchBar />
 
-      {/* Error Banner */}
+      {/* Thanh thông báo lỗi */}
       {error && (
         <div className="bg-error/10 border-l-4 border-error px-4 py-3 mx-4 mt-2 rounded-r-lg flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -271,7 +271,7 @@ const HomePage = () => {
             </ErrorBoundary>
           </div>
 
-          {/* Splitter */}
+          {/* Thanh chia kích thước */}
           <Splitter
             initialPosition={splitterPosition}
             minLeftWidth={30}
@@ -292,7 +292,7 @@ const HomePage = () => {
           </div>
         </main>
 
-      {/* 3. Filter Modal */}
+      {/* 3. Hộp thoại bộ lọc */}
       {filterModalOpen && (
         <FilterModal
           isOpen={filterModalOpen}

@@ -5,12 +5,7 @@ import NotificationBell from "@/components/ui/NotificationBell";
 import { useAuth } from "../../contexts/AuthContext";
 
 const LANGS = [
-  { code: "EN", flag: "🇺🇸", label: "English" },
   { code: "VI", flag: "🇻🇳", label: "Tiếng Việt" },
-  { code: "ZH", flag: "🇨🇳", label: "简体中文" },
-  { code: "JA", flag: "🇯🇵", label: "日本語" },
-  { code: "IT", flag: "🇮🇹", label: "Italiano" },
-  { code: "DE", flag: "🇩🇪", label: "Deutsch" },
 ];
 
 function Header({ hideNavigation = false }) {
@@ -93,7 +88,7 @@ function Header({ hideNavigation = false }) {
                     : 'text-on-surface-variant hover:text-primary'
                 }`}
               >
-                Hotels
+                Khách sạn
               </Link>
               <Link 
                 to="/collections" 
@@ -103,7 +98,7 @@ function Header({ hideNavigation = false }) {
                     : 'text-on-surface-variant hover:text-primary'
                 }`}
               >
-                Collections
+                Bộ sưu tập
               </Link>
               <Link 
                 to="/account/information" 
@@ -113,7 +108,7 @@ function Header({ hideNavigation = false }) {
                     : 'text-on-surface-variant hover:text-primary'
                 }`}
               >
-                Information & Liked Places
+                Tài khoản & Yêu thích
               </Link>
               <Link 
                 to="/trips" 
@@ -123,7 +118,7 @@ function Header({ hideNavigation = false }) {
                     : 'text-on-surface-variant hover:text-primary'
                 }`}
               >
-                Trips
+                Chuyến đi
               </Link>
               <Link 
                 to="/chat" 
@@ -244,7 +239,7 @@ function Header({ hideNavigation = false }) {
                         className="flex items-center gap-3 w-full text-left rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
                       >
                         <Icon name="logout" size={20} />
-                        Sign Out
+                        Đăng xuất
                       </button>
                     </div>
                   </div>
@@ -259,7 +254,7 @@ function Header({ hideNavigation = false }) {
                   className="flex items-center gap-2 rounded-full border border-outline-variant/30 px-3 py-2 text-sm font-semibold text-primary hover:bg-surface-container transition-colors"
                 >
                   <Icon name="person_outline" size={20} />
-                  Account
+                  Tài Khoản
                 </button>
 
                 {accountOpen && (
@@ -271,7 +266,7 @@ function Header({ hideNavigation = false }) {
                         className="flex items-center gap-3 w-full text-left rounded-xl px-3 py-2.5 text-sm font-semibold text-white bg-primary hover:bg-primary-container transition-colors"
                       >
                         <Icon name="login" size={20} />
-                        Sign In
+                        Đăng nhập
                       </Link>
                       <Link
                         to="/auth/signup"
@@ -279,12 +274,12 @@ function Header({ hideNavigation = false }) {
                         className="flex items-center gap-3 w-full text-left rounded-xl px-3 py-2.5 text-sm font-medium text-primary hover:bg-surface-container-low transition-colors"
                       >
                         <Icon name="person_add" size={20} />
-                        Create Account
+                        Tạo Tài Khoản
                       </Link>
                     </div>
                     <div className="p-3 border-t border-outline-variant/20">
                       <p className="text-xs text-on-surface-variant text-center">
-                        Join to unlock exclusive deals and save your preferences
+                        Tham gia để nhận nhiều ưu đãi và trải nghiệm cá nhân hoá
                       </p>
                     </div>
                   </div>

@@ -141,8 +141,8 @@ function HotelSliderGroup({ title, subtitle, hotels, onHotelClick, itemsPerPage 
 function HotelListSection({
   weeklyLimit = 16,
   showAllTime = true,
-  weeklyTitle = 'Trending This Week',
-  weeklySubtitle = 'Most viewed hotels by Lodgy4U members this week',
+  weeklyTitle = 'Nổi bật trong tuần',
+  weeklySubtitle = 'Những lưu trú được xem nhiều nhất trong tuần qua',
   itemsPerPageLg = 4,
   accent,
   hideHeader = false,
@@ -218,8 +218,8 @@ function HotelListSection({
 
       {showAllTime && sortedHotelsAllTime.length > 0 && (
         <HotelSliderGroup 
-          title="All-Time Favorites"
-          subtitle="The most popular and highly viewed stays of all time"
+          title="Nổi bật nhất từ trước đến nay"
+          subtitle="Những lưu trú nổi bật nhất và được xem nhiều nhất mọi thời đại"
           hotels={sortedHotelsAllTime}
           onHotelClick={(h) => setActiveHotel(h)}
           itemsPerPage={itemsPerPageLg}

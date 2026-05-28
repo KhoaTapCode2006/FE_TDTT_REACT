@@ -1,6 +1,6 @@
 import React, { useState, useEffect, memo } from 'react';
 import Icon from '@/components/ui/Icon';
-import { useApp } from '@/app/AppContext'; // Task 4.2: Import useApp
+import { useApp } from '@/app/AppContext'; // Nhiệm vụ 4.2: Nhập useApp
 import StarRatingFilter from './StarRatingFilter';
 import PropertyTypeFilter from './PropertyTypeFilter';
 import AmenitiesFilter from './AmenitiesFilter';
@@ -11,22 +11,22 @@ const FilterModal = memo(({ isOpen, filters, onClose, onApply }) => {
   const [draft, setDraft] = useState({ ...filters });
   const [isApplying, setIsApplying] = useState(false);
   
-  // Task 4.2: Get availableAmenities from AppContext
+  // Nhiệm vụ 4.2: Lấy availableAmenities từ AppContext
   const { availableAmenities } = useApp();
 
-  // Update draft when filters prop changes
+  // Cập nhật bản nháp khi props filters thay đổi
   useEffect(() => {
     setDraft({ ...filters });
   }, [filters]);
 
-  // Handle backdrop click
+  // Xử lý nhấp vào nền phủ
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
       handleCancel();
     }
   };
 
-  // Handle escape key
+  // Xử lý phím Esc
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === 'Escape' && isOpen) {
@@ -36,7 +36,7 @@ const FilterModal = memo(({ isOpen, filters, onClose, onApply }) => {
 
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      // Prevent body scroll when modal is open
+      // Ngăn cuộn body khi modal mở
       document.body.style.overflow = 'hidden';
     }
 
@@ -110,44 +110,44 @@ const FilterModal = memo(({ isOpen, filters, onClose, onApply }) => {
           </button>
         </div>
 
-        {/* Content - Scrollable */}
+        {/* Nội dung - có thể cuộn */}
         <div className="overflow-y-auto px-4 sm:px-7 pb-4 flex flex-col gap-6 sm:gap-7 flex-1">
-          {/* Task 4.1: Removed empty filter message */}
+          {/* Nhiệm vụ 4.1: Đã loại bỏ thông báo bộ lọc trống */}
           
-          {/* Star Rating Filter */}
+          {/* Bộ lọc xếp hạng sao */}
           <StarRatingFilter 
             value={draft.starRating}
             onChange={(value) => setDraft(prev => ({ ...prev, starRating: value }))}
           />
 
-          {/* Property Type Filter */}
+          {/* Bộ lọc loại bất động sản */}
           <PropertyTypeFilter 
             value={draft.types}
             onChange={(value) => setDraft(prev => ({ ...prev, types: value }))}
           />
 
-          {/* Amenities Filter - Task 4.2: Pass availableAmenities */}
+          {/* Bộ lọc tiện ích - Nhiệm vụ 4.2: Truyền availableAmenities */}
           <AmenitiesFilter 
             value={draft.amenities}
             onChange={(value) => setDraft(prev => ({ ...prev, amenities: value }))}
             availableAmenities={availableAmenities}
           />
 
-          {/* Price Range Filter */}
+          {/* Bộ lọc khoảng giá */}
           <PriceRangeFilter 
             priceMin={draft.priceMin}
             priceMax={draft.priceMax}
             onChange={({ priceMin, priceMax }) => setDraft(prev => ({ ...prev, priceMin, priceMax }))}
           />
 
-          {/* Available Rooms Filter */}
+          {/* Bộ lọc phòng trống */}
           <AvailableRoomsFilter 
             value={draft.availableOnly}
             onChange={(value) => setDraft(prev => ({ ...prev, availableOnly: value }))}
           />
         </div>
 
-        {/* Footer */}
+        {/* Chân trang */}
         <div className="flex flex-col sm:flex-row gap-3 px-4 sm:px-7 py-4 sm:py-5 border-t border-outline-variant/10">
           <button 
             onClick={handleClearAll} 

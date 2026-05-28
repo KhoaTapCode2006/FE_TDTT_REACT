@@ -19,12 +19,12 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
   
   const reviews = hotel?.userReviews || hotel?.reviews || hotel?.user_reviews || [];
   
-  // Handle image objects with thumbnail and original using utility functions
+  // Xử lý hình ảnh: lấy thumbnail/original qua helper
   const firstImage = hotel?.images?.[0];
   const imageUrl = getImageWithFallback(firstImage);
   const { cachedUrl, isLoading: imageLoading, error: imageError } = useImageCache(imageUrl);
 
-  // Use Google's placeholder image as a stable fallback
+  // Dùng placeholder của Google làm fallback ổn định
   const googlePlaceholder = "https://storage.googleapis.com/support-forums-api/attachment/thread-62654029-5647160710799411463.png";
   const displayUrl = cachedUrl || imageUrl || googlePlaceholder;
   
@@ -34,10 +34,10 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
   });
 
   const handleSaveClick = (e) => {
-    e.stopPropagation(); // Prevent card click
+    e.stopPropagation(); // Ngăn click vào thẻ
     
     if (!isAuthenticated) {
-      // Redirect to login if not authenticated
+      // Chuyển đến đăng nhập nếu chưa xác thực
       navigate('/auth/login');
       return;
     }
@@ -46,12 +46,12 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
   };
 
   const handleCardClick = async () => {
-    // Track view when card is clicked
+    // Theo dõi lượt xem khi thẻ được click
     if (hotel?.id) {
       await viewTrackingService.trackView(hotel.id);
     }
     
-    // Call the original onClick handler
+    // Gọi hàm onClick ban đầu
     onClick?.(hotel);
   };
 
@@ -65,7 +65,7 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
         role="button"
         tabIndex={0}
         onKeyDown={(e) => e.key === "Enter" && handleCardClick()}
-        aria-label={`View ${hotel?.name || "hotel"}`}
+        aria-label={`Xem ${hotel?.name || "khách sạn"}`}
       >
         <div className={`relative ${compact ? 'h-40' : 'h-52'} overflow-hidden`}>
           {imageLoading && (
@@ -73,16 +73,16 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
           )}
           <img
             src={displayUrl}
-            alt={hotel?.name || "Hotel image"}
+            alt={hotel?.name || "Hình ảnh khách sạn"}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             onError={(e) => {
-              // Mark this URL as failed to avoid retry loops and switch to stable placeholder
+              // Đánh dấu URL này thất bại để tránh vòng retry và dùng placeholder ổn định
               try { markFailedUrl(imageUrl); } catch (err) { /* ignore */ }
               e.target.src = googlePlaceholder;
             }}
           />
 
-          {/* User Review Box - Top Left */}
+          {/* Hộp đánh giá người dùng - góc trên trái */}
           {reviews && reviews.length > 0 && (
             <div className="review-box">
               <div className="review-rating">
@@ -94,7 +94,7 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
             </div>
           )}
 
-          {/* Save to List Button - Top Left (below review if present) */}
+          {/* Nút lưu vào danh sách - góc trên trái (dưới đánh giá nếu có) */}
           <div className={`absolute ${reviews && reviews.length > 0 ? 'top-24' : 'top-3'} left-3`}>
             <button
               onClick={handleSaveClick}
@@ -109,7 +109,7 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
             </button>
           </div>
 
-          {/* Rating Badge - Top Right */}
+          {/* Biểu tượng đánh giá - góc trên phải */}
           <div className="absolute top-3 right-3 glass px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
             <Icon name="star" filled size={14} className="text-amber-500" />
             <span className={`text-sm font-bold ${accent === 'green' ? 'text-emerald-300' : 'text-primary'}`}>
@@ -117,14 +117,14 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
             </span>
           </div>
 
-          {/* AI Score Badge */}
+          {/* Biểu tượng điểm AI */}
           {hotel?.ai_score && hotel.ai_score > 0 && (
             <div className="absolute top-12 right-3 bg-blue-600/90 text-white px-2.5 py-1 rounded-full">
               <span className="text-xs font-bold">AI: {Number(hotel.ai_score).toFixed(1)}</span>
             </div>
           )}
 
-          {/* Hotel Badge - Move to bottom right to avoid overlap */}
+          {/* Badges khách sạn - góc dưới phải để tránh chồng */}
           {hotel?.badge && (
             <div className="absolute bottom-3 right-3">
               <span className={`${accent === 'green' ? 'bg-emerald-500 text-white' : 'bg-primary text-white'} text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full`}>
@@ -133,7 +133,7 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
             </div>
           )}
 
-          {/* Add to Favorites Button - Bottom Left */}
+          {/* Nút thêm vào yêu thích - góc dưới trái */}
           <div className="absolute bottom-3 left-3 flex items-center">
             <div className="glass p-2 flex justify-center items-center rounded-full hover:bg-white/90 transition-all shadow-sm">
               <AddToFavoritesButton
@@ -152,7 +152,7 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
             <div className="min-w-0 flex-1">
               <h3 className={`font-headline font-bold ${compact ? 'text-sm' : 'text-lg'} ${accent === 'green' ? 'text-emerald-300' : 'text-primary'} leading-tight truncate`}>{hotel?.name}</h3>
               
-              {/* Distance display with navigation icon (removed address) */}
+              {/* Hiển thị khoảng cách với icon điều hướng (đã bỏ địa chỉ) */}
               {hotel?.distance !== undefined && hotel?.distance !== null && (
                 <p className="text-xs text-on-surface-variant flex items-center gap-0.5 mt-0.5">
                   <Icon name="navigation" size={14} className="flex-none" />
@@ -163,13 +163,13 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
 
             <div className="text-right flex-none">
               <p className={`${compact ? 'text-sm' : 'text-base'} font-extrabold ${accent === 'green' ? 'text-emerald-300' : 'text-primary'} font-headline`}>{fmtPriceExact(hotel?.pricePerNight ?? 0)}</p>
-              <p className="text-[10px] text-outline uppercase font-semibold">per night</p>
+              <p className="text-[10px] text-outline uppercase font-semibold">mỗi đêm</p>
             </div>
           </div>
 
-          {/* View count and rating display */}
+          {/* Hiển thị lượt xem và đánh giá */}
           <div className="flex items-center gap-3 mt-2">
-            {/* Raw rating display */}
+            {/* Hiển thị điểm đánh giá thô */}
             <div className="flex items-center gap-1 text-on-surface-variant">
               <Icon name="star" filled size={14} className="text-amber-500" />
               <span className="text-xs font-medium">
@@ -177,7 +177,7 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
               </span>
             </div>
             
-            {/* View count to the right of rating */}
+            {/* Số lượt xem nằm bên phải điểm đánh giá */}
             {hotel?.totalViews !== undefined && hotel?.totalViews > 0 && (
               <div className="flex items-center gap-1 text-on-surface-variant">
                 <Icon name="visibility" size={14} />
@@ -199,7 +199,7 @@ function HotelCard({ hotel, onClick, className = '', accent, compact = false }) 
         </div>
       </article>
 
-      {/* Save to Collection Modal (bigger, shows saved collections) */}
+      {/* Modal lưu vào bộ sưu tập (kích thước lớn, hiển thị bộ sưu tập đã lưu) */}
       <SaveToCollectionModal
         isOpen={showSaveModal}
         onClose={() => setShowSaveModal(false)}

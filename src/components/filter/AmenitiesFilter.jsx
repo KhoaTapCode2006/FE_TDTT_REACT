@@ -47,7 +47,7 @@ const AmenitiesFilter = ({ value, onChange, availableAmenities }) => {
     onChange(newAmenities);
   };
 
-  // Task 5.1: Chuẩn hóa toàn bộ tập hợp availableAmenities nhận về từ backend thành Set các Frontend Keys
+  // Nhiệm vụ 5.1: Chuẩn hóa toàn bộ tập hợp availableAmenities nhận về từ backend thành Set các Frontend Keys
   const normalizedAvailable = React.useMemo(() => {
     if (!availableAmenities) return new Set();
     const set = new Set();
@@ -65,7 +65,7 @@ const AmenitiesFilter = ({ value, onChange, availableAmenities }) => {
     ? Object.entries(AMENITY_META).filter(([key]) => normalizedAvailable.has(key))
     : Object.entries(AMENITY_META); // Hiển thị tất cả nếu không có bộ lọc có sẵn
 
-  // Task 5.3: Kiểm tra trạng thái trống (Nếu có truyền availableAmenities nhưng sau khi tối ưu lại trống trơn)
+  // Nhiệm vụ 5.3: Kiểm tra trạng thái trống (nếu có truyền availableAmenities nhưng sau khi tối ưu lại trống trơn)
   const hasNoAmenities = availableAmenities && availableAmenities.size > 0 && normalizedAvailable.size === 0;
 
   return (
@@ -74,7 +74,7 @@ const AmenitiesFilter = ({ value, onChange, availableAmenities }) => {
         Tiện nghi
       </p>
       
-      {/* Task 5.3: Render Empty state cho phần tiện nghi */}
+      {/* Nhiệm vụ 5.3: Hiển thị trạng thái trống cho phần tiện nghi */}
       {hasNoAmenities ? (
         <div className="text-center py-6 text-on-surface-variant">
           <Icon name="block" size={32} className="mx-auto mb-2 opacity-50" />
@@ -100,7 +100,7 @@ const AmenitiesFilter = ({ value, onChange, availableAmenities }) => {
                 aria-label={`${isActive ? 'Bỏ chọn' : 'Chọn'} ${meta.label}`}
                 aria-pressed={isActive}
               >
-                {/* Task 5.2: Phản hồi UI chất lượng cao khi Active */}
+                {/* Nhiệm vụ 5.2: Phản hồi UI chất lượng cao khi được chọn */}
                 <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all ${
                   isActive 
                     ? "border-2 border-primary bg-primary/5 shadow-sm" 

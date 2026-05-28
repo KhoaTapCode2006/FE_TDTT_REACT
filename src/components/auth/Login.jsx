@@ -55,7 +55,7 @@ const Login = () => {
         break;
       case 'password':
         if (value && value.length < 6) {
-          fieldError = 'Password must be at least 6 characters long.';
+          fieldError = 'Mật khẩu phải có ít nhất 6 ký tự.';
         }
         break;
     }
@@ -75,9 +75,9 @@ const Login = () => {
     if (emailError) errors.email = emailError;
     
     if (!formData.password) {
-      errors.password = 'Password is required.';
+      errors.password = 'Vui lòng nhập mật khẩu.';
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -136,10 +136,10 @@ const Login = () => {
         {/* Header */}
         <div className="text-center mb-10">
           <h1 className="font-headline font-bold text-3xl text-primary mb-3">
-            Welcome back
+            Chào mừng trở lại
           </h1>
           <p className="text-base text-on-surface-variant">
-            Please enter your credentials to access your account
+            Vui lòng nhập thông tin để truy cập tài khoản
           </p>
         </div>
 
@@ -157,7 +157,7 @@ const Login = () => {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            Continue with Google
+            Tiếp tục với Google
           </button>
         </div>
 
@@ -167,7 +167,7 @@ const Login = () => {
             <div className="w-full border-t border-outline-variant"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="bg-white px-4 text-on-surface-variant">Or continue with email</span>
+            <span className="bg-white px-4 text-on-surface-variant">Hoặc tiếp tục bằng email</span>
           </div>
         </div>
 
@@ -184,13 +184,13 @@ const Login = () => {
           {/* Email Field */}
           <div>
             <label className="block text-sm font-bold uppercase tracking-wider text-on-surface-variant mb-2">
-              Email Address
+              Địa chỉ email
             </label>
             <input
               type="email"
               value={formData.email}
               onChange={(e) => handleInputChange('email', e.target.value)}
-              placeholder="alex.lux@example.com"
+              placeholder="nguyen.van.a@example.com"
               required
               className={`w-full border rounded-xl px-5 py-4 text-base focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all bg-surface-container-low/50 ${
                 formErrors.email 
@@ -206,7 +206,7 @@ const Login = () => {
           {/* Password Field */}
           <div>
             <label className="block text-sm font-bold uppercase tracking-wider text-on-surface-variant mb-2">
-              Password
+              Mật khẩu
             </label>
             <div className="relative">
               <input
@@ -243,13 +243,13 @@ const Login = () => {
                 onChange={(e) => setRememberMe(e.target.checked)}
                 className="rounded border-outline-variant text-primary focus:ring-primary/30 w-4 h-4"
               />
-              <span className="text-base text-on-surface-variant">Remember me</span>
+              <span className="text-base text-on-surface-variant">Ghi nhớ đăng nhập</span>
             </label>
             <Link
               to="/auth/forgot-password"
               className="text-base font-semibold text-secondary hover:text-secondary/80 transition-colors"
             >
-              Forgot password?
+              Quên mật khẩu?
             </Link>
           </div>
 
@@ -262,17 +262,17 @@ const Login = () => {
             {isLoading && (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             )}
-            {isLoading ? 'Signing in...' : 'Sign In'}
+            {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </button>
 
           {/* Sign Up Link */}
           <p className="text-center text-base text-on-surface-variant mt-6">
-            Don't have an account?{' '}
+            Chưa có tài khoản?{' '}
             <Link
               to="/auth/signup"
               className="font-semibold text-primary hover:text-primary-container transition-colors"
             >
-              Sign up here
+              Đăng ký tại đây
             </Link>
           </p>
         </form>
@@ -280,5 +280,4 @@ const Login = () => {
     </div>
   );
 };
-
 export default Login;

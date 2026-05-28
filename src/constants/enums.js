@@ -1,17 +1,17 @@
 ﻿export const AMENITY_META = {
-  wifi:           { icon: "wifi",                  label: "Free Wi-Fi" },
-  pool:           { icon: "pool",                  label: "Pool" },
-  fitness_center: { icon: "fitness_center",        label: "Fitness center" },
+  wifi:           { icon: "wifi",                  label: "Wifi" },
+  pool:           { icon: "pool",                  label: "Hồ bơi" },
+  fitness_center: { icon: "fitness_center",        label: "Phòng gym" },
   spa:            { icon: "spa",                   label: "Spa" },
-  restaurant:     { icon: "restaurant",            label: "Restaurant" },
+  restaurant:     { icon: "restaurant",            label: "Nhà hàng" },
   bar:            { icon: "local_bar",             label: "Quầy bar" },
-  breakfast:      { icon: "free_breakfast",        label: "Free breakfast" },
-  parking:        { icon: "local_parking",         label: "Free parking" },
-  ac:             { icon: "ac_unit",               label: "Air conditioning" },
-  pet_friendly:   { icon: "pets",                  label: "Pet friendly" },
-  laundry:        { icon: "local_laundry_service", label: "Full-service laundry" },
+  breakfast:      { icon: "free_breakfast",        label: "Bữa sáng" },
+  parking:        { icon: "local_parking",         label: "Bãi đỗ xe" },
+  ac:             { icon: "ac_unit",               label: "Điều hoà" },
+  pet_friendly:   { icon: "pets",                  label: "Cho phép thú cưng" },
+  laundry:        { icon: "local_laundry_service", label: "Giặt ủi" },
   shuttle:        { icon: "airport_shuttle",        label: "Airport shuttle" },
-  kitchen:        { icon: "kitchen",                label: "Kitchen" },
+  kitchen:        { icon: "kitchen",                label: "Nhà bếp" },
 };
 
 export const PROPERTY_TYPES = [

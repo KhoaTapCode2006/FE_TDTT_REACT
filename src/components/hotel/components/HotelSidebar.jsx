@@ -26,8 +26,8 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
       <div className="bg-surface-container-lowest/95 backdrop-blur-sm z-10 px-6 pt-6 pb-4 border-b border-outline-variant/10 flex-none">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="font-headline text-2xl font-extrabold text-primary tracking-tight">Curated Stays</h2>
-            <p className="text-on-surface-variant text-xs mt-0.5">Exclusively for Lodgy4U members</p>
+            <h2 className="font-headline text-2xl font-extrabold text-primary tracking-tight">Lưu trúc được chọn lọc</h2>
+            <p className="text-on-surface-variant text-xs mt-0.5">Dành riêng cho bạn</p>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold uppercase tracking-widest text-secondary">
@@ -39,7 +39,7 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
               className="relative flex items-center gap-1.5 bg-secondary-container text-on-secondary-container px-3 py-2 rounded-xl font-bold text-xs hover:brightness-95 transition-all active:scale-95"
             >
               <Icon name="tune" size={18} />
-              Filters
+              Bộ lọc
               {hasActiveFilters && (
                   <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-white text-[10px] font-bold rounded-full border-2 border-white flex items-center justify-center">
                   {activeFilterCount}
@@ -61,14 +61,13 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
         ) : total === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
             <Icon name="search_off" size={48} className="text-outline" />
-            <p className="font-headline font-bold text-lg text-primary">No stays found</p>
-            <p className="text-sm text-on-surface-variant">Try adjusting your filters or expanding the radius.</p>
+            <p className="font-headline font-bold text-lg text-primary">Không tìm thấy lưu trú</p>
+            <p className="text-sm text-on-surface-variant">hãy chỉnh sửa bộ lọc hoặc tìm kiếm lại.</p>
           </div>
         ) : hasCluster ? (
           <div className="h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
             <div className="mb-4">
-              <h3 className="font-headline text-lg font-bold text-primary mb-2">Hotels in this cluster</h3>
-              <p className="text-xs text-on-surface-variant">{clusterHotels.length} hotels at this location</p>
+              <h3 className="font-headline text-lg font-bold text-primary mb-2">Hotels trong khu vực này</h3>
             </div>
             <div className="space-y-2">
               {clusterHotels.map((hotel) => {
