@@ -71,7 +71,7 @@ const TravelPreferenceSurvey = ({ isOpen, onClose, onComplete }) => {
     }
   ];
 
-  const totalSteps = quizData.length + 2; // +2 for intro and notes/outro
+  const totalSteps = quizData.length + 3; // intro + quiz questions + notes + outro
   const notesStepIdx = quizData.length + 1;
   const outroStepIdx = quizData.length + 2;
 
@@ -208,7 +208,13 @@ const TravelPreferenceSurvey = ({ isOpen, onClose, onComplete }) => {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm bg-white/20 px-3 py-1 rounded-full font-medium">
-              {currentStep === 0 ? 'Giới thiệu' : currentStep === outroStepIdx ? 'Hoàn tát' : `Câu ${currentStep}/${quizData.length}`}
+              {currentStep === 0
+                ? 'Giới thiệu'
+                : currentStep === outroStepIdx
+                ? 'Hoàn tất'
+                : currentStep === notesStepIdx
+                ? 'Ghi chú thêm'
+                : `Câu ${currentStep}/${quizData.length}`}
             </span>
             <button
               onClick={handleClose}
