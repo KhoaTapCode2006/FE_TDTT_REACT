@@ -270,3 +270,128 @@ Kiến trúc Frontend được thiết kế tập trung vào tính trực quan, 
 
 </details>
 
+## Hướng dẫn cài đặt
+
+> [!IMPORTANT]
+> Đảm bảo đã có đủ các API key bên dưới trước khi chạy. Thiếu bất kỳ key nào có thể khiến một số tính năng không hoạt động.
+
+### Yêu cầu
+
+<img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white" />
+<img src="https://img.shields.io/badge/Firebase-Firestore%20enabled-FFCA28?style=flat-square&logo=firebase&logoColor=black" />
+<img src="https://img.shields.io/badge/Redis-tuỳ%20chọn-DC382D?style=flat-square&logo=redis&logoColor=white" />
+
+### Các bước cài đặt
+
+```bash
+# 1. Clone repository
+git clone https://github.com/KhoaTapCode2006/FE_TDTT_REACT.git
+cd FE_TDTT_REACT
+
+# 2. Tạo môi trường ảo
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+
+# 3. Cài đặt thư viện
+pip install -r requirements.txt
+
+# 4. Cấu hình môi trường
+cp .env.example .env
+# Điền các giá trị vào file .env (xem mục bên dưới)
+
+# 5. Khởi động frontend
+npm run dev
+
+```
+
+### Cấu hình `.env`
+
+```dotenv
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_FIREBASE_AUTH_DOMAIN=yourauthdomain.firebaseapp.com
+VITE_FIREBASE_DATABASE_URL=https://yoururlfirebasedatabase.firebasedatabase.app/
+VITE_FIREBASE_PROJECT_ID=yourprojectid
+VITE_FIREBASE_STORAGE_BUCKET=yourfirebase.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=yourfirebasemessagingID
+VITE_FIREBASE_APP_ID=yourfirebaseAppID
+VITE_FIREBASE_MEASUREMENT_ID=yourfirebaseMeasurementID
+
+VITE_LOCAL_API=YourBackendAPIURL
+
+# Development Environment
+NODE_ENV=development
+
+```
+
+---
+
+## Thành viên Frontend
+
+<table width="100%" style="border-collapse: collapse;">
+  <tr>
+    <td width="50%" valign="top" style="padding: 15px; border: 1px solid #30363d;">
+      <table style="border: none; margin: 0; padding: 0;">
+        <tr>
+          <td valign="middle" style="border: none; padding: 0 12px 0 0;">
+            <img src="https://images.weserv.nl/?url=github.com/HauBaka.png&w=70&h=70&mask=circle" width="70" height="70" />
+          </td>
+          <td valign="middle" style="border: none; padding: 0; line-height: 1.4;">
+            <strong style="font-size: 16px; color: #58a6ff;">Trần Nguyễn Anh Khoa</strong><br/>
+            <a href="https://github.com/KhoaTapCode2006" style="font-size: 13px; color: #8b949e; text-decoration: none;">@KhoaTapCode2006</a><br/>
+            <span style="font-size: 13px; color: #8b949e;">24120075</span>
+          </td>
+        </tr>
+      </table>
+      <p style="font-size: 13.5px; color: #c9d1d9; margin-top: 12px; line-height: 1.5; text-align: justify;">
+        Trưởng nhóm Frontend. Thiết kế và xây dựng hiển thị trang chủ và lưu trú, xây dựng chức năng xử lí dữ liệu lưu trú từ Backend, xây dựng các tính năng đăng kí, đăng nhập, tài khoản, lưu khách sạn yêu thích.
+      </p>
+    </td>
+    <td width="50%" valign="top" style="padding: 15px; border: 1px solid #30363d;">
+      <table style="border: none; margin: 0; padding: 0;">
+        <tr>
+          <td valign="middle" style="border: none; padding: 0 12px 0 0;">
+            <img src="https://images.weserv.nl/?url=github.com/tuan0306.png&w=70&h=70&mask=circle" width="70" height="70" />
+          </td>
+          <td valign="middle" style="border: none; padding: 0; line-height: 1.4;">
+            <strong style="font-size: 16px; color: #58a6ff;">Lê Nguyễn Gia Huy</strong><br/>
+            <a href="https://github.com/tuan0306" style="font-size: 13px; color: #8b949e; text-decoration: none;">@tuan0306</a><br/>
+            <span style="font-size: 13px; color: #8b949e;">24120061</span>
+          </td>
+        </tr>
+      </table>
+      <p style="font-size: 13.5px; color: #c9d1d9; margin-top: 12px; line-height: 1.5; text-align: justify;">
+        #Cong viec ơ day
+      </p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top" style="padding: 15px; border: 1px solid #30363d;">
+      <table style="border: none; margin: 0; padding: 0;">
+        <tr>
+          <td valign="middle" style="border: none; padding: 0 12px 0 0;">
+            <img src="https://images.weserv.nl/?url=github.com/DTDuong275.png&w=70&h=70&mask=circle" width="70" height="70" />
+          </td>
+          <td valign="middle" style="border: none; padding: 0; line-height: 1.4;">
+            <strong style="font-size: 16px; color: #58a6ff;"></strong><br/>
+            <a href="https://github.com/DTDuong275" style="font-size: 13px; color: #8b949e; text-decoration: none;">@</a><br/>
+            <span style="font-size: 13px; color: #8b949e;"></span>
+          </td>
+        </tr>
+      </table>
+      <p style="font-size: 13.5px; color: #c9d1d9; margin-top: 12px; line-height: 1.5; text-align: justify;">
+       #Cong viec ơ da
+      </p>
+    </td>
+    <td width="50%" valign="top" style="border: none; background: transparent;"></td>
+  </tr>
+</table>
+
+---
+
+<div align="center">
+
+<img src="https://img.shields.io/badge/Nhóm%2004-CSC10014-1a1a2e?style=for-the-badge" />
+<img src="https://img.shields.io/badge/KHTN-ĐHQG--HCM-003087?style=for-the-badge" />
+
+</div>
+
