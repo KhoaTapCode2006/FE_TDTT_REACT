@@ -69,10 +69,10 @@ import {
 
 /**
  * Axios instance for chat API.
- * baseURL from VITE_API_BASE_URL, 10s timeout, JSON content-type.
+ * baseURL from VITE_LOCAL_API, 10s timeout, JSON content-type.
  */
 const chatClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: import.meta.env.VITE_LOCAL_API,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -1524,7 +1524,7 @@ export function subscribeToMembers(groupId, callback) {
  * @throws {Error} "AI API error network" on network failure
  */
 export async function sendConversation(messages) {
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+  const BASE_URL = import.meta.env.VITE_LOCAL_API ?? 'http://localhost:8000';
   const STATIC_TOKEN = import.meta.env.VITE_API_TOKEN ?? '';
 
   let res;

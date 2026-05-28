@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { auth } from '@/config/firebase';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_LOCAL_API || 'http://localhost:8000';
 
 /**
  * Authenticate with backend using Firebase ID token.

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from '@/components/ui/Icon';
 import { userService } from '@/services/backend/user.service';
 
@@ -69,6 +70,7 @@ function UserSuggestionAutocomplete({
   const [error, setError] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   
   // ============================================================================
   // REFS
@@ -77,6 +79,7 @@ function UserSuggestionAutocomplete({
   const abortControllerRef = useRef(null);
   const debounceTimerRef = useRef(null);
   const containerRef = useRef(null);
+  const dropdownRef = useRef(null);
   const cacheRef = useRef(new Map());
   
   // ============================================================================
@@ -183,7 +186,11 @@ function UserSuggestionAutocomplete({
    * Handle click outside
    */
   const handleClickOutside = useCallback((event) => {
-    if (containerRef.current && !containerRef.current.contains(event.target)) {
+    // Only close if click is outside BOTH container and dropdown portal
+    const isClickInsideContainer = containerRef.current && containerRef.current.contains(event.target);
+    const isClickInsideDropdown = dropdownRef.current && dropdownRef.current.contains(event.target);
+    
+    if (!isClickInsideContainer && !isClickInsideDropdown) {
       setIsOpen(false);
     }
   }, []);
@@ -298,6 +305,32 @@ function UserSuggestionAutocomplete({
     };
   }, []);
 
+  /**
+   * Update dropdown position when isOpen changes
+   */
+  useEffect(() => {
+    if (!isOpen || !containerRef.current) return;
+
+    const updatePosition = () => {
+      const rect = containerRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    };
+
+    // Update position immediately and on scroll/resize
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [isOpen]);
+
   // ============================================================================
   // RENDER HELPERS
   // ============================================================================
@@ -346,7 +379,7 @@ function UserSuggestionAutocomplete({
   // ============================================================================
   
   return (
-    <div ref={containerRef} className={`relative isolate ${className}`}>
+    <div ref={containerRef} className={`relative ${className}`}>
       {/* Input Field */}
       <div className="relative">
         <input
@@ -377,13 +410,22 @@ function UserSuggestionAutocomplete({
         )}
       </div>
       
-      {/* Dropdown */}
-      {isOpen && (
+      {/* Dropdown - Rendered via Portal */}
+      {isOpen && createPortal(
         <div 
+          ref={dropdownRef}
           id="user-suggestions-listbox"
           role="listbox"
           aria-label="Gợi ý người dùng"
-          className="absolute z-[9999] mt-2 w-full rounded-2xl bg-white shadow-2xl border border-outline-variant/30 overflow-hidden"
+          style={{
+            position: 'fixed',
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+            width: `${dropdownPosition.width}px`,
+            zIndex: 9999,
+            pointerEvents: 'auto',
+          }}
+          className="rounded-2xl bg-white shadow-2xl border border-outline-variant/30 overflow-hidden"
         >
           {/* Loading State */}
           {isLoading && (
@@ -431,7 +473,10 @@ function UserSuggestionAutocomplete({
                     id={`user-suggestion-${index}`}
                     role="option"
                     aria-selected={index === highlightedIndex}
-                    onClick={() => handleSelect(user)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelect(user);
+                    }}
                     className={`px-4 py-3 cursor-pointer transition-colors ${
                       index === highlightedIndex
                         ? 'bg-surface-container-high'
@@ -465,7 +510,8 @@ function UserSuggestionAutocomplete({
               </ul>
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
