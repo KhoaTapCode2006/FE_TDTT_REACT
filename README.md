@@ -350,7 +350,7 @@ NODE_ENV=development
       <table style="border: none; margin: 0; padding: 0;">
         <tr>
           <td valign="middle" style="border: none; padding: 0 12px 0 0;">
-            <img src="https://images.weserv.nl/?url=github.com/tuan0306.png&w=70&h=70&mask=circle" width="70" height="70" />
+            <img src="https://avatars.githubusercontent.com/u/225505289?v=4" width="70" height="70" />
           </td>
           <td valign="middle" style="border: none; padding: 0; line-height: 1.4;">
             <strong style="font-size: 16px; color: #58a6ff;">Lê Nguyễn Gia Huy</strong><br/>
