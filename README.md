@@ -277,9 +277,10 @@ Kiến trúc Frontend được thiết kế tập trung vào tính trực quan, 
 
 ### Yêu cầu
 
-<img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white" />
-<img src="https://img.shields.io/badge/Firebase-Firestore%20enabled-FFCA28?style=flat-square&logo=firebase&logoColor=black" />
-<img src="https://img.shields.io/badge/Redis-tuỳ%20chọn-DC382D?style=flat-square&logo=redis&logoColor=white" />
+<img src="https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white" />
+<img src="https://img.shields.io/badge/JavaScript-ES6%2B-F7DF1E?style=flat-square&logo=javascript&logoColor=black" />
+<img src="https://img.shields.io/badge/React-v19.2.5-61DAFB?style=flat-square&logo=react&logoColor=black" />
+<img src="https://img.shields.io/badge/Vite-v8.0.9-646CFF?style=flat-square&logo=vite&logoColor=white" />
 
 ### Các bước cài đặt
 
@@ -293,7 +294,7 @@ python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 
 # 3. Cài đặt thư viện
-pip install -r requirements.txt
+npm install                     # Hãy đảm bảo có file package.json và package-lock.json
 
 # 4. Cấu hình môi trường
 cp .env.example .env
