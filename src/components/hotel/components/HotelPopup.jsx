@@ -538,7 +538,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                       <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
                       <circle cx="12" cy="17" r="0.5" fill="currentColor" />
                     </svg>
-                    <h4 className="font-bold text-blue-900">AI Analysis</h4>
+                    <h4 className="font-bold text-blue-900">Phân tích của AI</h4>
                   </div>
                   <div className="flex items-center gap-4">
                     <div>
@@ -549,7 +549,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
                     </div>
                     {hotel.aiSentiment.trustWeight !== undefined && (
                       <div>
-                        <p className="text-xs text-blue-700">Trust Weight</p>
+                        <p className="text-xs text-blue-700">Trọng số tin tưởng</p>
                         <p className="text-sm font-medium text-blue-900">
                           {(hotel.aiSentiment.trustWeight * 100).toFixed(0)}%
                         </p>
@@ -577,7 +577,7 @@ export default function HotelPopup({ hotel: propHotel, onClose: propOnClose, emb
               <p className={styles.sectionLabel}>Giá tiền</p>
               <div className={styles.priceRow}>
                 <span className={styles.price}>{formatPrice(hotel.pricePerNight)}</span>
-                <span className={styles.perNight}>/ night</span>
+                <span className={styles.perNight}>/ đêm</span>
               </div>
             </>
           )}
