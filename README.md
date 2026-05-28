@@ -333,7 +333,7 @@ NODE_ENV=development
       <table style="border: none; margin: 0; padding: 0;">
         <tr>
           <td valign="middle" style="border: none; padding: 0 12px 0 0;">
-            <img src="https://images.weserv.nl/?url=github.com/HauBaka.png&w=70&h=70&mask=circle" width="70" height="70" />
+            <img src="https://avatars.githubusercontent.com/u/188663137?s=400&v=4" width="70" height="70" />
           </td>
           <td valign="middle" style="border: none; padding: 0; line-height: 1.4;">
             <strong style="font-size: 16px; color: #58a6ff;">Trần Nguyễn Anh Khoa</strong><br/>
@@ -343,7 +343,7 @@ NODE_ENV=development
         </tr>
       </table>
       <p style="font-size: 13.5px; color: #c9d1d9; margin-top: 12px; line-height: 1.5; text-align: justify;">
-        Trưởng nhóm Frontend. Thiết kế và xây dựng hiển thị trang chủ và lưu trú, xây dựng chức năng xử lí dữ liệu lưu trú từ Backend, xây dựng các tính năng đăng kí, đăng nhập, tài khoản, lưu khách sạn yêu thích.
+        Trưởng nhóm Frontend. Thiết kế và xây dựng hiển thị trang chủ và lưu trú, xây dựng chức năng xử lí dữ liệu lưu trú từ Backend, xây dựng và thiết kế trang đăng kí, đăng nhập, tài khoản, lưu khách sạn yêu thích. Hoàn thiện chức năng sắp xếp khách sạn theo view tuần. Xây dựng trang Intro giới thiệu dự án.
       </p>
     </td>
     <td width="50%" valign="top" style="padding: 15px; border: 1px solid #30363d;">
@@ -354,13 +354,13 @@ NODE_ENV=development
           </td>
           <td valign="middle" style="border: none; padding: 0; line-height: 1.4;">
             <strong style="font-size: 16px; color: #58a6ff;">Lê Nguyễn Gia Huy</strong><br/>
-            <a href="https://github.com/tuan0306" style="font-size: 13px; color: #8b949e; text-decoration: none;">@tuan0306</a><br/>
+            <a href="https://github.com/tuan0306" style="font-size: 13px; color: #8b949e; text-decoration: none;">@lehuy9742</a><br/>
             <span style="font-size: 13px; color: #8b949e;">24120061</span>
           </td>
         </tr>
       </table>
       <p style="font-size: 13.5px; color: #c9d1d9; margin-top: 12px; line-height: 1.5; text-align: justify;">
-        #Cong viec ơ day
+        Xây dựng và thiết kế trang bộ sưu tập để lưu các lưu trú theo bộ sưu tập, phát triển tính năng tạo, lưu và mời người dùng vào bộ sưu tập. Bảo mật cho bộ sưu tập của người dùng bằng các trường bảo mật global, private, sắp xếp bộ sưu tập theo lượt xem. Hoàn thiện tính năng Thông báo.
       </p>
     </td>
   </tr>
@@ -369,17 +369,17 @@ NODE_ENV=development
       <table style="border: none; margin: 0; padding: 0;">
         <tr>
           <td valign="middle" style="border: none; padding: 0 12px 0 0;">
-            <img src="https://images.weserv.nl/?url=github.com/DTDuong275.png&w=70&h=70&mask=circle" width="70" height="70" />
+            <img src="https://avatars.githubusercontent.com/u/269974670?v=4" width="70" height="70" />
           </td>
           <td valign="middle" style="border: none; padding: 0; line-height: 1.4;">
-            <strong style="font-size: 16px; color: #58a6ff;"></strong><br/>
-            <a href="https://github.com/DTDuong275" style="font-size: 13px; color: #8b949e; text-decoration: none;">@</a><br/>
-            <span style="font-size: 13px; color: #8b949e;"></span>
+            <strong style="font-size: 16px; color: #58a6ff;">Võ Văn Khánh Đăng</strong><br/>
+            <a href="https://github.com/Goomy-31" style="font-size: 13px; color: #8b949e; text-decoration: none;">@Goomy-31</a><br/>
+            <span style="font-size: 13px; color: #8b949e;">24120278</span>
           </td>
         </tr>
       </table>
       <p style="font-size: 13.5px; color: #c9d1d9; margin-top: 12px; line-height: 1.5; text-align: justify;">
-       #Cong viec ơ da
+      Thiết kế và xây dựng phần chat và chuyến đi, xây dựng tính năng dò đường và theo dõi vị trí người dùng theo lộ trình sẵn có, xây dựng các tính năng tạo chuyến đi và thêm người dùng vào chuyến đi. Xây dựng khung chat người dùng và tích hợp chatbot tìm kiếm lưu trú theo nhu cầu
       </p>
     </td>
     <td width="50%" valign="top" style="border: none; background: transparent;"></td>
