@@ -188,6 +188,7 @@ Kiến trúc Frontend được thiết kế tập trung vào tính trực quan, 
 - <img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg" width="14" /> `map/` — *Tích hợp bản đồ VietMap để hiển thị vị trí lưu trú trực quan*
 - <img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg" width="14" /> `profile/` — *Giao diện hồ sơ cá nhân, đánh giá sở thích du lịch và danh sách yêu thích*
 - <img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg" width="14" /> `ui/` — *Các UI component nguyên thủy dùng chung (Icons, Toggle, Spliter, DatePicker)*
+- - <img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg" width="14" /> `search/` — *Component dùng để tìm kiếm lưu trú dựa trên các yêu cầu của người dùng*
 
 </details>
 
@@ -217,6 +218,7 @@ Kiến trúc Frontend được thiết kế tập trung vào tính trực quan, 
 <summary>📁 <code>src/services</code>/ — <em>Tầng xử lý giao tiếp dữ liệu với Backend API và Firebase</em></summary>
 
 - <img src="https://upload.wikimedia.org/wikipedia/commons/9/99/Unofficial_JavaScript_logo_2.svg" width="14" /> [`api/apiClient.js`](src/services/api/apiClient.js) — *Cấu hình Axios base, tự động gắn JWT Token và interceptor xử lý lỗi HTTP*
+- <img src="https://upload.wikimedia.org/wikipedia/commons/9/99/Unofficial_JavaScript_logo_2.svg" width="14" /> `auth/` — *Service xử lí đăng nhập, đăng kí bằng email, Google*
 - <img src="https://upload.wikimedia.org/wikipedia/commons/9/99/Unofficial_JavaScript_logo_2.svg" width="14" /> `backend/` — *Các Service tương tác với REST API nội bộ (chat, collection, discover, hotel, trip, upload)*
 - <img src="https://upload.wikimedia.org/wikipedia/commons/9/99/Unofficial_JavaScript_logo_2.svg" width="14" /> `external/` — *Gọi API của các dịch vụ bên thứ ba (Hệ thống gợi ý địa chỉ, bản đồ VietMap)*
 - <img src="https://upload.wikimedia.org/wikipedia/commons/9/99/Unofficial_JavaScript_logo_2.svg" width="14" /> `firebase/` — *Service đẩy tọa độ định vị GPS liên tục theo thời gian thực (Realtime Tracking)*
@@ -226,9 +228,10 @@ Kiến trúc Frontend được thiết kế tập trung vào tính trực quan, 
 </details>
 
 <details>
-<summary>📁 <code>src/contexts</code> & <code>hooks</code>/ — <em>Quản lý State toàn cục và Custom Logic Hooks</em></summary>
+<summary>📁 <code>src/contexts</code> & <code>hooks</code>/ & <code>app</code>/— <em>Quản lý State toàn cục và Custom Logic Hooks</em></summary>
 
 - <img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg" width="14" /> [`app/AppContext.jsx`](src/app/AppContext.jsx) — *Context bao bọc ứng dụng, quản lý trạng thái khách sạn đang xem chung (Global Popups)*
+- <img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg" width="14" /> [`app/router.jsx`](src/app/router.jsx) — *Import các components và định nghĩa đường dẫn tới các trang tương ứng*
 - <img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg" width="14" /> [`contexts/AuthContext.jsx`](src/contexts/AuthContext.jsx) — *Context quản lý phiên đăng nhập (Session) và thông tin tài khoản người dùng*
 - <img src="https://upload.wikimedia.org/wikipedia/commons/9/99/Unofficial_JavaScript_logo_2.svg" width="14" /> [`hooks/useTypewriter.js`](src/hooks/useTypewriter.js) — *Custom Hook xử lý hiệu ứng gõ chữ mượt mà cho tin nhắn giải thích của Chatbot*
 - <img src="https://upload.wikimedia.org/wikipedia/commons/9/99/Unofficial_JavaScript_logo_2.svg" width="14" /> [`hooks/useImageCache.js`](src/hooks/useImageCache.js) — *Custom Hook lưu trữ bộ nhớ đệm hình ảnh nhằm tối ưu thời gian tải trải nghiệm UI*
@@ -248,6 +251,15 @@ Kiến trúc Frontend được thiết kế tập trung vào tính trực quan, 
 </details>
 
 <details>
+<summary>📁 <code>src/constants</code> & <code>assets</code>/ — <em>Các file constants, hình ảnh, label, và module css chung </em></summary>
+
+- <img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg" width="14" /> [`assets/styles`] — *Module CSS dùng chung cho cả dự án*
+- <img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg" width="14" /> [`assets/`](src/app/router.jsx) — *Các file hình ảnh dùng chung*
+- <img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg" width="14" /> [`constants/`] — *Chứa các biến cố định toàn cục định nghĩa modal và label của filter, hotels.*
+- 
+</details>
+
+<details>
 <summary>📁 <em>Cấu hình dự án (Root)</em></summary>
 
 - <img src="https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg" width="14" /> [`src/main.jsx`](src/main.jsx) — *File Entrypoint khởi động React Tree và khai báo Router Provider trung tâm*
@@ -257,3 +269,4 @@ Kiến trúc Frontend được thiết kế tập trung vào tính trực quan, 
 - 📄 `package.json` — *Danh sách khai báo toàn bộ thư viện npm và các lệnh chạy dự án (scripts)*
 
 </details>
+
