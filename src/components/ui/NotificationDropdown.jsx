@@ -37,7 +37,7 @@ export default function NotificationDropdown({
   const navigate = useNavigate();
   const [processingIds, setProcessingIds] = useState(new Set());
   
-  const API_BASE_URL = 'https://api.haubaka.xyz';
+  const API_BASE_URL = import.meta.env.VITE_LOCAL_API || 'https://api.haubaka.xyz';
   
   const displayNotifications = notifications;
 
