@@ -368,7 +368,7 @@ const EditInfoModal = ({ isOpen, onClose, profileData, onSave }) => {
                 id="bio"
                 value={formData.bio}
                 onChange={(e) => handleInputChange('bio', e.target.value)}
-                placeholder="Căn cù bấc, hãy cho chúng tôi biết về bạn..."
+                placeholder="Hãy cho chúng tôi biết về bạn..."
                 disabled={isSubmitting}
                 rows={4}
                 maxLength={500}

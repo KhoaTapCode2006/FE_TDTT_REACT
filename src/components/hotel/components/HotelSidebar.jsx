@@ -26,7 +26,7 @@ function HotelSidebar({ onFilterOpen, layoutMode = 'list', mapWidth = 50 }) {
       <div className="bg-surface-container-lowest/95 backdrop-blur-sm z-10 px-6 pt-6 pb-4 border-b border-outline-variant/10 flex-none">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="font-headline text-2xl font-extrabold text-primary tracking-tight">Lưu trúc được chọn lọc</h2>
+            <h2 className="font-headline text-2xl font-extrabold text-primary tracking-tight">Lưu trú được chọn lọc</h2>
             <p className="text-on-surface-variant text-xs mt-0.5">Dành riêng cho bạn</p>
           </div>
           <div className="flex items-center gap-3">
