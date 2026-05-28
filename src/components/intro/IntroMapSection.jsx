@@ -1,9 +1,38 @@
+import { useMemo } from 'react';
 import Icon from '@/components/ui/Icon';
-import vietnamMap from '../../../vietnamMap.png';
+import vietnamMap from '@/constants/vietnamMap.png';
+export const CITY_MARKERS = [
+  { name: 'Hà Nội', address: 'Thành Phố Hà Nội', top: '25.5%', left: '51%' },
+  { name: 'Huế', address: 'Thành Phố Huế', top: '48%', left: '57%' },
+  { name: 'Quy Nhơn', address: 'Thành Phố Quy Nhơn', top: '65%', left: '68%' },
+  { name: 'Đà Lạt', address: 'Thành Phố Đà Lạt, Tỉnh Lâm Đồng', top: '74%', left: '64%' },
+  { name: 'TP. Hồ Chí Minh', address: 'Thành phố Hồ Chí Minh', top: '81%', left: '56%' },
+];
 
-function IntroMapSection() {
+function IntroMapSection({
+  hoveredCityId = null,
+  loadingCityId = null,
+  statusMessage = '',
+  onMarkerHover,
+  onMarkerLeave,
+  onMarkerClick,
+}) {
+  const markerElements = useMemo(
+    () => CITY_MARKERS.map((city) => ({
+      ...city,
+      id: city.name,
+    })),
+    []
+  );
+
   return (
-    <div className="relative overflow-visible rounded-4xl" style={{ height: 720 }}>
+    <div className="relative rounded-4xl" style={{
+      zIndex: 40,
+      height: 950,
+      maskImage: 'radial-gradient(ellipse 85% 85% at 50% 50%, black 0%, black 70%, transparent 100%)',
+      WebkitMaskImage: 'radial-gradient(ellipse 85% 85% at 50% 50%, black 0%, black 70%, transparent 100%)',
+      overflow: 'hidden'
+    }}>
       <img
         src={vietnamMap}
         alt="Vietnam map"
@@ -17,51 +46,47 @@ function IntroMapSection() {
         }}
       />
 
-      {/* Suggestion panel removed for Intro per request */}
+      {markerElements.map((marker) => {
+        const isActive = hoveredCityId === marker.id;
+        const isLoading = loadingCityId === marker.id;
 
-      <div className="absolute top-[18%] left-[36%] flex flex-col items-center gap-2">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-400/20 text-emerald-300 shadow-[0_0_20px_rgba(16,185,76,0.4)]">
-          <Icon name="location_on" size={20} />
+        return (
+          <button
+            key={marker.id}
+            type="button"
+            onClick={() => onMarkerClick?.(marker)}
+            onMouseEnter={() => onMarkerHover?.(marker.id)}
+            onMouseLeave={() => onMarkerLeave?.()}
+            className="absolute flex flex-col items-center gap-2 rounded-full transition-all duration-300 ease-out"
+            style={{
+              top: marker.top,
+              left: marker.left,
+              transform: 'translate(-50%, -50%)',
+              zIndex: 3000,
+              minWidth: 0,
+              pointerEvents: 'auto'
+            }}
+          >
+            <span className={`absolute inset-0 rounded-full transition-all duration-300 ${isActive ? 'scale-110 bg-emerald-400/20 shadow-[0_0_30px_rgba(16,185,76,0.45)]' : 'bg-transparent'}`} />
+            <span className={`relative z-50 flex h-14 w-14 items-center justify-center rounded-full border border-emerald-300/30 bg-slate-950/80 text-emerald-300 transition-all duration-300 ${isActive ? 'scale-110 border-emerald-300 bg-emerald-400/20 shadow-[0_0_30px_rgba(16,185,76,0.45)]' : 'hover:border-emerald-400/50 hover:bg-emerald-400/10'}`}>
+              {isLoading ? (
+                <span className="h-5 w-5 rounded-full border-2 border-emerald-300 border-t-transparent animate-spin" />
+              ) : (
+                <Icon name="location_on" size={22} />
+              )}
+            </span>
+            <span className="relative z-50 rounded-full bg-slate-950/90 px-3 py-1 text-xs font-semibold text-slate-100 shadow-sm">
+              {marker.name}
+            </span>
+          </button>
+        );
+      })}
+
+      {statusMessage && (
+        <div className="absolute left-1/2 top-4 z-40 -translate-x-1/2 rounded-full bg-slate-950/95 px-4 py-2 text-sm font-medium text-slate-100 shadow-[0_12px_40px_-20px_rgba(0,0,0,0.8)] backdrop-blur-sm">
+          {statusMessage}
         </div>
-        <span className="rounded-full bg-slate-950/90 px-3 py-1 text-xs font-semibold text-slate-100">Hà Nội</span>
-      </div>
-
-      <div className="absolute top-[44%] left-[52%] flex flex-col items-center gap-2">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-400/20 text-emerald-300 shadow-[0_0_20px_rgba(16,185,76,0.4)]">
-          <Icon name="location_on" size={20} />
-        </div>
-        <span className="rounded-full bg-slate-950/90 px-3 py-1 text-xs font-semibold text-slate-100">Đà Nẵng</span>
-      </div>
-
-      <div className="absolute top-[55%] left-[58%] flex flex-col items-center gap-2">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-400/20 text-emerald-300 shadow-[0_0_20px_rgba(16,185,76,0.4)]">
-          <Icon name="location_on" size={20} />
-        </div>
-        <span className="rounded-full bg-slate-950/90 px-3 py-1 text-xs font-semibold text-slate-100">Nha Trang</span>
-      </div>
-
-      <div className="absolute top-[66%] left-[48%] flex flex-col items-center gap-2">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-400/20 text-emerald-300 shadow-[0_0_20px_rgba(16,185,76,0.4)]">
-          <Icon name="location_on" size={20} />
-        </div>
-        <span className="rounded-full bg-slate-950/90 px-3 py-1 text-xs font-semibold text-slate-100">Đà Lạt</span>
-      </div>
-
-      <div className="absolute top-[78%] left-[34%] flex flex-col items-center gap-2">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-400/20 text-emerald-300 shadow-[0_0_20px_rgba(16,185,76,0.4)]">
-          <Icon name="location_on" size={20} />
-        </div>
-        <span className="rounded-full bg-slate-950/90 px-3 py-1 text-xs font-semibold text-slate-100">TP. Hồ Chí Minh</span>
-      </div>
-
-      <div className="absolute bottom-8 right-14 flex items-center gap-2 rounded-full bg-slate-950/80 px-3 py-2 text-xs font-semibold text-slate-200 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.8)]">
-        <span className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)]" />
-        Hoàng Sa
-      </div>
-      <div className="absolute bottom-6 right-5 flex items-center gap-2 rounded-full bg-slate-950/80 px-3 py-2 text-xs font-semibold text-slate-200 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.8)]">
-        <span className="h-2.5 w-2.5 rounded-full bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)]" />
-        Trường Sa
-      </div>
+      )}
     </div>
   );
 }

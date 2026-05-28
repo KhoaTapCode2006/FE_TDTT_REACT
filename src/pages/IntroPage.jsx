@@ -7,7 +7,7 @@ function IntroPage() {
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <IntroHero />
 
-      <main className="mx-auto max-w-screen-2xl px-4 pb-20 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-screen-2xl pb-20 px-2">
         <IntroFeaturesSection />
         <IntroStatsSection />
       </main>
