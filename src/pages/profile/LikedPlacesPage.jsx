@@ -18,10 +18,10 @@ const LikedPlacesPage = () => {
           {/* Page Title */}
           <div className="mb-8">
             <h1 className="font-headline font-bold text-3xl text-on-surface mb-2">
-              Liked Places
+              Địa điểm yêu thích
             </h1>
             <p className="text-on-surface-variant">
-              Your favorite hotels and places you've saved
+              Những khách sạn yêu thích và các địa điểm bạn đã lưu lại
             </p>
           </div>
 

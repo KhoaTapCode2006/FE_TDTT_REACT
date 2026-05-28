@@ -36,13 +36,13 @@ const ProfileSidebar = ({ activeItem = 'profile' }) => {
   const navigationItems = [
     {
       id: 'profile',
-      label: 'Profile',
+      label: 'Hồ sơ',
       icon: 'person',
       path: '/account/profile',
     },
     {
       id: 'likedcollections',
-      label: 'Liked Places',
+      label: 'Địa điểm yêu thích',
       icon: 'favorite',
       path: '/account/liked-collections',
     },
@@ -95,7 +95,7 @@ const ProfileSidebar = ({ activeItem = 'profile' }) => {
           className="w-full flex items-center justify-center gap-2 bg-primary text-white py-3 px-4 rounded-xl font-semibold text-sm hover:bg-primary-container transition-colors"
         >
           <Icon name="add" size={20} />
-          Book New Stay
+          Đặt phòng mới
         </Link>
       </div>
 
@@ -141,7 +141,7 @@ const ProfileSidebar = ({ activeItem = 'profile' }) => {
           className="flex items-center gap-3 px-3 py-3 rounded-lg text-on-surface hover:bg-surface-container-low transition-colors"
         >
           <Icon name="help" size={20} />
-          <span className="text-sm font-medium">Help Center</span>
+          <span className="text-sm font-medium">Trợ giúp</span>
         </a>
       </div>
 
@@ -153,7 +153,7 @@ const ProfileSidebar = ({ activeItem = 'profile' }) => {
           className="w-full flex items-center justify-center gap-2 bg-surface-container-low text-on-surface py-3 px-4 rounded-xl font-semibold text-sm hover:bg-surface-container transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <Icon name="logout" size={20} />
-          {isLoggingOut ? 'Logging out...' : 'Logout'}
+          {isLoggingOut ? 'Đang đăng xuất...' : 'Đăng xuất'}
         </button>
       </div>
     </>

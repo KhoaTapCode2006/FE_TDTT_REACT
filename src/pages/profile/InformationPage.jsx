@@ -155,7 +155,7 @@ const InformationPage = () => {
           {loading && (
             <div className="flex flex-col items-center justify-center py-16">
               <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-4"></div>
-              <p className="text-on-surface-variant">Loading your profile...</p>
+              <p className="text-on-surface-variant">Đang tải hồ sơ...</p>
             </div>
           )}
 
@@ -168,13 +168,13 @@ const InformationPage = () => {
                 onClick={handleRetry}
                 className="text-red-600 font-semibold text-sm hover:text-red-700 mr-2"
               >
-                Retry
+                Thử lại
               </button>
               <button
                 onClick={() => setError(null)}
                 className="text-red-600 font-semibold text-sm hover:text-red-700"
               >
-                Dismiss
+                Bã bỏ
               </button>
             </div>
           )}

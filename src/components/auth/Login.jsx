@@ -55,7 +55,7 @@ const Login = () => {
         break;
       case 'password':
         if (value && value.length < 6) {
-          fieldError = 'Mật khẩu phải có ít nhất 6 ký tự.';
+          fieldError = 'Mật khẩu phải có ít nhất 6 ký tự';
         }
         break;
     }
@@ -75,7 +75,7 @@ const Login = () => {
     if (emailError) errors.email = emailError;
     
     if (!formData.password) {
-      errors.password = 'Vui lòng nhập mật khẩu.';
+      errors.password = 'Vui lòng nhập mật khẩu';
     }
 
     setFormErrors(errors);

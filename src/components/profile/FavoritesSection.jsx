@@ -171,10 +171,10 @@ const FavoritesSection = () => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-headline font-bold text-2xl text-on-surface">
-              Favorite Hotels
+              Khách sạn yêu thích
             </h2>
             <p className="text-sm text-on-surface-variant mt-1">
-              Loading...
+              Đang tải...
             </p>
           </div>
         </div>
@@ -199,8 +199,8 @@ const FavoritesSection = () => {
         </div>
         <h3 className="font-headline font-bold text-xl text-on-surface mb-2">
           {error === 'Bạn phải đăng nhập để lưu các địa điểm yêu thích' 
-            ? 'Authentication Required' 
-            : 'Failed to Load Favorites'}
+            ? 'Yêu cầu xác thực' 
+            : 'Không thể tải yêu thích'}
         </h3>
         <p className="text-base text-on-surface-variant max-w-md mb-6">
           {error}
@@ -211,7 +211,7 @@ const FavoritesSection = () => {
             className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors"
           >
             <Icon name="login" size={20} />
-            Login
+            Đăng nhập
           </button>
         ) : (
           <button
@@ -219,7 +219,7 @@ const FavoritesSection = () => {
             className="flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors"
           >
             <Icon name="refresh" size={20} />
-            Try Again
+            Thử lại
           </button>
         )}
       </div>
@@ -232,9 +232,9 @@ const FavoritesSection = () => {
     return (
       <EmptyState
         icon="favorite_border"
-        title="No Favorites Yet"
-        description="Start adding hotels to your favorites to see them here. You can favorite hotels from search results or hotel details pages."
-        actionLabel="Browse Hotels"
+        title="Chưa có yêu thích"
+        description="Bắt đầu thêm khách sạn vào yêu thích của bạn để xem chúng đây. Bạn có thể thêm khách sạn vào yêu thích từ kết quả tìm kiếm hoặc trang chi tiết khách sạn."
+        actionLabel="Duyệt khách sạn"
         onAction={() => navigate('/')}
       />
     );
